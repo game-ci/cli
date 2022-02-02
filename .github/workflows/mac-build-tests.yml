@@ -1,4 +1,4 @@
-name: Windows Builds
+name: Mac Builds
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 jobs:
   buildForAllPlatformsWindows:
     name: Build for ${{ matrix.targetPlatform }} on version ${{ matrix.unityVersion }}
-    runs-on: windows-2019
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
@@ -20,10 +20,7 @@ jobs:
         unityVersion:
           - 2020.3.24f1
         targetPlatform:
-          - StandaloneWindows64 # Build a Windows 64-bit standalone.
-          - StandaloneWindows # Build a Windows 32-bit standalone.
-          - WSAPlayer # Build a UWP App
-          - tvOS # Build an Apple TV XCode project
+          - StandaloneOSX # Build a MacOS executable
 
     steps:
       ###########################
@@ -39,9 +36,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: ${{ matrix.projectPath }}/Library
-          key: Library-${{ matrix.projectPath }}-windows-${{ matrix.targetPlatform }}
+          key: Library-${{ matrix.projectPath }}-macos-${{ matrix.targetPlatform }}
           restore-keys: |
-            Library-${{ matrix.projectPath }}-windows-
+            Library-${{ matrix.projectPath }}-macos-
             Library-
 
       ###########################
@@ -49,7 +46,7 @@ jobs:
       ###########################
       - name: Set Scripting Backend To il2cpp
         run: |
-          Move-Item -Path "./test-project/ProjectSettings/ProjectSettingsIl2cpp.asset" -Destination "./test-project/ProjectSettings/ProjectSettings.asset" -Force
+          mv -f "./test-project/ProjectSettings/ProjectSettingsIl2cpp.asset" "./test-project/ProjectSettings/ProjectSettings.asset"
 
       ###########################
       #          Build          #
@@ -64,8 +61,8 @@ jobs:
           unityVersion: ${{ matrix.unityVersion }}
           targetPlatform: ${{ matrix.targetPlatform }}
           customParameters: -profile SomeProfile -someBoolean -someValue exampleValue
+          # We use dirty build because we are replacing the default project settings file above
           allowDirtyBuild: true
-      # We use dirty build because we are replacing the default project settings file above
 
       ###########################
       #          Upload         #
