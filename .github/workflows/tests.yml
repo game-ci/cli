@@ -15,6 +15,6 @@ jobs:
       - name: Code conventions
         run: deno task lint
       - name: Unit/Integration tests
-        run: deno task test --coverage=coverage
+        run: deno task coverage
       - name: Upload coverage to Codecov
         run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
