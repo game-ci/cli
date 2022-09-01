@@ -1,13 +1,11 @@
-import fs from 'fs';
-import path from 'path';
-import BuildParameters from '../../build-parameters';
-import { Cli } from '../../cli/cli';
-import Input from '../../input';
-import UnityVersioning from '../../unity-versioning';
-import CloudRunner from '../cloud-runner';
-import { CloudRunnerSystem } from '../services/cloud-runner-system';
-import { Caching } from './caching';
-import { v4 as uuidv4 } from 'uuid';
+import { fs, uuid, path, __dirname } from '../../../dependencies.ts';
+import Parameters from '../../parameters.ts';
+import { Cli } from '../../cli/cli.ts';
+import Input from '../../input.ts';
+import UnityVersionDetector from '../../../middleware/engine-detection/unity-version-detector.ts';
+import CloudRunner from '../cloud-runner.ts';
+import { CloudRunnerSystem } from '../services/cloud-runner-system/index.ts';
+import { Caching } from './caching.ts';
 
 describe('Cloud Runner Caching', () => {
   it('responds', () => {});
@@ -18,12 +16,12 @@ describe('Cloud Runner Caching', () => {
       Cli.options = {
         versioning: 'None',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.read('test-project'),
+        engineVersion: UnityVersionDetector.read('test-project'),
         targetPlatform: 'StandaloneLinux64',
-        cacheKey: `test-case-${uuidv4()}`,
+        cacheKey: `test-case-${uuid()}`,
       };
       Input.githubInputEnabled = false;
-      const buildParameter = await BuildParameters.create();
+      const buildParameter = await Parameters.create();
       CloudRunner.buildParameters = buildParameter;
 
       // Create test folder
@@ -50,7 +48,7 @@ describe('Cloud Runner Caching', () => {
       await CloudRunnerSystem.Run(`tree ${cacheFolder}`);
 
       // Compare validity to original hash
-      expect(fs.readFileSync(path.resolve(testFolder, 'test.txt'), { encoding: 'utf8' }).toString()).toContain(
+      expect(Deno.readTextFileSync(path.resolve(testFolder, 'test.txt'), { encoding: 'utf8' }).toString()).toContain(
         Cli.options.cacheKey,
       );
       fs.rmdirSync(testFolder, { recursive: true });
@@ -58,6 +56,6 @@ describe('Cloud Runner Caching', () => {
 
       Input.githubInputEnabled = true;
       delete Cli.options;
-    }, 1000000);
+    }, 1_000_000);
   }
 });

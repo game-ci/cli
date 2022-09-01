@@ -1,9 +1,9 @@
-import { CloudRunner, Input } from '../..';
-import ImageEnvironmentFactory from '../../image-environment-factory';
-import CloudRunnerEnvironmentVariable from './cloud-runner-environment-variable';
-import { CloudRunnerBuildCommandProcessor } from './cloud-runner-build-command-process';
-import CloudRunnerSecret from './cloud-runner-secret';
-import CloudRunnerQueryOverride from './cloud-runner-query-override';
+import { CloudRunner, Input } from '../../index.ts';
+import ImageEnvironmentFactory from '../../image-environment-factory.ts';
+import CloudRunnerEnvironmentVariable from './cloud-runner-environment-variable.ts';
+import { CloudRunnerBuildCommandProcessor } from './cloud-runner-build-command-process.ts';
+import CloudRunnerSecret from './cloud-runner-secret.ts';
+import CloudRunnerQueryOverride from './cloud-runner-query-override.ts';
 
 export class TaskParameterSerializer {
   public static readBuildEnvironmentVariables(): CloudRunnerEnvironmentVariable[] {
@@ -38,7 +38,7 @@ export class TaskParameterSerializer {
       (x) => x.value !== undefined && x.name !== '0' && x.value !== '' && x.name !== 'prototype' && x.name !== 'length',
     );
     array = array.map((x) => {
-      x.name = Input.ToEnvVarFormat(x.name);
+      x.name = Input.toEnvVarFormat(x.name);
       x.value = `${x.value}`;
 
       return x;

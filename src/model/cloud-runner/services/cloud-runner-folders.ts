@@ -1,5 +1,5 @@
-import path from 'path';
-import { CloudRunner } from '../..';
+import { path } from '../../../dependencies.ts';
+import { CloudRunner } from '../../index.ts';
 
 export class CloudRunnerFolders {
   public static readonly repositoryFolder = 'repo';
@@ -44,7 +44,7 @@ export class CloudRunnerFolders {
   }
 
   public static get purgeRemoteCaching(): boolean {
-    return process.env.PURGE_REMOTE_BUILDER_CACHE !== undefined;
+    return Deno.env.get('PURGE_REMOTE_BUILDER_CACHE') !== undefined;
   }
 
   public static get lfsCacheFolderFull() {

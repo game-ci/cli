@@ -1,8 +1,6 @@
-import CloudRunnerLogger from '../../services/cloud-runner-logger';
-import * as core from '@actions/core';
-import * as SDK from 'aws-sdk';
-import { BaseStackFormation } from './cloud-formations/base-stack-formation';
-const crypto = require('crypto');
+import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
+import { core, aws, crypto } from '../../../../dependencies.ts';
+import { BaseStackFormation } from './cloud-formations/base-stack-formation.ts';
 
 export class AWSBaseStack {
   constructor(baseStackName: string) {
@@ -10,33 +8,33 @@ export class AWSBaseStack {
   }
   private baseStackName: string;
 
-  async setupBaseStack(CF: SDK.CloudFormation) {
+  async setupBaseStack(CF: aws.CloudFormation) {
     const baseStackName = this.baseStackName;
 
     const baseStack = BaseStackFormation.formation;
 
     // Cloud Formation Input
-    const describeStackInput: SDK.CloudFormation.DescribeStacksInput = {
+    const describeStackInput: aws.CloudFormation.DescribeStacksInput = {
       StackName: baseStackName,
     };
-    const parametersWithoutHash: SDK.CloudFormation.Parameter[] = [
+    const parametersWithoutHash: aws.CloudFormation.Parameter[] = [
       { ParameterKey: 'EnvironmentName', ParameterValue: baseStackName },
     ];
     const parametersHash = crypto
       .createHash('md5')
       .update(baseStack + JSON.stringify(parametersWithoutHash))
       .digest('hex');
-    const parameters: SDK.CloudFormation.Parameter[] = [
+    const parameters: aws.CloudFormation.Parameter[] = [
       ...parametersWithoutHash,
-      ...[{ ParameterKey: 'Version', ParameterValue: parametersHash }],
+      { ParameterKey: 'Version', ParameterValue: parametersHash },
     ];
-    const updateInput: SDK.CloudFormation.UpdateStackInput = {
+    const updateInput: aws.CloudFormation.UpdateStackInput = {
       StackName: baseStackName,
       TemplateBody: baseStack,
       Parameters: parameters,
       Capabilities: ['CAPABILITY_IAM'],
     };
-    const createStackInput: SDK.CloudFormation.CreateStackInput = {
+    const createStackInput: aws.CloudFormation.CreateStackInput = {
       StackName: baseStackName,
       TemplateBody: baseStack,
       Parameters: parameters,
@@ -57,7 +55,7 @@ export class AWSBaseStack {
         await CF.createStack(createStackInput).promise();
         CloudRunnerLogger.log(`created stack (version: ${parametersHash})`);
       }
-      const CFState = await describeStack();
+      let CFState = await describeStack();
       let stack = CFState.Stacks?.[0];
       if (!stack) {
         throw new Error(`Base stack doesn't exist, even after creation, stackExists check: ${stackExists}`);
@@ -86,7 +84,9 @@ export class AWSBaseStack {
         } else {
           CloudRunnerLogger.log(`No update required`);
         }
-        stack = (await describeStack()).Stacks?.[0];
+
+        CFState = await describeStack();
+        stack = CFState.Stacks?.[0];
         if (!stack) {
           throw new Error(
             `Base stack doesn't exist, even after updating and creation, stackExists check: ${stackExists}`,
@@ -98,7 +98,7 @@ export class AWSBaseStack {
       }
       CloudRunnerLogger.log('base stack is now ready');
     } catch (error) {
-      core.error(JSON.stringify(await describeStack(), undefined, 4));
+      log.error(JSON.stringify(await describeStack(), undefined, 4));
       throw error;
     }
   }

@@ -1,5 +1,5 @@
-import { GithubCliReader } from './github-cli';
-import * as core from '@actions/core';
+import { GithubCliReader } from './github-cli.ts';
+import { core } from '../../dependencies.ts';
 
 describe(`github cli`, () => {
   // Todo - We can not assume that everyone has the GitHub cli installed locally.
@@ -7,6 +7,6 @@ describe(`github cli`, () => {
     const token = await GithubCliReader.GetGitHubAuthToken();
 
     // Todo - use expect(result).toStrictEqual(something)
-    core.info(token);
+    log.info(token);
   });
 });

@@ -1,10 +1,8 @@
-import path from 'path';
-import { CloudRunnerFolders } from './cloud-runner-folders';
-import { CloudRunnerSystem } from './cloud-runner-system';
-import fs from 'fs';
-import { assert } from 'console';
-import { Cli } from '../../cli/cli';
-import { CliFunction } from '../../cli/cli-functions-repository';
+import { CloudRunnerFolders } from './cloud-runner-folders.ts';
+import { CloudRunnerSystem } from './cloud-runner-system.ts';
+import { fsSync as fs, assert, path } from '../../../dependencies.ts';
+import { Cli } from '../../cli/cli.ts';
+import { CliFunction } from '../../cli/cli-functions-repository.ts';
 
 export class LfsHashing {
   public static async createLFSHashFiles() {
@@ -30,10 +28,11 @@ export class LfsHashing {
   }
   public static async hashAllFiles(folder: string) {
     const startPath = process.cwd();
+
     process.chdir(folder);
-    const result = await (await CloudRunnerSystem.Run(`find -type f -exec md5sum "{}" + | sort | md5sum`))
-      .replace(/\n/g, '')
-      .split(` `)[0];
+    const checksums = await CloudRunnerSystem.Run(`find -type f -exec md5sum "{}" + | sort | md5sum`);
+    const result = checksums.replace(/\n/g, '').split(` `)[0];
+
     process.chdir(startPath);
 
     return result;

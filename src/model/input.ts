@@ -1,29 +1,43 @@
-import fs from 'fs';
-import path from 'path';
-import { Cli } from './cli/cli';
-import CloudRunnerQueryOverride from './cloud-runner/services/cloud-runner-query-override';
-import Platform from './platform';
-
-const core = require('@actions/core');
+import { fsSync as fs, path, core } from '../dependencies.ts';
+import { Cli } from './cli/cli.ts';
+import CloudRunnerQueryOverride from './cloud-runner/services/cloud-runner-query-override.ts';
+import { CliArguments } from '../core/cli/cli-arguments.ts';
 
 /**
- * Input variables specified in workflows using "with" prop.
+ * Input variables specified directly on the commandline.
  *
+ * Todo - check if the following statement is still correct:
  * Note that input is always passed as a string, even booleans.
  *
  * Todo: rename to UserInput and remove anything that is not direct input from the user / ci workflow
  */
 class Input {
+  private readonly arguments: CliArguments;
+
+  constructor(argumentsFromCli: CliArguments) {
+    this.arguments = argumentsFromCli;
+
+    return this;
+  }
+
+  // Todo - read something from environment instead and make that into a parameter, then use that.
   public static githubInputEnabled: boolean = true;
 
-  public static getInput(query) {
+  // Todo - Note that this is now invoked both statically and dynamically - which is a temporary mess.
+  public get(query: string) {
+    if (this && this.arguments) {
+      return this.arguments.get(query);
+    }
+
+    // Legacy (static)
+    log.warn(`Querying static`);
     if (Input.githubInputEnabled) {
       const coreInput = core.getInput(query);
       if (coreInput && coreInput !== '') {
         return coreInput;
       }
     }
-    const alternativeQuery = Input.ToEnvVarFormat(query);
+    const alternativeQuery = Input.toEnvVarFormat(query);
 
     // Query input sources
     if (Cli.query(query, alternativeQuery)) {
@@ -45,24 +59,26 @@ class Input {
     return;
   }
 
-  static get region(): string {
-    return Input.getInput('region') || 'eu-west-2';
+  public get region(): string {
+    return this.get('region');
   }
 
-  static get githubRepo() {
-    return Input.getInput('GITHUB_REPOSITORY') || Input.getInput('GITHUB_REPO') || undefined;
+  public get githubRepo() {
+    return this.get('GITHUB_REPOSITORY') || this.get('GITHUB_REPO') || undefined;
   }
-  static get branch() {
-    if (Input.getInput(`GITHUB_REF`)) {
-      return Input.getInput(`GITHUB_REF`).replace('refs/', '').replace(`head/`, '').replace(`heads/`, '');
-    } else if (Input.getInput('branch')) {
-      return Input.getInput('branch');
+
+  public get branch() {
+    if (this.get(`GITHUB_REF`)) {
+      return this.get(`GITHUB_REF`).replace('refs/', '').replace(`head/`, '').replace(`heads/`, '');
+    } else if (this.get('branch')) {
+      return this.get('branch').replace('/head', '');
     } else {
       return '';
     }
   }
-  static get cloudRunnerBuilderPlatform() {
-    const input = Input.getInput('cloudRunnerBuilderPlatform');
+
+  public get cloudRunnerBuilderPlatform() {
+    const input = this.get('cloudRunnerBuilderPlatform');
     if (input) {
       return input;
     }
@@ -73,216 +89,181 @@ class Input {
     return;
   }
 
-  static get gitSha() {
-    if (Input.getInput(`GITHUB_SHA`)) {
-      return Input.getInput(`GITHUB_SHA`);
-    } else if (Input.getInput(`GitSHA`)) {
-      return Input.getInput(`GitSHA`);
+  public get gitSha() {
+    if (this.get(`GITHUB_SHA`)) {
+      return this.get(`GITHUB_SHA`);
+    } else if (this.get(`GitSHA`)) {
+      return this.get(`GitSHA`);
     }
   }
 
-  static get runNumber() {
-    return Input.getInput('GITHUB_RUN_NUMBER') || '0';
+  public get runNumber() {
+    return this.get('GITHUB_RUN_NUMBER') || '0';
   }
 
-  static get targetPlatform() {
-    return Input.getInput('targetPlatform') || Platform.default;
+  public get unitySerial() {
+    return this.get('unitySerial') || '';
   }
 
-  static get unityVersion() {
-    return Input.getInput('unityVersion') || 'auto';
+  public get projectPath() {
+    let input = this.get('projectPath');
+
+    // Todo - remove hardcoded test project reference
+    const isTestProject =
+      fs.existsSync(path.join('test-project', 'ProjectSettings', 'ProjectVersion.txt')) &&
+      !fs.existsSync(path.join('ProjectSettings', 'ProjectVersion.txt'));
+    if (!input && isTestProject) input = 'test-project';
+
+    if (!input) input = '.';
+
+    return input.replace(/\/$/, '');
   }
 
-  static get customImage() {
-    return Input.getInput('customImage') || '';
+  public get buildName() {
+    return this.get('buildName');
   }
 
-  static get projectPath() {
-    const input = Input.getInput('projectPath');
-    const rawProjectPath = input
-      ? input
-      : fs.existsSync(path.join('test-project', 'ProjectSettings', 'ProjectVersion.txt')) &&
-        !fs.existsSync(path.join('ProjectSettings', 'ProjectVersion.txt'))
-      ? 'test-project'
-      : '.';
-
-    return rawProjectPath.replace(/\/$/, '');
+  public get buildMethod() {
+    return this.get('buildMethod') || ''; // Processed in docker file
   }
 
-  static get buildName() {
-    return Input.getInput('buildName') || this.targetPlatform;
+  public get customParameters() {
+    return this.get('customParameters') || '';
   }
 
-  static get buildsPath() {
-    return Input.getInput('buildsPath') || 'build';
+  public get androidVersionCode() {
+    return this.get('androidVersionCode');
   }
 
-  static get buildMethod() {
-    return Input.getInput('buildMethod') || ''; // Processed in docker file
-  }
-
-  static get customParameters() {
-    return Input.getInput('customParameters') || '';
-  }
-
-  static get versioningStrategy() {
-    return Input.getInput('versioning') || 'Semantic';
-  }
-
-  static get specifiedVersion() {
-    return Input.getInput('version') || '';
-  }
-
-  static get androidVersionCode() {
-    return Input.getInput('androidVersionCode');
-  }
-
-  static get androidAppBundle() {
-    const input = Input.getInput('androidAppBundle') || false;
+  public get androidAppBundle() {
+    const input = this.get('androidAppBundle') || false;
 
     return input === 'true';
   }
 
-  static get androidKeystoreName() {
-    return Input.getInput('androidKeystoreName') || '';
+  public get androidKeystoreName() {
+    return this.get('androidKeystoreName') || '';
   }
 
-  static get androidKeystoreBase64() {
-    return Input.getInput('androidKeystoreBase64') || '';
+  public get androidKeystoreBase64() {
+    return this.get('androidKeystoreBase64') || '';
   }
 
-  static get androidKeystorePass() {
-    return Input.getInput('androidKeystorePass') || '';
+  public get androidKeystorePass() {
+    return this.get('androidKeystorePass') || '';
   }
 
-  static get androidKeyaliasName() {
-    return Input.getInput('androidKeyaliasName') || '';
+  public get androidKeyaliasName() {
+    return this.get('androidKeyaliasName') || '';
   }
 
-  static get androidKeyaliasPass() {
-    return Input.getInput('androidKeyaliasPass') || '';
+  public get androidKeyaliasPass() {
+    return this.get('androidKeyaliasPass') || '';
   }
 
-  static get androidTargetSdkVersion() {
-    return Input.getInput('androidTargetSdkVersion') || '';
+  public get androidTargetSdkVersion() {
+    return this.get('androidTargetSdkVersion') || '';
   }
 
-  static get sshAgent() {
-    return Input.getInput('sshAgent') || '';
+  public get sshAgent() {
+    return this.get('sshAgent') || '';
   }
 
-  static get gitPrivateToken() {
-    return core.getInput('gitPrivateToken') || false;
+  public get gitPrivateToken() {
+    return this.get('gitPrivateToken') || '';
   }
 
-  static get customJob() {
-    return Input.getInput('customJob') || '';
+  public get customJob() {
+    return this.get('customJob') || '';
   }
 
-  static customJobHooks() {
-    return Input.getInput('customJobHooks') || '';
+  public customJobHooks() {
+    return this.get('customJobHooks') || '';
   }
 
-  static cachePushOverrideCommand() {
-    return Input.getInput('cachePushOverrideCommand') || '';
+  public cachePushOverrideCommand() {
+    return this.get('cachePushOverrideCommand') || '';
   }
 
-  static cachePullOverrideCommand() {
-    return Input.getInput('cachePullOverrideCommand') || '';
+  public cachePullOverrideCommand() {
+    return this.get('cachePullOverrideCommand') || '';
   }
 
-  static readInputFromOverrideList() {
-    return Input.getInput('readInputFromOverrideList') || '';
+  public readInputFromOverrideList() {
+    return this.get('readInputFromOverrideList') || '';
   }
 
-  static readInputOverrideCommand() {
-    return Input.getInput('readInputOverrideCommand') || '';
+  public readInputOverrideCommand() {
+    return this.get('readInputOverrideCommand') || '';
   }
 
-  static get cloudRunnerBranch() {
-    return Input.getInput('cloudRunnerBranch') || 'cloud-runner-develop';
+  public get cloudRunnerBranch() {
+    return this.get('cloudRunnerBranch') || 'cloud-runner-develop';
   }
 
-  static get chownFilesTo() {
-    return Input.getInput('chownFilesTo') || '';
+  public get chownFilesTo() {
+    return this.get('chownFilesTo') || '';
   }
 
-  static get allowDirtyBuild() {
-    const input = Input.getInput('allowDirtyBuild') || false;
-
-    return input === 'true';
+  public get postBuildSteps() {
+    return this.get('postBuildSteps') || '';
   }
 
-  static get postBuildSteps() {
-    return Input.getInput('postBuildSteps') || '';
+  public get preBuildSteps() {
+    return this.get('preBuildSteps') || '';
   }
 
-  static get preBuildSteps() {
-    return Input.getInput('preBuildSteps') || '';
+  public get awsBaseStackName() {
+    return this.get('awsBaseStackName') || 'game-ci';
   }
 
-  static get awsBaseStackName() {
-    return Input.getInput('awsBaseStackName') || 'game-ci';
+  public get cloudRunnerCpu() {
+    return this.get('cloudRunnerCpu');
   }
 
-  static get cloudRunnerCluster() {
-    if (Cli.isCliMode) {
-      return Input.getInput('cloudRunnerCluster') || 'aws';
-    }
-
-    return Input.getInput('cloudRunnerCluster') || 'local';
+  public get cloudRunnerMemory() {
+    return this.get('cloudRunnerMemory');
   }
 
-  static get cloudRunnerCpu() {
-    return Input.getInput('cloudRunnerCpu');
+  public get kubeConfig() {
+    return this.get('kubeConfig') || '';
   }
 
-  static get cloudRunnerMemory() {
-    return Input.getInput('cloudRunnerMemory');
+  public get kubeVolume() {
+    return this.get('kubeVolume') || '';
   }
 
-  static get kubeConfig() {
-    return Input.getInput('kubeConfig') || '';
+  public get kubeVolumeSize() {
+    return this.get('kubeVolumeSize') || '5Gi';
   }
 
-  static get kubeVolume() {
-    return Input.getInput('kubeVolume') || '';
+  public get kubeStorageClass(): string {
+    return this.get('kubeStorageClass') || '';
   }
 
-  static get kubeVolumeSize() {
-    return Input.getInput('kubeVolumeSize') || '5Gi';
+  public get checkDependencyHealthOverride(): string {
+    return this.get('checkDependencyHealthOverride') || '';
   }
 
-  static get kubeStorageClass(): string {
-    return Input.getInput('kubeStorageClass') || '';
+  public get startDependenciesOverride(): string {
+    return this.get('startDependenciesOverride') || '';
   }
 
-  static get checkDependencyHealthOverride(): string {
-    return Input.getInput('checkDependencyHealthOverride') || '';
+  public get cacheKey(): string {
+    return this.get('cacheKey') || Input.branch;
   }
 
-  static get startDependenciesOverride(): string {
-    return Input.getInput('startDependenciesOverride') || '';
+  public get cloudRunnerTests(): boolean {
+    return this.get(`cloudRunnerTests`) || false;
   }
 
-  static get cacheKey(): string {
-    return Input.getInput('cacheKey') || Input.branch;
-  }
+  /**
+   * @deprecated Use Parameter.toEnvFormat
+   */
+  public static toEnvVarFormat(input: string) {
+    if (input.toUpperCase() === input) return input;
 
-  static get cloudRunnerTests(): boolean {
-    return Input.getInput(`cloudRunnerTests`) || false;
-  }
-
-  public static ToEnvVarFormat(input: string) {
-    if (input.toUpperCase() === input) {
-      return input;
-    }
-
-    return input
-      .replace(/([A-Z])/g, ' $1')
-      .trim()
-      .toUpperCase()
-      .replace(/ /g, '_');
+    return input.replace(/([\da-z])([A-Z])/g, '$1_$2').toUpperCase();
   }
 }
 

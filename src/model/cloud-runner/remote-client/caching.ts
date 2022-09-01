@@ -1,14 +1,12 @@
-import { assert } from 'console';
-import fs from 'fs';
-import path from 'path';
-import CloudRunner from '../cloud-runner';
-import CloudRunnerLogger from '../services/cloud-runner-logger';
-import { CloudRunnerFolders } from '../services/cloud-runner-folders';
-import { CloudRunnerSystem } from '../services/cloud-runner-system';
-import { LfsHashing } from '../services/lfs-hashing';
-import { RemoteClientLogger } from './remote-client-logger';
-import { Cli } from '../../cli/cli';
-import { CliFunction } from '../../cli/cli-functions-repository';
+import { fs, path, assert } from '../../../dependencies.ts';
+import CloudRunner from '../cloud-runner.ts';
+import CloudRunnerLogger from '../services/cloud-runner-logger.ts';
+import { CloudRunnerFolders } from '../services/cloud-runner-folders.ts';
+import { CloudRunnerSystem } from '../services/cloud-runner-system.ts';
+import { LfsHashing } from '../services/lfs-hashing.ts';
+import { RemoteClientLogger } from './remote-client-logger.ts';
+import { Cli } from '../../cli/cli.ts';
+import { CliFunction } from '../../cli/cli-functions-repository.ts';
 // eslint-disable-next-line github/no-then
 const fileExists = async (fpath) => !!(await fs.promises.stat(fpath).catch(() => false));
 
@@ -16,7 +14,7 @@ export class Caching {
   @CliFunction(`cache-push`, `push to cache`)
   static async cachePush() {
     try {
-      const buildParameter = JSON.parse(process.env.BUILD_PARAMETERS || '{}');
+      const buildParameter = JSON.parse(Deno.env.get('BUILD_PARAMETERS') || '{}');
       CloudRunner.buildParameters = buildParameter;
       await Caching.PushToCache(
         Cli.options['cachePushTo'],
@@ -31,7 +29,7 @@ export class Caching {
   @CliFunction(`cache-pull`, `pull from cache`)
   static async cachePull() {
     try {
-      const buildParameter = JSON.parse(process.env.BUILD_PARAMETERS || '{}');
+      const buildParameter = JSON.parse(Deno.env.get('BUILD_PARAMETERS') || '{}');
       CloudRunner.buildParameters = buildParameter;
       await Caching.PullFromCache(
         Cli.options['cachePushFrom'],
@@ -90,6 +88,7 @@ export class Caching {
   }
   public static async PullFromCache(cacheFolder: string, destinationFolder: string, cacheArtifactName: string = ``) {
     cacheArtifactName = cacheArtifactName.replace(' ', '');
+
     const startPath = process.cwd();
     RemoteClientLogger.log(`Caching for ${path.basename(destinationFolder)}`);
     try {
@@ -101,18 +100,15 @@ export class Caching {
         await fs.promises.mkdir(destinationFolder);
       }
 
-      const latestInBranch = await (await CloudRunnerSystem.Run(`ls -t "${cacheFolder}" | grep .tar$ | head -1`))
-        .replace(/\n/g, ``)
-        .replace('.tar', '');
+      const latestInBranchRaw = await CloudRunnerSystem.Run(`ls -t "${cacheFolder}" | grep .tar$ | head -1`);
+      const latestInBranch = latestInBranchRaw.replace(/\n/g, ``).replace('.tar', '');
 
       process.chdir(cacheFolder);
-
       const cacheSelection =
         cacheArtifactName !== `` && (await fileExists(`${cacheArtifactName}.tar`)) ? cacheArtifactName : latestInBranch;
       await CloudRunnerLogger.log(`cache key ${cacheArtifactName} selection ${cacheSelection}`);
 
-      // eslint-disable-next-line func-style
-      const formatFunction = function (format: string) {
+      const formatFunction = (format: string) => {
         const arguments_ = Array.prototype.slice.call(
           [path.resolve(destinationFolder, '..'), cacheFolder, cacheArtifactName],
           1,
@@ -164,7 +160,7 @@ export class Caching {
   }
 
   public static async handleCachePurging() {
-    if (process.env.PURGE_REMOTE_BUILDER_CACHE !== undefined) {
+    if (Deno.env.get('PURGE_REMOTE_BUILDER_CACHE') !== undefined) {
       RemoteClientLogger.log(`purging ${CloudRunnerFolders.purgeRemoteCaching}`);
       fs.promises.rmdir(CloudRunnerFolders.cacheFolder, { recursive: true });
     }

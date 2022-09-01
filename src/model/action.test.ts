@@ -1,6 +1,5 @@
-import path from 'path';
-import fs from 'fs';
-import Action from './action';
+import { fs, path } from '../dependencies.ts';
+import Action from './action.ts';
 
 describe('Action', () => {
   describe('compatibility check', () => {

@@ -1,7 +1,13 @@
 .idea
 node_modules
 coverage/
+.coverage/
 lib/
 .vsconfig
 yarn-error.log
 .orig
+*.log
+logs/*
+!**/.gitkeep
+.env*
+!.env*.dist
