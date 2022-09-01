@@ -1,8 +1,9 @@
 {
   "tasks": {
-    "config": "deno run -A .tools/open-config-folder.ts",
+    "lint": "echo 'Not implemented yet.'",
     "test": "deno test -A ./src/integrity.test.ts",
-    "coverage": "rm -rf .coverage ; deno test -A ./src/integrity.test.ts --coverage=.coverage/raw ; deno coverage .coverage/raw --lcov --output=.coverage/raw/.lcov ; perl .tools/lcov/genhtml.perl -q -o .coverage/report .coverage/raw/.lcov && deno run -A .tools/open-coverage-report.ts"
+    "coverage": "rm -rf .coverage ; deno test -A ./src/integrity.test.ts --coverage=.coverage/raw ; deno coverage .coverage/raw --lcov --output=.coverage/raw/.lcov ; perl .tools/lcov/genhtml.perl -q -o .coverage/report .coverage/raw/.lcov && deno run -A .tools/open-coverage-report.ts",
+    "config": "deno run -A .tools/open-config-folder.ts"
   },
   "compilerOptions": {
     "allowJs": true,
