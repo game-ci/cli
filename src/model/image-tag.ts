@@ -1,6 +1,6 @@
-import Platform from './platform';
+import UnityTargetPlatform from './unity/unity-target-platform.ts';
 
-import BuildParameters from './build-parameters';
+import Parameters from './parameters.ts';
 
 class ImageTag {
   public repository: string;
@@ -13,7 +13,7 @@ class ImageTag {
   public imageRollingVersion: number;
   public imagePlatformPrefix: string;
 
-  constructor(imageProperties: Partial<BuildParameters>) {
+  constructor(imageProperties: Partial<Parameters>) {
     const { editorVersion = '2019.2.11f1', targetPlatform, customImage, cloudRunnerBuilderPlatform } = imageProperties;
 
     if (!ImageTag.versionPattern.test(editorVersion)) {
@@ -74,14 +74,14 @@ class ImageTag {
     const { generic, webgl, mac, windows, windowsIl2cpp, wsaPlayer, linux, linuxIl2cpp, android, ios, tvos, facebook } =
       ImageTag.targetPlatformSuffixes;
 
-    const [major, minor] = version.split('.').map((digit) => Number(digit));
+    const [major, minor] = version.split('.').map(Number);
 
     // @see: https://docs.unity3d.com/ScriptReference/BuildTarget.html
     switch (platform) {
-      case Platform.types.StandaloneOSX:
+      case UnityTargetPlatform.StandaloneOSX:
         return mac;
-      case Platform.types.StandaloneWindows:
-      case Platform.types.StandaloneWindows64:
+      case UnityTargetPlatform.StandaloneWindows:
+      case UnityTargetPlatform.StandaloneWindows64:
         // Can only build windows-il2cpp on a windows based system
         if (process.platform === 'win32') {
           // Unity versions before 2019.3 do not support il2cpp
@@ -94,7 +94,7 @@ class ImageTag {
         }
 
         return windows;
-      case Platform.types.StandaloneLinux64: {
+      case UnityTargetPlatform.StandaloneLinux64: {
         // Unity versions before 2019.3 do not support il2cpp
         if (major >= 2020 || (major === 2019 && minor >= 3)) {
           return linuxIl2cpp;
@@ -102,45 +102,45 @@ class ImageTag {
 
         return linux;
       }
-      case Platform.types.iOS:
+      case UnityTargetPlatform.iOS:
         return ios;
-      case Platform.types.Android:
+      case UnityTargetPlatform.Android:
         return android;
-      case Platform.types.WebGL:
+      case UnityTargetPlatform.WebGL:
         return webgl;
-      case Platform.types.WSAPlayer:
+      case UnityTargetPlatform.WSAPlayer:
         if (process.platform !== 'win32') {
           throw new Error(`WSAPlayer can only be built on a windows base OS`);
         }
 
         return wsaPlayer;
-      case Platform.types.PS4:
+      case UnityTargetPlatform.PS4:
         return windows;
-      case Platform.types.XboxOne:
+      case UnityTargetPlatform.XboxOne:
         return windows;
-      case Platform.types.tvOS:
+      case UnityTargetPlatform.tvOS:
         if (process.platform !== 'win32') {
           throw new Error(`tvOS can only be built on a windows base OS`);
         }
 
         return tvos;
-      case Platform.types.Switch:
+      case UnityTargetPlatform.Switch:
         return windows;
 
       // Unsupported
-      case Platform.types.Lumin:
+      case UnityTargetPlatform.Lumin:
         return windows;
-      case Platform.types.BJM:
+      case UnityTargetPlatform.BJM:
         return windows;
-      case Platform.types.Stadia:
+      case UnityTargetPlatform.Stadia:
         return windows;
-      case Platform.types.Facebook:
+      case UnityTargetPlatform.Facebook:
         return facebook;
-      case Platform.types.NoTarget:
+      case UnityTargetPlatform.NoTarget:
         return generic;
 
       // Test specific
-      case Platform.types.Test:
+      case UnityTargetPlatform.Test:
         return generic;
       default:
         throw new Error(`

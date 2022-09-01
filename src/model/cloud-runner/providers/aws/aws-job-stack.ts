@@ -1,10 +1,10 @@
-import * as SDK from 'aws-sdk';
-import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def';
-import CloudRunnerSecret from '../../services/cloud-runner-secret';
-import { AWSCloudFormationTemplates } from './aws-cloud-formation-templates';
-import CloudRunnerLogger from '../../services/cloud-runner-logger';
-import { AWSError } from './aws-error';
-import CloudRunner from '../../cloud-runner';
+import { aws } from '../../../../dependencies.ts';
+import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def.ts';
+import CloudRunnerSecret from '../../services/cloud-runner-secret.ts';
+import { AWSCloudFormationTemplates } from './aws-cloud-formation-templates.ts';
+import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
+import { AWSError } from './aws-error.ts';
+import CloudRunner from '../../cloud-runner.ts';
 
 export class AWSJobStack {
   private baseStackName: string;
@@ -13,7 +13,7 @@ export class AWSJobStack {
   }
 
   public async setupCloudFormations(
-    CF: SDK.CloudFormation,
+    CF: aws.CloudFormation,
     buildGuid: string,
     image: string,
     entrypoint: string[],
@@ -118,7 +118,7 @@ export class AWSJobStack {
         }
       }
     }
-    const createStackInput: SDK.CloudFormation.CreateStackInput = {
+    const createStackInput: aws.CloudFormation.CreateStackInput = {
       StackName: taskDefStackName,
       TemplateBody: taskDefCloudFormation,
       Capabilities: ['CAPABILITY_IAM'],
@@ -134,13 +134,13 @@ export class AWSJobStack {
       throw error;
     }
 
-    const taskDefResources = (
-      await CF.describeStackResources({
-        StackName: taskDefStackName,
-      }).promise()
-    ).StackResources;
+    const { StackResources: taskDefResources } = await CF.describeStackResources({
+      StackName: taskDefStackName,
+    }).promise();
 
-    const baseResources = (await CF.describeStackResources({ StackName: this.baseStackName }).promise()).StackResources;
+    const { StackResources: baseResources } = await CF.describeStackResources({
+      StackName: this.baseStackName,
+    }).promise();
 
     return {
       taskDefStackName,

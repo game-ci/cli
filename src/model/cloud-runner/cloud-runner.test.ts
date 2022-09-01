@@ -1,12 +1,12 @@
-import { BuildParameters, ImageTag } from '..';
-import CloudRunner from './cloud-runner';
-import Input from '../input';
-import { CloudRunnerStatics } from './cloud-runner-statics';
-import { TaskParameterSerializer } from './services/task-parameter-serializer';
-import UnityVersioning from '../unity-versioning';
-import { Cli } from '../cli/cli';
-import CloudRunnerLogger from './services/cloud-runner-logger';
-import { v4 as uuidv4 } from 'uuid';
+import { Parameters, ImageTag } from '..';
+import CloudRunner from './cloud-runner.ts';
+import Input from '../input.ts';
+import { CloudRunnerStatics } from './cloud-runner-statics.ts';
+import { TaskParameterSerializer } from './services/task-parameter-serializer.ts';
+import UnityVersionDetector from '../../middleware/engine-detection/unity-version-detector.ts';
+import { Cli } from '../cli/cli.ts';
+import CloudRunnerLogger from './services/cloud-runner-logger.ts';
+import { v4 as uuidv4 } from '../../../node_modules/uuid';
 
 describe('Cloud Runner', () => {
   it('responds', () => {});
@@ -20,7 +20,7 @@ describe('Cloud Runner', () => {
       Cli.options = {
         versioning: 'None',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.read('test-project'),
+        engineVersion: UnityVersionDetector.read('test-project'),
         targetPlatform: 'StandaloneLinux64',
         customJob: `
         - name: 'step 1'
@@ -34,7 +34,7 @@ describe('Cloud Runner', () => {
       Input.githubInputEnabled = false;
 
       // Setup parameters
-      const buildParameter = await BuildParameters.create();
+      const buildParameter = await Parameters.create();
       Input.githubInputEnabled = true;
       const baseImage = new ImageTag(buildParameter);
 
@@ -43,7 +43,7 @@ describe('Cloud Runner', () => {
 
       // Assert results
       expect(file).toContain(JSON.stringify(buildParameter));
-      expect(file).toContain(`${Input.ToEnvVarFormat(testSecretName)}=${testSecretValue}`);
+      expect(file).toContain(`${Input.toEnvVarFormat(testSecretName)}=${testSecretValue}`);
       const environmentVariables = TaskParameterSerializer.readBuildEnvironmentVariables();
       const newLinePurgedFile = file
         .replace(/\s+/g, '')
@@ -63,17 +63,17 @@ describe('Cloud Runner', () => {
         }
       }
       delete Cli.options;
-    }, 1000000);
+    }, 1_000_000);
     it('Run one build it should not use cache, run subsequent build which should use cache', async () => {
       Cli.options = {
         versioning: 'None',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project')),
+        engineVersion: UnityVersionDetector.determineUnityVersion('test-project', UnityVersionDetector.read('test-project')),
         targetPlatform: 'StandaloneLinux64',
         cacheKey: `test-case-${uuidv4()}`,
       };
       Input.githubInputEnabled = false;
-      const buildParameter = await BuildParameters.create();
+      const buildParameter = await Parameters.create();
       const baseImage = new ImageTag(buildParameter);
       const results = await CloudRunner.run(buildParameter, baseImage.toString());
       const libraryString = 'Rebuilding Library because the asset database could not be found!';
@@ -81,7 +81,7 @@ describe('Cloud Runner', () => {
       expect(results).toContain(libraryString);
       expect(results).toContain(buildSucceededString);
       CloudRunnerLogger.log(`run 1 succeeded`);
-      const buildParameter2 = await BuildParameters.create();
+      const buildParameter2 = await Parameters.create();
       const baseImage2 = new ImageTag(buildParameter2);
       const results2 = await CloudRunner.run(buildParameter2, baseImage2.toString());
       CloudRunnerLogger.log(`run 2 succeeded`);
@@ -89,14 +89,14 @@ describe('Cloud Runner', () => {
       expect(results2).toEqual(expect.not.stringContaining(libraryString));
       Input.githubInputEnabled = true;
       delete Cli.options;
-    }, 1000000);
+    }, 1_000_000);
   }
   it('Local cloud runner returns commands', async () => {
     // Build parameters
     Cli.options = {
       versioning: 'None',
       projectPath: 'test-project',
-      unityVersion: UnityVersioning.read('test-project'),
+      engineVersion: UnityVersionDetector.read('test-project'),
       cloudRunnerCluster: 'local-system',
       targetPlatform: 'StandaloneLinux64',
       customJob: `
@@ -111,32 +111,32 @@ describe('Cloud Runner', () => {
     Input.githubInputEnabled = false;
 
     // Setup parameters
-    const buildParameter = await BuildParameters.create();
+    const buildParameter = await Parameters.create();
     const baseImage = new ImageTag(buildParameter);
 
     // Run the job
     await expect(CloudRunner.run(buildParameter, baseImage.toString())).resolves.not.toThrow();
     Input.githubInputEnabled = true;
     delete Cli.options;
-  }, 1000000);
+  }, 1_000_000);
   it('Test cloud runner returns commands', async () => {
     // Build parameters
     Cli.options = {
       versioning: 'None',
       projectPath: 'test-project',
-      unityVersion: UnityVersioning.read('test-project'),
+      engineVersion: UnityVersionDetector.read('test-project'),
       cloudRunnerCluster: 'test',
       targetPlatform: 'StandaloneLinux64',
     };
     Input.githubInputEnabled = false;
 
     // Setup parameters
-    const buildParameter = await BuildParameters.create();
+    const buildParameter = await Parameters.create();
     const baseImage = new ImageTag(buildParameter);
 
     // Run the job
     await expect(CloudRunner.run(buildParameter, baseImage.toString())).resolves.not.toThrow();
     Input.githubInputEnabled = true;
     delete Cli.options;
-  }, 1000000);
+  }, 1_000_000);
 });

@@ -1,10 +1,10 @@
-import { BuildParameters } from '../..';
-import YAML from 'yaml';
-import CloudRunnerSecret from './cloud-runner-secret';
-import CloudRunner from '../cloud-runner';
+import { Parameters } from '../../index.ts';
+import { yaml } from '../../../dependencies.ts';
+import CloudRunnerSecret from './cloud-runner-secret.ts';
+import CloudRunner from '../cloud-runner.ts';
 
 export class CloudRunnerBuildCommandProcessor {
-  public static ProcessCommands(commands: string, buildParameters: BuildParameters): string {
+  public static ProcessCommands(commands: string, buildParameters: Parameters): string {
     const hooks = CloudRunnerBuildCommandProcessor.getHooks(buildParameters.customJobHooks).filter((x) =>
       x.step.includes(`all`),
     );
@@ -25,7 +25,7 @@ export class CloudRunnerBuildCommandProcessor {
     let output = new Array<Hook>();
     if (experimentHooks && experimentHooks !== '') {
       try {
-        output = YAML.parse(experimentHooks);
+        output = yaml.parse(experimentHooks);
       } catch (error) {
         throw error;
       }

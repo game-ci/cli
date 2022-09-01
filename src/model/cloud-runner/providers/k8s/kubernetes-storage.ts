@@ -1,16 +1,12 @@
-import waitUntil from 'async-wait-until';
-import * as core from '@actions/core';
-import * as k8s from '@kubernetes/client-node';
-import BuildParameters from '../../../build-parameters';
-import CloudRunnerLogger from '../../services/cloud-runner-logger';
-import YAML from 'yaml';
-import { IncomingMessage } from 'http';
+import { k8sTypes, k8s, core, yaml, waitUntil, http } from '../../../../dependencies.ts';
+import Parameters from '../../../parameters.ts';
+import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
 
 class KubernetesStorage {
   public static async createPersistentVolumeClaim(
-    buildParameters: BuildParameters,
+    buildParameters: Parameters,
     pvcName: string,
-    kubeClient: k8s.CoreV1Api,
+    kubeClient: k8sTypes.CoreV1Api,
     namespace: string,
   ) {
     if (buildParameters.kubeVolume) {
@@ -19,9 +15,9 @@ class KubernetesStorage {
 
       return;
     }
-    const pvcList = (await kubeClient.listNamespacedPersistentVolumeClaim(namespace)).body.items.map(
-      (x) => x.metadata?.name,
-    );
+
+    const listedPvcs = await kubeClient.listNamespacedPersistentVolumeClaim(namespace);
+    const pvcList = listedPvcs.body.items.map((x) => x.metadata?.name);
     CloudRunnerLogger.log(`Current PVCs in namespace ${namespace}`);
     CloudRunnerLogger.log(JSON.stringify(pvcList, undefined, 4));
     if (pvcList.includes(pvcName)) {
@@ -37,17 +33,19 @@ class KubernetesStorage {
     await KubernetesStorage.handleResult(result, kubeClient, namespace, pvcName);
   }
 
-  public static async getPVCPhase(kubeClient: k8s.CoreV1Api, name: string, namespace: string) {
+  public static async getPVCPhase(kubeClient: k8sTypes.CoreV1Api, name: string, namespace: string) {
     try {
-      return (await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace)).body.status?.phase;
+      const pvc = await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace);
+
+      return pvc.body.status?.phase;
     } catch (error) {
-      core.error('Failed to get PVC phase');
-      core.error(JSON.stringify(error, undefined, 4));
+      log.error('Failed to get PVC phase');
+      log.error(JSON.stringify(error, undefined, 4));
       throw error;
     }
   }
 
-  public static async watchUntilPVCNotPending(kubeClient: k8s.CoreV1Api, name: string, namespace: string) {
+  public static async watchUntilPVCNotPending(kubeClient: k8sTypes.CoreV1Api, name: string, namespace: string) {
     try {
       CloudRunnerLogger.log(`watch Until PVC Not Pending ${name} ${namespace}`);
       CloudRunnerLogger.log(`${await this.getPVCPhase(kubeClient, name, namespace)}`);
@@ -56,28 +54,23 @@ class KubernetesStorage {
           return (await this.getPVCPhase(kubeClient, name, namespace)) === 'Pending';
         },
         {
-          timeout: 750000,
-          intervalBetweenAttempts: 15000,
+          timeout: 750_000,
+          intervalBetweenAttempts: 15_000,
         },
       );
     } catch (error: any) {
-      core.error('Failed to watch PVC');
-      core.error(error.toString());
-      core.error(
-        `PVC Body: ${JSON.stringify(
-          (await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace)).body,
-          undefined,
-          4,
-        )}`,
-      );
+      log.error('Failed to watch PVC');
+      log.error(error.toString());
+      const pvc = await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace);
+      log.error(`PVC Body: ${JSON.stringify(pvc.body, undefined, 4)}`);
       throw error;
     }
   }
 
   private static async createPVC(
     pvcName: string,
-    buildParameters: BuildParameters,
-    kubeClient: k8s.CoreV1Api,
+    buildParameters: Parameters,
+    kubeClient: k8sTypes.CoreV1Api,
     namespace: string,
   ) {
     const pvc = new k8s.V1PersistentVolumeClaim();
@@ -95,8 +88,8 @@ class KubernetesStorage {
         },
       },
     };
-    if (process.env.K8s_STORAGE_PVC_SPEC) {
-      YAML.parse(process.env.K8s_STORAGE_PVC_SPEC);
+    if (Deno.env.get('K8s_STORAGE_PVC_SPEC')) {
+      yaml.parse(Deno.env.get('K8s_STORAGE_PVC_SPEC'));
     }
     const result = await kubeClient.createNamespacedPersistentVolumeClaim(namespace, pvc);
 
@@ -104,8 +97,8 @@ class KubernetesStorage {
   }
 
   private static async handleResult(
-    result: { response: IncomingMessage; body: k8s.V1PersistentVolumeClaim },
-    kubeClient: k8s.CoreV1Api,
+    result: { response: http.IncomingMessage; body: k8s.V1PersistentVolumeClaim },
+    kubeClient: k8sTypes.CoreV1Api,
     namespace: string,
     pvcName: string,
   ) {

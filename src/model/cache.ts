@@ -1,11 +1,10 @@
-import * as core from '@actions/core';
-import fs from 'fs';
-import Action from './action';
-import Project from './project';
+import { fsSync, core } from '../dependencies.ts';
+import Action from './action.ts';
+import Project from './project.ts';
 
 class Cache {
   static verify() {
-    if (!fs.existsSync(Project.libraryFolder)) {
+    if (!fsSync.existsSync(Project.libraryFolder)) {
       this.notifyAboutCachingPossibility();
     }
   }
@@ -15,7 +14,7 @@ class Cache {
       return;
     }
 
-    core.warning(`
+    log.warning(`
       Library folder does not exist.
       Consider setting up caching to speed up your workflow,
       if this is not your first build.

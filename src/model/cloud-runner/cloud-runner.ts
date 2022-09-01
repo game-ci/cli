@@ -1,25 +1,25 @@
-import AwsBuildPlatform from './providers/aws';
-import { BuildParameters, Input } from '..';
-import Kubernetes from './providers/k8s';
-import CloudRunnerLogger from './services/cloud-runner-logger';
-import { CloudRunnerStepState } from './cloud-runner-step-state';
-import { WorkflowCompositionRoot } from './workflows/workflow-composition-root';
-import { CloudRunnerError } from './error/cloud-runner-error';
-import { TaskParameterSerializer } from './services/task-parameter-serializer';
-import * as core from '@actions/core';
-import CloudRunnerSecret from './services/cloud-runner-secret';
-import { ProviderInterface } from './providers/provider-interface';
-import CloudRunnerEnvironmentVariable from './services/cloud-runner-environment-variable';
-import TestCloudRunner from './providers/test';
-import LocalCloudRunner from './providers/local';
-import LocalDockerCloudRunner from './providers/local-docker';
+import AwsBuildPlatform from './providers/aws/index.ts';
+import { Parameters, Input } from '../index.ts';
+import Kubernetes from './providers/k8s/index.ts';
+import CloudRunnerLogger from './services/cloud-runner-logger.ts';
+import { CloudRunnerStepState } from './cloud-runner-step-state.ts';
+import { WorkflowCompositionRoot } from './workflows/workflow-composition-root.ts';
+import { CloudRunnerError } from './error/cloud-runner-error.ts';
+import { TaskParameterSerializer } from './services/task-parameter-serializer.ts';
+import { core } from '../../dependencies.ts';
+import CloudRunnerSecret from './services/cloud-runner-secret.ts';
+import { ProviderInterface } from './providers/provider-interface.ts';
+import CloudRunnerEnvironmentVariable from './services/cloud-runner-environment-variable.ts';
+import TestCloudRunner from './providers/test/index.ts';
+import LocalCloudRunner from './providers/local/index.ts';
+import LocalDockerCloudRunner from './providers/local-docker/index.ts';
 
 class CloudRunner {
   public static Provider: ProviderInterface;
-  static buildParameters: BuildParameters;
+  static buildParameters: Parameters;
   public static defaultSecrets: CloudRunnerSecret[];
   public static cloudRunnerEnvironmentVariables: CloudRunnerEnvironmentVariable[];
-  private static setup(buildParameters: BuildParameters) {
+  private static setup(buildParameters: Parameters) {
     CloudRunnerLogger.setup();
     CloudRunner.buildParameters = buildParameters;
     CloudRunner.setupBuildPlatform();
@@ -28,10 +28,10 @@ class CloudRunner {
     if (!buildParameters.isCliMode) {
       const buildParameterPropertyNames = Object.getOwnPropertyNames(buildParameters);
       for (const element of CloudRunner.cloudRunnerEnvironmentVariables) {
-        core.setOutput(Input.ToEnvVarFormat(element.name), element.value);
+        core.setOutput(Input.toEnvVarFormat(element.name), element.value);
       }
       for (const element of buildParameterPropertyNames) {
-        core.setOutput(Input.ToEnvVarFormat(element), buildParameters[element]);
+        core.setOutput(Input.toEnvVarFormat(element), buildParameters[element]);
       }
     }
   }
@@ -57,7 +57,7 @@ class CloudRunner {
     }
   }
 
-  static async run(buildParameters: BuildParameters, baseImage: string) {
+  static async run(buildParameters: Parameters, baseImage: string) {
     CloudRunner.setup(buildParameters);
     try {
       if (!CloudRunner.buildParameters.isCliMode) core.startGroup('Setup shared cloud runner resources');

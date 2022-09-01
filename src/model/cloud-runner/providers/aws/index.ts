@@ -1,39 +1,31 @@
-import * as SDK from 'aws-sdk';
-import CloudRunnerSecret from '../../services/cloud-runner-secret';
-import CloudRunnerEnvironmentVariable from '../../services/cloud-runner-environment-variable';
-import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def';
-import AWSTaskRunner from './aws-task-runner';
-import { ProviderInterface } from '../provider-interface';
-import BuildParameters from '../../../build-parameters';
-import CloudRunnerLogger from '../../services/cloud-runner-logger';
-import { AWSJobStack } from './aws-job-stack';
-import { AWSBaseStack } from './aws-base-stack';
-import { Input } from '../../..';
+import { aws } from '../../../../dependencies.ts';
+import CloudRunnerSecret from '../../services/cloud-runner-secret.ts';
+import CloudRunnerEnvironmentVariable from '../../services/cloud-runner-environment-variable.ts';
+import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def.ts';
+import AWSTaskRunner from './aws-task-runner.ts';
+import { ProviderInterface } from '../provider-interface.ts';
+import Parameters from '../../../parameters.ts';
+import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
+import { AWSJobStack } from './aws-job-stack.ts';
+import { AWSBaseStack } from './aws-base-stack.ts';
+import { Input } from '../../../index.ts';
 
 class AWSBuildEnvironment implements ProviderInterface {
   private baseStackName: string;
 
-  constructor(buildParameters: BuildParameters) {
+  constructor(buildParameters: Parameters) {
     this.baseStackName = buildParameters.awsBaseStackName;
   }
   async cleanup(
-    // eslint-disable-next-line no-unused-vars
     buildGuid: string,
-    // eslint-disable-next-line no-unused-vars
-    buildParameters: BuildParameters,
-    // eslint-disable-next-line no-unused-vars
+    buildParameters: Parameters,
     branchName: string,
-    // eslint-disable-next-line no-unused-vars
     defaultSecretsArray: { ParameterKey: string; EnvironmentVariable: string; ParameterValue: string }[],
   ) {}
   async setup(
-    // eslint-disable-next-line no-unused-vars
     buildGuid: string,
-    // eslint-disable-next-line no-unused-vars
-    buildParameters: BuildParameters,
-    // eslint-disable-next-line no-unused-vars
+    buildParameters: Parameters,
     branchName: string,
-    // eslint-disable-next-line no-unused-vars
     defaultSecretsArray: { ParameterKey: string; EnvironmentVariable: string; ParameterValue: string }[],
   ) {}
 
@@ -46,9 +38,9 @@ class AWSBuildEnvironment implements ProviderInterface {
     environment: CloudRunnerEnvironmentVariable[],
     secrets: CloudRunnerSecret[],
   ): Promise<string> {
-    process.env.AWS_REGION = Input.region;
-    const ECS = new SDK.ECS();
-    const CF = new SDK.CloudFormation();
+    Deno.env.set('AWS_REGION', Input.region);
+    const ECS = new aws.ECS();
+    const CF = new aws.CloudFormation();
     CloudRunnerLogger.log(`AWS Region: ${CF.config.region}`);
     const entrypoint = ['/bin/sh'];
     const startTimeMs = Date.now();
@@ -86,7 +78,7 @@ class AWSBuildEnvironment implements ProviderInterface {
     }
   }
 
-  async cleanupResources(CF: SDK.CloudFormation, taskDef: CloudRunnerAWSTaskDef) {
+  async cleanupResources(CF: aws.CloudFormation, taskDef: CloudRunnerAWSTaskDef) {
     CloudRunnerLogger.log('Cleanup starting');
     await CF.deleteStack({
       StackName: taskDef.taskDefStackName,
