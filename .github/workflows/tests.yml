@@ -1,0 +1,20 @@
+name: Tests
+
+on:
+  push: { branches: [main] }
+  pull_request: {}
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Deno environment
+        uses: denolib/setup-deno@v2.3.0
+      - name: Code conventions
+        run: deno task lint
+      - name: Unit/Integration tests
+        run: deno task test --coverage=coverage
+      - name: Upload coverage to Codecov
+        run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
