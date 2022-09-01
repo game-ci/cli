@@ -4,6 +4,9 @@ on:
   push: { branches: [main] }
   pull_request: {}
 
+env:
+  CODECOV_TOKEN: '69cab0bb-8965-4f6e-8033-aa67540e6c28'
+
 jobs:
   tests:
     name: Tests
