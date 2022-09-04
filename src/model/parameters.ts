@@ -90,28 +90,13 @@ class Parameters {
   }
 
   public async parse(): Promise<Parameters> {
+    // Everything left here is not for the "build" command anymore, but holds "remote" logic.
     const branch = (await BuildVersionGenerator.getCurrentBranch()) || (await GitRepoReader.GetBranch());
 
     const parameters = {
       branch,
       unitySerial: this.getUnitySerial(),
-      editorVersion: engineVersion,
       runnerTempPath: this.env.get('RUNNER_TEMP'),
-      buildName,
-      buildPath,
-      buildFile,
-      buildMethod: this.input.buildMethod,
-      buildVersion,
-      androidVersionCode,
-      androidKeystoreName: this.input.androidKeystoreName,
-      androidKeystoreBase64: this.input.androidKeystoreBase64,
-      androidKeystorePass: this.input.androidKeystorePass,
-      androidKeyaliasName: this.input.androidKeyaliasName,
-      androidKeyaliasPass: this.input.androidKeyaliasPass,
-      androidTargetSdkVersion,
-      androidSdkManagerParameters,
-      customParameters: this.get('customParameters'),
-      sshAgent: this.input.sshAgent,
       gitPrivateToken: this.get('gitPrivateToken'),
       chownFilesTo: this.input.chownFilesTo,
       customJob: this.input.customJob,

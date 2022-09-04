@@ -7,11 +7,12 @@ import { UnityOptions } from '../../command-options/unity-options.ts';
 import { YargsInstance, YargsArguments } from '../../dependencies.ts';
 import { VersioningOptions } from '../../command-options/versioning-options.ts';
 import { BuildOptions } from '../../command-options/build-options.ts';
+import { AndroidOptions } from '../../command-options/android-options.ts';
 
 export class UnityBuildCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
     // Todo - rework this without needing this.options, use parameters from cli instead.
-    // const { workspace, actionFolder } = Action;
+    const { workspace, actionFolder } = Action;
     // const { parameters, env } = this.options;
     //
     // Action.checkCompatibility();
@@ -30,12 +31,13 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
     // // Set output
     // await Output.setBuildVersion(parameters.buildVersion);
 
-    return true;
+    return false;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {
     await UnityOptions.configure(yargs);
     await VersioningOptions.configure(yargs);
     await BuildOptions.configure(yargs);
+    await AndroidOptions.configure(yargs);
   }
 }

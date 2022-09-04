@@ -1,4 +1,4 @@
-import { YargsInstance } from '../dependencies.ts';
+import { YargsArguments, YargsInstance } from '../dependencies.ts';
 import Unity from '../model/unity/unity.ts';
 
 export class BuildOptions {
@@ -6,23 +6,32 @@ export class BuildOptions {
     yargs
       .demandOption('targetPlatform', 'Target platform is mandatory for builds')
       .option('buildName', {
-        description: 'Name of the build',
+        description: 'Name of the build (defaults to targetPlatform name)',
         type: 'string',
+        demandOption: false,
         default: '',
       })
       .option('buildsPath', {
-        description: 'Path for outputting the builds to',
+        alias: 'o',
+        description: 'Output folder for the builds',
         type: 'string',
         demandOption: false,
         default: 'build',
       })
       .default('buildPath', '')
       .default('buildFile', '')
-      .middleware(async (argv) => {
+      .middleware(async (argv: YargsArguments) => {
         const { buildName, buildsPath, targetPlatform, androidAppBundle } = argv;
         argv.buildName = buildName || targetPlatform;
         argv.buildPath = `${buildsPath}/${targetPlatform}`;
         argv.buildFile = Unity.determineBuildFileName(buildName, targetPlatform, androidAppBundle);
-      });
+      })
+      .option('buildMethod', {
+        alias: 'm',
+        description: 'Build method to use',
+        type: 'string',
+        demandOption: false,
+        default: 'UnityBuilderAction.Builder.BuildProject',
+      })
   }
 }

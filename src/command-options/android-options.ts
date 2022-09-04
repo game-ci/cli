@@ -1,7 +1,7 @@
 import { YargsInstance, YargsArguments } from '../dependencies.ts';
 
 export class AndroidOptions {
-  public static configureCommonOptions(yargs: YargsInstance): void {
+  public static configure(yargs: YargsInstance): void {
     yargs
       .option('androidAppBundle', {
         description: 'Build an Android App Bundle',

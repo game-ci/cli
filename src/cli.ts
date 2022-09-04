@@ -1,10 +1,9 @@
 import { yargs, YargsInstance, YargsArguments, getHomeDir } from './dependencies.ts';
-import { engineDetection } from './middleware/engine-detection/index.ts';
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
 import { CommandFactory } from './command/command-factory.ts';
 import { Engine } from './model/engine/engine.ts';
-import { vcsDetection } from './middleware/vcs-detection/index.ts';
+import { ProjectOptions } from './command-options/project-options.ts';
 
 export class Cli {
   private readonly yargs: YargsInstance;
@@ -27,6 +26,7 @@ export class Cli {
 
     await this.registerConfigCommand();
     await this.registerBuildCommand();
+    await this.registerRemoteCommand();
 
     await this.parse();
 
@@ -111,22 +111,9 @@ export class Cli {
 
   private async registerBuildCommand() {
     this.yargs.command('build [projectPath]', 'Builds a project that you want to build', async (yargs) => {
-      yargs
-        .positional('projectPath', {
-          describe: 'Path to the project',
-          type: 'string',
-          demandOption: false,
-          default: '.',
-        })
-        .coerce('projectPath', async (arg) => {
-          return arg.replace(/^~/, getHomeDir()).replace(/\/$/, '');
-        })
-        .default('engine', '')
-        .default('engineVersion', '')
-        .middleware([engineDetection], true)
-        .default('branch', '')
-        .middleware([vcsDetection], true)
+      ProjectOptions.configure(yargs);
 
+      yargs
         // Todo - remove these lines with release 3.0.0
         .option('unityVersion', {
           describe: 'Override the engine version to be used',
@@ -148,6 +135,20 @@ export class Cli {
 
         // End todo
         .middleware([async (args) => this.registerCommand(args, yargs)]);
+    });
+  }
+
+  private registerRemoteCommand() {
+    this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs) => {
+      yargs
+        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs) => {
+          ProjectOptions.configure(yargs);
+          yargs.middleware([async (args) => this.registerCommand(args, yargs)]);
+        })
+        .command('otherSubCommand', 'Other sub command', async (yargs) => {
+          // Todo - implement all subcommands
+          yargs.middleware([async (args) => this.registerCommand(args, yargs)]);
+        });
     });
   }
 
