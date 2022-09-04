@@ -1,4 +1,4 @@
-import { yargs, YargsInstance, YargsArguments, getHomeDir } from './dependencies.ts';
+import { yargs, YargsInstance, YargsArguments, getHomeDir, __dirname, path } from './dependencies.ts';
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
 import { CommandFactory } from './command/command-factory.ts';
@@ -9,24 +9,31 @@ export class Cli {
   private readonly yargs: YargsInstance;
   private readonly cliStorageAbsolutePath: string;
   private readonly cliStorageCanonicalPath: string;
+  private readonly cliPath: string;
+  private readonly distPath: string;
   private readonly configFileName: string;
   private command: CommandInterface;
 
-  constructor() {
+  constructor(args: Deno.Args) {
     this.cliStorageAbsolutePath = `${getHomeDir()}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
     this.configFileName = 'config.json';
-    this.yargs = yargs(Deno.args);
+    this.yargs = yargs(args);
+
+    // Todo make these variables portable when generating the cli binary
+    this.cliPath = __dirname;
+    this.distPath = path.join(path.dirname(__dirname), 'dist');
   }
 
   public async validateAndParseArguments() {
-    this.globalSettings();
-    this.configureLogger();
-    this.globalOptions();
-
     await this.registerConfigCommand();
     await this.registerBuildCommand();
     await this.registerRemoteCommand();
+
+    if (log.isVeryVerbose) {
+      console.log('cliPath', this.cliPath);
+      console.log('distPath', this.distPath);
+    }
 
     await this.parse();
 
@@ -41,7 +48,7 @@ export class Cli {
     };
   }
 
-  private globalSettings() {
+  public async configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
     const defaultAbsolutePath = `${this.cliStorageAbsolutePath}/${this.configFileName}`;
 
@@ -63,8 +70,8 @@ export class Cli {
     // this.yargs.env();
   }
 
-  private configureLogger() {
-    this.yargs
+  public async configureLogger(): this {
+    await this.yargs
       .options('quiet', {
         alias: 'q',
         description: 'Suppress all output',
@@ -94,10 +101,13 @@ export class Cli {
         default: false,
       })
       .default([{ logLevel: 'placeholder' }, { logLevelName: 'placeholder' }])
-      .middleware([configureLogger], true);
+      .middleware([configureLogger], true)
+      .parseAsync();
+
+    return this;
   }
 
-  private globalOptions() {
+  public async configureGlobalOptions() {
     this.yargs
       .fail(Cli.handleFailure)
       .help(false) // Fixes broken `_handle` in yargs 17.0.0
@@ -118,7 +128,7 @@ export class Cli {
         .option('unityVersion', {
           describe: 'Override the engine version to be used',
           type: 'string',
-          default: '',
+          // default: '',
         })
         .deprecateOption('unityVersion', 'This parameter will be removed. Use engineVersion instead')
         .middleware(
@@ -153,9 +163,9 @@ export class Cli {
   }
 
   private async registerConfigCommand() {
-    this.yargs.command('config', 'GameCI CLI configuration', async (yargs) => {
+    this.yargs.command('config', 'GameCI CLI configuration', async (yargs: YargsInstance) => {
       yargs
-        .command('open', 'Opens the CLI configuration folder', async (yargs) => {})
+        .command('open', 'Opens the CLI configuration folder', async (yargs: YargsInstance) => {})
         .middleware([async (args) => this.registerCommand(args, yargs)]);
     });
   }
