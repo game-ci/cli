@@ -15,8 +15,6 @@ export class Cli {
   private command: CommandInterface;
 
   constructor(args: Deno.Args) {
-    this.rawArgs = args;
-
     this.cliStorageAbsolutePath = `${getHomeDir()}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
     this.configFileName = 'config.json';
@@ -130,7 +128,7 @@ export class Cli {
         .option('unityVersion', {
           describe: 'Override the engine version to be used',
           type: 'string',
-          default: '',
+          // default: '',
         })
         .deprecateOption('unityVersion', 'This parameter will be removed. Use engineVersion instead')
         .middleware(
