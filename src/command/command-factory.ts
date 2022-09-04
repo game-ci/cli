@@ -3,6 +3,7 @@ import { UnityBuildCommand } from './build/unity-build-command.ts';
 import { CommandInterface } from './command-interface.ts';
 import { Engine } from '../model/engine/engine.ts';
 import { OpenConfigFolderCommand } from './config/open-config-folder-command.ts';
+import { UnityRemoteBuildCommand } from './remote/unity-remote-build-command.ts';
 
 export class CommandFactory {
   constructor() {}
@@ -43,11 +44,23 @@ export class CommandFactory {
     switch (command) {
       case 'build':
         return new UnityBuildCommand(command);
-
-      // case 'remote-build':
-      //   return new UnityRemoteBuildCommand(commandName);
+      case 'remote':
+        return this.createUnityRemoteCommand(command, subCommands);
       default:
-        return new NonExistentCommand([command, ...subCommands].join(' '));
+        return this.createNonExistentCommand(command, subCommands);
     }
+  }
+
+  private createUnityRemoteCommand(command: string, subCommands: string[]) {
+    switch (subCommands[0]) {
+      case 'build':
+        return new UnityRemoteBuildCommand(command);
+      default:
+        return this.createNonExistentCommand(command, subCommands);
+    }
+  }
+
+  private createNonExistentCommand(command: string, subCommands: string[]) {
+    return new NonExistentCommand([command, ...subCommands].join(' '));
   }
 }

@@ -123,14 +123,6 @@ class Input {
     return this.get('buildName');
   }
 
-  public get buildMethod() {
-    return this.get('buildMethod') || ''; // Processed in docker file
-  }
-
-  public get customParameters() {
-    return this.get('customParameters') || '';
-  }
-
   public get androidVersionCode() {
     return this.get('androidVersionCode');
   }
@@ -141,36 +133,8 @@ class Input {
     return input === 'true';
   }
 
-  public get androidKeystoreName() {
-    return this.get('androidKeystoreName') || '';
-  }
-
-  public get androidKeystoreBase64() {
-    return this.get('androidKeystoreBase64') || '';
-  }
-
-  public get androidKeystorePass() {
-    return this.get('androidKeystorePass') || '';
-  }
-
-  public get androidKeyaliasName() {
-    return this.get('androidKeyaliasName') || '';
-  }
-
-  public get androidKeyaliasPass() {
-    return this.get('androidKeyaliasPass') || '';
-  }
-
   public get androidTargetSdkVersion() {
     return this.get('androidTargetSdkVersion') || '';
-  }
-
-  public get sshAgent() {
-    return this.get('sshAgent') || '';
-  }
-
-  public get gitPrivateToken() {
-    return this.get('gitPrivateToken') || '';
   }
 
   public get customJob() {
@@ -199,10 +163,6 @@ class Input {
 
   public get cloudRunnerBranch() {
     return this.get('cloudRunnerBranch') || 'cloud-runner-develop';
-  }
-
-  public get chownFilesTo() {
-    return this.get('chownFilesTo') || '';
   }
 
   public get postBuildSteps() {
