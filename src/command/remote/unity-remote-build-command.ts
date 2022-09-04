@@ -1,5 +1,4 @@
 import { CommandInterface } from '../command-interface.ts';
-import { Options } from '../../config/options.ts';
 import { CloudRunner, ImageTag, Input, Output } from '../../model/index.ts';
 import { core, nanoid, YargsArguments, YargsInstance } from '../../dependencies.ts';
 import Parameters from '../../model/parameters.ts';

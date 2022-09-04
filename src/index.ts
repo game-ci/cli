@@ -3,19 +3,46 @@ import { Cli } from './cli.ts';
 class GameCI {
   public static async run() {
     try {
-      const { command, options } = await new Cli().validateAndParseArguments();
+      // Configure
+      const cli = await new Cli(Deno.args);
+      await cli.configureGlobalSettings();
+      await cli.configureLogger();
+      await cli.configureGlobalOptions();
 
+      // Command
+      const { command, options } = await cli.validateAndParseArguments();
       const success = await command.execute(options);
 
-      if (success) {
-        log.info(`${command.name} done.`);
-      } else {
-        log.warning(`${command.constructor.name} failed.`);
-      }
+      // Result
+      await GameCI.handleResult(success, command);
     } catch (error) {
-      log.error(error);
-      Deno.exit(1);
+      await GameCI.handleError(error);
     }
+  }
+
+  private static async handleResult(success: boolean, command: CommandInterface) {
+    if (log.isQuiet) return;
+
+    if (success) {
+      log.info(`${command.name} done.`);
+    } else {
+      log.warning(`${command.constructor.name} failed.`);
+    }
+  }
+
+  private static async handleError(error) {
+    try {
+      log.error(error);
+    } catch (metaError) {
+      // If the app fails before logger is defined, we need to log to console.
+      // Console will not output colors, but it's better than nothing
+      console.error('Error 1:', error);
+      // We also need to indicate that the logger failed
+      console.error('Error 2:', metaError);
+    }
+
+    // Ensure the process exits with a non-zero exit code
+    Deno.exit(1);
   }
 }
 
