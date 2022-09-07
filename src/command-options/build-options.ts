@@ -1,5 +1,5 @@
 import { YargsArguments, YargsInstance } from '../dependencies.ts';
-import Unity from '../model/unity/unity.ts';
+import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
 
 export class BuildOptions {
   public static configure(yargs: YargsInstance): void {
@@ -24,7 +24,7 @@ export class BuildOptions {
         const { buildName, buildsPath, targetPlatform, androidAppBundle } = argv;
         argv.buildName = buildName || targetPlatform;
         argv.buildPath = `${buildsPath}/${targetPlatform}`;
-        argv.buildFile = Unity.determineBuildFileName(buildName, targetPlatform, androidAppBundle);
+        argv.buildFile = UnityTargetPlatform.determineBuildFileName(buildName, targetPlatform, androidAppBundle);
       })
       .option('buildMethod', {
         alias: 'm',
@@ -32,6 +32,6 @@ export class BuildOptions {
         type: 'string',
         demandOption: false,
         default: 'UnityBuilderAction.Builder.BuildProject',
-      })
+      });
   }
 }

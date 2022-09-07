@@ -1,23 +1,28 @@
-import UnityTargetPlatform from './unity/unity-target-platform.ts';
+import UnityTargetPlatform from '../target-platform/unity-target-platform.ts';
+import { YargsArguments } from '../../../dependencies.ts';
 
-import Parameters from './parameters.ts';
-
-class ImageTag {
+class RunnerImageTag {
   public repository: string;
   public name: string;
   public cloudRunnerBuilderPlatform!: string | undefined;
-  public editorVersion: string;
+  public engineVersion: string;
   public targetPlatform: any;
   public builderPlatform: string;
   public customImage: any;
   public imageRollingVersion: number;
   public imagePlatformPrefix: string;
 
-  constructor(imageProperties: Partial<Parameters>) {
-    const { editorVersion = '2019.2.11f1', targetPlatform, customImage, cloudRunnerBuilderPlatform } = imageProperties;
+  constructor(options: YargsArguments) {
+    const {
+      engineVersion = '2019.2.11f1',
+      hostPlatform,
+      targetPlatform,
+      customImage,
+      cloudRunnerBuilderPlatform,
+    } = options;
 
-    if (!ImageTag.versionPattern.test(editorVersion)) {
-      throw new Error(`Invalid version "${editorVersion}".`);
+    if (!RunnerImageTag.versionPattern.test(engineVersion)) {
+      throw new Error(`Invalid version "${engineVersion}".`);
     }
 
     // Todo we might as well skip this class for customImage.
@@ -27,15 +32,22 @@ class ImageTag {
     // Or
     this.repository = 'unityci';
     this.name = 'editor';
-    this.editorVersion = editorVersion;
+    this.engineVersion = engineVersion;
     this.targetPlatform = targetPlatform;
-    this.cloudRunnerBuilderPlatform = cloudRunnerBuilderPlatform;
-    const isCloudRunnerLocal = cloudRunnerBuilderPlatform === 'local' || cloudRunnerBuilderPlatform === undefined;
-    this.builderPlatform = ImageTag.getTargetPlatformToTargetPlatformSuffixMap(targetPlatform, editorVersion);
-    this.imagePlatformPrefix = ImageTag.getImagePlatformPrefixes(
-      isCloudRunnerLocal ? process.platform : cloudRunnerBuilderPlatform,
+    this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(hostPlatform);
+    this.builderPlatform = RunnerImageTag.getTargetPlatformToTargetPlatformSuffixMap(
+      hostPlatform,
+      targetPlatform,
+      engineVersion,
     );
     this.imageRollingVersion = 1; // Will automatically roll to the latest non-breaking version.
+
+    // Cloud runner
+    this.cloudRunnerBuilderPlatform = cloudRunnerBuilderPlatform;
+    const isCloudRunnerLocal = cloudRunnerBuilderPlatform === 'local' || cloudRunnerBuilderPlatform === undefined;
+    if (!isCloudRunnerLocal) {
+      this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(cloudRunnerBuilderPlatform);
+    }
   }
 
   static get versionPattern() {
@@ -70,20 +82,21 @@ class ImageTag {
     }
   }
 
-  static getTargetPlatformToTargetPlatformSuffixMap(platform, version) {
+  static getTargetPlatformToTargetPlatformSuffixMap(hostPlatform, targetPlatform, version) {
+    log.info(hostPlatform, targetPlatform, version);
     const { generic, webgl, mac, windows, windowsIl2cpp, wsaPlayer, linux, linuxIl2cpp, android, ios, tvos, facebook } =
-      ImageTag.targetPlatformSuffixes;
+      RunnerImageTag.targetPlatformSuffixes;
 
     const [major, minor] = version.split('.').map(Number);
 
     // @see: https://docs.unity3d.com/ScriptReference/BuildTarget.html
-    switch (platform) {
+    switch (targetPlatform) {
       case UnityTargetPlatform.StandaloneOSX:
         return mac;
       case UnityTargetPlatform.StandaloneWindows:
       case UnityTargetPlatform.StandaloneWindows64:
         // Can only build windows-il2cpp on a windows based system
-        if (process.platform === 'win32') {
+        if (hostPlatform === 'win32') {
           // Unity versions before 2019.3 do not support il2cpp
           if (major >= 2020 || (major === 2019 && minor >= 3)) {
             return windowsIl2cpp;
@@ -109,7 +122,7 @@ class ImageTag {
       case UnityTargetPlatform.WebGL:
         return webgl;
       case UnityTargetPlatform.WSAPlayer:
-        if (process.platform !== 'win32') {
+        if (hostPlatform !== 'win32') {
           throw new Error(`WSAPlayer can only be built on a windows base OS`);
         }
 
@@ -119,7 +132,7 @@ class ImageTag {
       case UnityTargetPlatform.XboxOne:
         return windows;
       case UnityTargetPlatform.tvOS:
-        if (process.platform !== 'win32') {
+        if (hostPlatform !== 'win32') {
           throw new Error(`tvOS can only be built on a windows base OS`);
         }
 
@@ -145,12 +158,12 @@ class ImageTag {
       default:
         throw new Error(`
           Platform must be one of the ones described in the documentation.
-          "${platform}" is currently not supported.`);
+          "${targetPlatform}" is currently not supported.`);
     }
   }
 
   get tag() {
-    const versionAndPlatform = `${this.editorVersion}-${this.builderPlatform}`.replace(/-+$/, '');
+    const versionAndPlatform = `${this.engineVersion}-${this.builderPlatform}`.replace(/-+$/, '');
 
     return `${this.imagePlatformPrefix}-${versionAndPlatform}-${this.imageRollingVersion}`;
   }
@@ -167,4 +180,4 @@ class ImageTag {
     return `${image}:${tag}`; // '0' here represents the docker repo version
   }
 }
-export default ImageTag;
+export default RunnerImageTag;

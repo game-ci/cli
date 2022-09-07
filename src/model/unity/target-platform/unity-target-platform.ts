@@ -43,6 +43,18 @@ class UnityTargetPlatform {
         return false;
     }
   }
+
+  static determineBuildFileName(buildName, platform, androidAppBundle) {
+    if (UnityTargetPlatform.isWindows(platform)) {
+      return `${buildName}.exe`;
+    }
+
+    if (UnityTargetPlatform.isAndroid(platform)) {
+      return androidAppBundle ? `${buildName}.aab` : `${buildName}.apk`;
+    }
+
+    return buildName;
+  }
 }
 
 export default UnityTargetPlatform;

@@ -1,11 +1,9 @@
-import Cache from './cache.ts';
-
-jest.mock('./input');
+import CacheValidation from './cache-validation.ts';
 
 describe('Cache', () => {
   describe('Verification', () => {
     it('does not throw', () => {
-      expect(() => Cache.verify()).not.toThrow();
+      expect(() => CacheValidation.verify()).not.toThrow();
     });
   });
 });

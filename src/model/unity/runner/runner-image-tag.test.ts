@@ -1,6 +1,6 @@
-import ImageTag from './image-tag.ts';
+import RunnerImageTag from './runner-image-tag.ts';
 
-describe('ImageTag', () => {
+describe('RunnerImageTag', () => {
   const some = {
     editorVersion: '2099.9.f9f9',
     targetPlatform: 'Test',
@@ -17,11 +17,11 @@ describe('ImageTag', () => {
     it('can be called', () => {
       const { targetPlatform } = some;
 
-      expect(() => new ImageTag({ targetPlatform })).not.toThrow();
+      expect(() => new RunnerImageTag({ targetPlatform })).not.toThrow();
     });
 
     it('accepts parameters and sets the right properties', () => {
-      const image = new ImageTag(some);
+      const image = new RunnerImageTag(some);
 
       expect(image.repository).toStrictEqual('unityci');
       expect(image.name).toStrictEqual('editor');
@@ -31,22 +31,22 @@ describe('ImageTag', () => {
     });
 
     test.each(['2000.0.0f0', '2011.1.11f1'])('accepts %p version format', (version) => {
-      expect(() => new ImageTag({ editorVersion: version, targetPlatform: some.targetPlatform })).not.toThrow();
+      expect(() => new RunnerImageTag({ editorVersion: version, targetPlatform: some.targetPlatform })).not.toThrow();
     });
 
     test.each(['some version', ''])('throws for incorrect version %p', (editorVersion) => {
       const { targetPlatform } = some;
-      expect(() => new ImageTag({ editorVersion, targetPlatform })).toThrow();
+      expect(() => new RunnerImageTag({ editorVersion, targetPlatform })).toThrow();
     });
 
     test.each([undefined, 'nonExisting'])('throws for unsupported target %p', (targetPlatform) => {
-      expect(() => new ImageTag({ targetPlatform })).toThrow();
+      expect(() => new RunnerImageTag({ targetPlatform })).toThrow();
     });
   });
 
   describe('toString', () => {
     it('returns the correct version', () => {
-      const image = new ImageTag({ editorVersion: '2099.1.1111', targetPlatform: some.targetPlatform });
+      const image = new RunnerImageTag({ editorVersion: '2099.1.1111', targetPlatform: some.targetPlatform });
       switch (process.platform) {
         case 'win32':
           expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2099.1.1111-1`);
@@ -57,7 +57,7 @@ describe('ImageTag', () => {
       }
     });
     it('returns customImage if given', () => {
-      const image = new ImageTag({
+      const image = new RunnerImageTag({
         editorVersion: '2099.1.1111',
         targetPlatform: some.targetPlatform,
         customImage: `${defaults.image}:2099.1.1111@347598437689743986`,
@@ -67,7 +67,7 @@ describe('ImageTag', () => {
     });
 
     it('returns the specific build platform', () => {
-      const image = new ImageTag({ editorVersion: '2019.2.11f1', targetPlatform: 'WebGL' });
+      const image = new RunnerImageTag({ editorVersion: '2019.2.11f1', targetPlatform: 'WebGL' });
 
       switch (process.platform) {
         case 'win32':
@@ -80,7 +80,7 @@ describe('ImageTag', () => {
     });
 
     it('returns no specific build platform for generic targetPlatforms', () => {
-      const image = new ImageTag({ targetPlatform: 'NoTarget' });
+      const image = new RunnerImageTag({ targetPlatform: 'NoTarget' });
 
       switch (process.platform) {
         case 'win32':

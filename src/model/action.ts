@@ -1,10 +1,6 @@
 import { path, __dirname, __filename } from '../dependencies.ts';
 
 class Action {
-  static get supportedPlatforms() {
-    return ['linux', 'win32', 'darwin'];
-  }
-
   static get isRunningLocally() {
     return Deno.env.get('RUNNER_WORKSPACE') === undefined;
   }
@@ -33,13 +29,6 @@ class Action {
     if (Action.isRunningLocally) return Deno.cwd();
 
     return Deno.env.get('GITHUB_WORKSPACE');
-  }
-
-  static checkCompatibility() {
-    const currentPlatform = process.platform;
-    if (!Action.supportedPlatforms.includes(currentPlatform)) {
-      throw new Error(`Currently ${currentPlatform}-platform is not supported`);
-    }
   }
 }
 

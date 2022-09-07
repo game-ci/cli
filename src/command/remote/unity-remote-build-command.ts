@@ -1,5 +1,5 @@
 import { CommandInterface } from '../command-interface.ts';
-import { CloudRunner, ImageTag, Input, Output } from '../../model/index.ts';
+import { CloudRunner, RunnerImageTag, Input, Output } from '../../model/index.ts';
 import { core, nanoid, YargsArguments, YargsInstance } from '../../dependencies.ts';
 import Parameters from '../../model/parameters.ts';
 import { GitRepoReader } from '../../model/input-readers/git-repo.ts';

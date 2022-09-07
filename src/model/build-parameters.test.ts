@@ -3,7 +3,7 @@ import UnityVersionDetector from '../middleware/engine-detection/unity-version-d
 import AndroidBuildVersionGenerator from '../middleware/build-versioning/android-build-version-generator.ts';
 import Parameters from './parameters.ts';
 import Input from './input.ts';
-import UnityTargetPlatform from './unity/unity-target-platform.ts';
+import UnityTargetPlatform from './unity/target-platform/unity-target-platform.ts';
 
 // Todo - Don't use process.env directly, that's what the input model class is for.
 const testLicense =

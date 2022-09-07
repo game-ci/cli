@@ -9,7 +9,7 @@ export class VersioningOptions {
       .option('versioningStrategy', {
         description: 'Versioning strategy',
         choices: VersioningStrategies.all,
-        demandOption: true,
+        demandOption: false,
         default: VersioningStrategy.Semantic,
       })
       .option('version', {

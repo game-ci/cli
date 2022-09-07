@@ -1,5 +1,5 @@
 // Import this named export into your test file:
-import UnityTargetPlatform from '../unity/unity-target-platform.ts';
+import UnityTargetPlatform from '../unity/target-platform/unity-target-platform.ts';
 
 export const mockGetFromUser = jest.fn().mockResolvedValue({
   editorVersion: '',
