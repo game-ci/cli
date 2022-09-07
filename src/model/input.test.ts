@@ -1,7 +1,7 @@
 import { core } from '../dependencies.ts';
 
 import Input from './input.ts';
-import UnityTargetPlatform from './unity/unity-target-platform.ts';
+import UnityTargetPlatform from './unity/target-platform/unity-target-platform.ts';
 
 afterEach(() => {
   jest.restoreAllMocks();

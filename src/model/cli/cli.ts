@@ -1,5 +1,5 @@
-import { Parameters, CloudRunner, ImageTag, Input } from '../index.ts';
-import { Command, core } from '../../dependencies.ts';
+import { Parameters, CloudRunner, RunnerImageTag, Input } from '../index.ts';
+import { Command } from '../../dependencies.ts';
 import { ActionYamlReader } from '../input-readers/action-yaml.ts';
 import CloudRunnerLogger from '../cloud-runner/services/cloud-runner-logger.ts';
 import CloudRunnerQueryOverride from '../cloud-runner/services/cloud-runner-query-override.ts';
@@ -89,7 +89,7 @@ export class Cli {
   @CliFunction(`cli`, `runs a cloud runner build`)
   public static async CLIBuild(): Promise<string> {
     const buildParameter = await Parameters.create();
-    const baseImage = new ImageTag(buildParameter);
+    const baseImage = new RunnerImageTag(buildParameter);
 
     return await CloudRunner.run(buildParameter, baseImage.toString());
   }

@@ -1,3 +1,4 @@
 ---
 cliOptions:
   unityLicense: 'some license'
+  targetPlatform: 'StandaloneWindows64'

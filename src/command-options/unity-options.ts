@@ -1,6 +1,6 @@
 import type { YargsInstance } from '../dependencies.ts';
-import UnityTargetPlatform from '../model/unity/unity-target-platform.ts';
-import { UnityTargetPlatforms } from '../model/unity/unity-target-platforms.ts';
+import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
+import { UnityTargetPlatforms } from '../model/unity/target-platform/unity-target-platforms.ts';
 
 export class UnityOptions {
   public static configure = async (yargs: YargsInstance) => {

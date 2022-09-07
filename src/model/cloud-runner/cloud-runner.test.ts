@@ -1,4 +1,4 @@
-import { Parameters, ImageTag } from '..';
+import { Parameters, RunnerImageTag } from '..';
 import CloudRunner from './cloud-runner.ts';
 import Input from '../input.ts';
 import { CloudRunnerStatics } from './cloud-runner-statics.ts';
@@ -36,7 +36,7 @@ describe('Cloud Runner', () => {
       // Setup parameters
       const buildParameter = await Parameters.create();
       Input.githubInputEnabled = true;
-      const baseImage = new ImageTag(buildParameter);
+      const baseImage = new RunnerImageTag(buildParameter);
 
       // Run the job
       const file = await CloudRunner.run(buildParameter, baseImage.toString());
@@ -74,7 +74,7 @@ describe('Cloud Runner', () => {
       };
       Input.githubInputEnabled = false;
       const buildParameter = await Parameters.create();
-      const baseImage = new ImageTag(buildParameter);
+      const baseImage = new RunnerImageTag(buildParameter);
       const results = await CloudRunner.run(buildParameter, baseImage.toString());
       const libraryString = 'Rebuilding Library because the asset database could not be found!';
       const buildSucceededString = 'Build succeeded';
@@ -82,7 +82,7 @@ describe('Cloud Runner', () => {
       expect(results).toContain(buildSucceededString);
       CloudRunnerLogger.log(`run 1 succeeded`);
       const buildParameter2 = await Parameters.create();
-      const baseImage2 = new ImageTag(buildParameter2);
+      const baseImage2 = new RunnerImageTag(buildParameter2);
       const results2 = await CloudRunner.run(buildParameter2, baseImage2.toString());
       CloudRunnerLogger.log(`run 2 succeeded`);
       expect(results2).toContain(buildSucceededString);
@@ -112,7 +112,7 @@ describe('Cloud Runner', () => {
 
     // Setup parameters
     const buildParameter = await Parameters.create();
-    const baseImage = new ImageTag(buildParameter);
+    const baseImage = new RunnerImageTag(buildParameter);
 
     // Run the job
     await expect(CloudRunner.run(buildParameter, baseImage.toString())).resolves.not.toThrow();
@@ -132,7 +132,7 @@ describe('Cloud Runner', () => {
 
     // Setup parameters
     const buildParameter = await Parameters.create();
-    const baseImage = new ImageTag(buildParameter);
+    const baseImage = new RunnerImageTag(buildParameter);
 
     // Run the job
     await expect(CloudRunner.run(buildParameter, baseImage.toString())).resolves.not.toThrow();

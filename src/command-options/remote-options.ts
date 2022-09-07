@@ -1,5 +1,4 @@
 import { nanoid, YargsArguments, YargsInstance } from '../dependencies.ts';
-import Unity from '../model/unity/unity.ts';
 import { Cli } from '../model/cli/cli.ts';
 import { GitRepoReader } from '../model/input-readers/git-repo.ts';
 import { GithubCliReader } from '../model/input-readers/github-cli.ts';

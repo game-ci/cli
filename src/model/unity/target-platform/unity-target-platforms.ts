@@ -1,4 +1,4 @@
-import { UnityTargetPlatform } from '../index.ts';
+import { UnityTargetPlatform } from '../../index.ts';
 
 export class UnityTargetPlatforms {
   public static readonly all = [
