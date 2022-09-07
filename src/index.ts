@@ -4,9 +4,9 @@ class GameCI {
   public static async run() {
     try {
       // Configure
-      const cli = await new Cli(Deno.args);
-      await cli.configureGlobalSettings();
+      const cli = await new Cli(Deno.args, Deno.cwd());
       await cli.configureLogger();
+      await cli.configureGlobalSettings();
       await cli.configureGlobalOptions();
 
       // Command

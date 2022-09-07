@@ -1,4 +1,4 @@
-import { yargs, YargsInstance, YargsArguments, getHomeDir, __dirname, path } from './dependencies.ts';
+import { yaml, yargs, YargsInstance, YargsArguments, getHomeDir, __dirname, path } from './dependencies.ts';
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
 import { CommandFactory } from './command/command-factory.ts';
@@ -12,13 +12,14 @@ export class Cli {
   private readonly cliPath: string;
   private readonly distPath: string;
   private readonly configFileName: string;
+  private readonly cwd: string;
   private command: CommandInterface;
 
-  constructor(args: Deno.Args) {
+  constructor(args: Deno.Args, cwd: string) {
     this.cliStorageAbsolutePath = `${getHomeDir()}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
-    this.configFileName = 'config.json';
     this.yargs = yargs(args);
+    this.cwd = cwd;
 
     // Todo make these variables portable when generating the cli binary
     this.cliPath = __dirname;
@@ -53,10 +54,12 @@ export class Cli {
     const defaultAbsolutePath = `${this.cliStorageAbsolutePath}/${this.configFileName}`;
 
     this.yargs
-      .config('config', `default: ${defaultCanonicalPath}`, async (override: string) => {
-        const configPath = override || defaultAbsolutePath;
+      .config('config', `default: .game-ci.yml`, async (override: string) => {
+        // Todo - remove hardcoded. Yargs override seems to be bugged though.
+        const configPath = `${this.cwd}/.game-ci.yml`;
+        // const configPath = override || defaultAbsolutePath;
 
-        return JSON.parse(await Deno.readTextFile(configPath));
+        return this.loadConfig(configPath);
       })
       .parserConfiguration({
         'dot-notation': false,
@@ -189,5 +192,25 @@ export class Cli {
 
     log.warning(message);
     Deno.exit(1);
+  }
+
+  private async loadConfig(configPath: string) {
+    try {
+      let configFile = await Deno.readTextFile(configPath);
+
+      try {
+        const jsonConfig = JSON.parse(configFile).cliOptions;
+        if (log.isMaxVerbose) log.debug('jsonConfig', jsonConfig);
+
+        return jsonConfig;
+      } catch {
+        const yamlConfig = yaml.parse(configFile).cliOptions;
+        if (log.isMaxVerbose) log.debug('yamlConfig', yamlConfig);
+
+        return yamlConfig;
+      }
+    } catch (error) {
+      throw new Error(`Could not parse config file ${configPath}`);
+    }
   }
 }
