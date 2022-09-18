@@ -1,6 +1,6 @@
 export class VersioningStrategy {
-  public static None: 'None';
-  public static Semantic: 'Semantic';
-  public static Tag: 'Tag';
-  public static Custom: 'Custom';
+  public static readonly None = 'None';
+  public static readonly Semantic = 'Semantic';
+  public static readonly Tag = 'Tag';
+  public static readonly Custom = 'Custom';
 }

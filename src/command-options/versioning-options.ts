@@ -2,9 +2,10 @@ import { YargsInstance } from '../dependencies.ts';
 import { VersioningStrategies } from '../model/versioning/versioning-strategies.ts';
 import { VersioningStrategy } from '../model/versioning/versioning-strategy.ts';
 import { buildVersioning } from '../middleware/build-versioning/index.ts';
+import { IOptions } from './options-interface.ts';
 
-export class VersioningOptions {
-  public static async configure(yargs: YargsInstance): void {
+export class VersioningOptions implements IOptions {
+  public static async configure(yargs: YargsInstance): Promise<void> {
     yargs
       .option('versioningStrategy', {
         description: 'Versioning strategy',

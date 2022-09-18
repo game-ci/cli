@@ -9,6 +9,7 @@ import CloudRunnerBuildGuid from '../../model/cloud-runner/services/cloud-runner
 import { GithubCliReader } from '../../model/input-readers/github-cli.ts';
 import { CommandBase } from '../command-base.ts';
 import { RemoteOptions } from '../../command-options/remote-options.ts';
+import { ProjectOptions } from '../../command-options/project-options.ts';
 
 // Todo - Verify this entire flow
 export class UnityRemoteBuildCommand extends CommandBase implements CommandInterface {
@@ -27,7 +28,8 @@ export class UnityRemoteBuildCommand extends CommandBase implements CommandInter
     return false;
   }
 
-  configureOptions(yargs: YargsInstance): Promise<void> {
-    RemoteOptions.configure(yargs);
+  public async configureOptions(yargs: YargsInstance): Promise<void> {
+    await ProjectOptions.configure(yargs);
+    await RemoteOptions.configure(yargs);
   }
 }

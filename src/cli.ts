@@ -2,9 +2,8 @@ import { yaml, yargs, YargsInstance, YargsArguments, getHomeDir, __dirname, path
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
 import { CommandFactory } from './command/command-factory.ts';
-import { Engine } from './model/engine/engine.ts';
-import { ProjectOptions } from './command-options/project-options.ts';
-import { UnityBuildCommand } from './command/build/unity-build-command.ts';
+import { NonExistentCommand } from './command/null/non-existent-command.ts';
+import { CliCommands } from './cli-commands.ts';
 
 export class Cli {
   private readonly yargs: YargsInstance;
@@ -25,31 +24,45 @@ export class Cli {
     this.currentWorkDir = cwd;
     this.isRunningLocally = !Boolean(Deno.env.get('CI'));
     this.hostPlatform = process.platform;
+    this.command = new NonExistentCommand('non-existent');
 
     // Todo make these variables portable when generating the cli binary
     this.cliPath = __dirname;
     this.cliDistPath = path.join(path.dirname(__dirname), 'dist');
   }
 
+  public async setup() {
+    await this.configureLogger();
+    await this.configureGlobalSettings();
+    await this.configureGlobalOptions();
+  }
+
+  public async registerCommands() {
+    const register = (yargs) => yargs.middleware([this.registerCommand.bind(this)]);
+    await new CliCommands(this.yargs, register).registerAll();
+  }
+
+  public async registerSchemaForChosenCommand() {
+    await this.yargs.parseAsync();
+    await this.command.configureOptions(this.yargs);
+  }
+
   public async validateAndParseArguments() {
-    await this.registerConfigCommand();
-    await this.registerBuildCommand();
-    await this.registerRemoteCommand();
+    // Parsing may happen many times before this point as well.
+    const options = await this.finalParse();
 
     if (log.isVeryVerbose) {
       console.log('cliPath', this.cliPath);
       console.log('distPath', this.cliDistPath);
     }
 
-    await this.parse();
-
     return {
       command: this.command,
-      options: this.options,
+      options,
     };
   }
 
-  public async configureLogger() {
+  private async configureLogger() {
     await this.yargs
       .options('quiet', {
         alias: 'q',
@@ -84,7 +97,7 @@ export class Cli {
       .parseAsync();
   }
 
-  public async configureGlobalSettings() {
+  protected async configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
     const defaultAbsolutePath = `${this.cliStorageAbsolutePath}/${this.configFileName}`;
 
@@ -109,7 +122,7 @@ export class Cli {
     // this.yargs.env();
   }
 
-  public async configureGlobalOptions() {
+  protected async configureGlobalOptions() {
     this.yargs
       .config('config', `default: .game-ci.yml`, async (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
@@ -125,85 +138,27 @@ export class Cli {
       .default('hostPlatform', this.hostPlatform);
   }
 
-  private async registerBuildCommand() {
-    this.yargs.command('build [projectPath]', 'Builds a project that you want to build', async (yargs) => {
-      ProjectOptions.configure(yargs);
-
-      yargs
-        // Todo - remove these lines with release 3.0.0
-        .option('unityVersion', {
-          describe: 'Override the engine version to be used',
-          type: 'string',
-          default: '',
-        })
-        .deprecateOption('unityVersion', 'This parameter will be removed. Use engineVersion instead')
-        .middleware(
-          [
-            async (args) => {
-              if (!args.unityVersion || args.unityVersion === 'auto' || args.engine !== Engine.unity) return;
-
-              args.engineVersion = args.unityVersion;
-              args.unityVersion = undefined;
-            },
-          ],
-          true,
-        )
-
-        // End todo
-        .middleware([async (args) => this.registerCommand(args, yargs)]);
-
-      // Todo - remove hardcoded command - ideally this lives inside middleware
-      //   however, middleware runs while args are being parsed, which means
-      //   that we can not add new options to the command during middleware time.
-      await new UnityBuildCommand('test').configureOptions(yargs);
-    });
-  }
-
-  private registerRemoteCommand() {
-    this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs) => {
-      yargs
-        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs) => {
-          ProjectOptions.configure(yargs);
-          yargs.middleware([async (args) => this.registerCommand(args, yargs)]);
-        })
-        .command('otherSubCommand', 'Other sub command', async (yargs) => {
-          // Todo - implement all subcommands
-          yargs.middleware([async (args) => this.registerCommand(args, yargs)]);
-        });
-    });
-  }
-
-  private async registerConfigCommand() {
-    this.yargs.command('config', 'GameCI CLI configuration', async (yargs: YargsInstance) => {
-      yargs
-        .command('open', 'Opens the CLI configuration folder', async (yargs: YargsInstance) => {})
-        .middleware([async (args) => this.registerCommand(args, yargs)]);
-    });
-  }
-
-  private async registerCommand(args: YargsArguments, yargs: YargsInstance) {
+  private async registerCommand(args: YargsArguments) {
     const { engine, engineVersion, _: command } = args;
     this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(command);
-
-    await this.command.configureOptions(yargs);
   }
 
-  private async parse() {
+  protected async finalParse() {
     const { _, $0, ...options } = await this.yargs.parseAsync();
 
     if (log.isVeryVerbose) log.info('parsed:', _, $0, options);
 
-    this.options = options;
+    return options;
   }
 
-  private static handleFailure(message: string, error: Error, yargs: YargsInstance) {
+  protected static handleFailure(message: string, error: Error, yargs: YargsInstance) {
     if (error) throw error;
 
     log.warning(message);
     Deno.exit(1);
   }
 
-  private async loadConfig(configPath: string) {
+  protected async loadConfig(configPath: string) {
     try {
       let configFile = await Deno.readTextFile(configPath);
 

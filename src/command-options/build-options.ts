@@ -1,7 +1,8 @@
 import { YargsArguments, YargsInstance } from '../dependencies.ts';
 import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
+import { IOptions } from './options-interface.ts';
 
-export class BuildOptions {
+export class BuildOptions implements IOptions {
   public static configure(yargs: YargsInstance): void {
     yargs
       .demandOption('targetPlatform', 'Target platform is mandatory for builds')

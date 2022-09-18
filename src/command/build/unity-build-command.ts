@@ -9,6 +9,7 @@ import { VersioningOptions } from '../../command-options/versioning-options.ts';
 import { BuildOptions } from '../../command-options/build-options.ts';
 import { AndroidOptions } from '../../command-options/android-options.ts';
 import { PlatformValidation } from '../../logic/unity/platform-validation/platform-validation.ts';
+import { ProjectOptions } from '../../command-options/project-options.ts';
 
 export class UnityBuildCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
@@ -19,7 +20,7 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
     CacheValidation.verify(options);
 
     const baseImage = new RunnerImageTag(options);
-    log.debug('Using image:', baseImage);
+    if (log.isVerbose) log.debug('Using image:', baseImage);
     //
     // await PlatformSetup.setup(parameters, actionFolder);
     // if (env.getOS() === 'darwin') {
@@ -35,6 +36,7 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {
+    await ProjectOptions.configure(yargs);
     await UnityOptions.configure(yargs);
     await VersioningOptions.configure(yargs);
     await BuildOptions.configure(yargs);

@@ -1,6 +1,7 @@
 import { YargsInstance, YargsArguments } from '../dependencies.ts';
+import { IOptions } from './options-interface.ts';
 
-export class AndroidOptions {
+export class AndroidOptions implements IOptions {
   public static configure(yargs: YargsInstance): void {
     yargs
       .option('androidAppBundle', {
