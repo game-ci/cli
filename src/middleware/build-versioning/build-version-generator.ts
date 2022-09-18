@@ -288,7 +288,7 @@ export default class BuildVersionGenerator {
     // We MUST specify the commitIsh that triggered the job.
     // Todo - make this compatible with more CI systems
     if (!Action.isRunningLocally) {
-      commitIsh = this.sha;
+      commitIsh = this.sha as string;
     }
 
     const numberOfCommitsAsString = await this.git(`rev-list --count ${commitIsh}`);
