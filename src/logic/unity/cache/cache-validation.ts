@@ -1,8 +1,8 @@
-import { fsSync } from '../../../dependencies.ts';
+import { fsSync, Options } from '../../../dependencies.ts';
 import UnityProject from '../../../model/unity/project/unity-project.ts';
 
 class CacheValidation {
-  static verify(options) {
+  static verify(options: Options) {
     const { projectPath, isRunningLocally } = options;
 
     if (isRunningLocally) return;

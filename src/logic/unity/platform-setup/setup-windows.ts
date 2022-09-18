@@ -1,16 +1,15 @@
-import { fsSync as fs } from '../../../dependencies.ts';
-import { Parameters } from '../../../model/index.ts';
+import { fsSync as fs, Options } from '../../../dependencies.ts';
 import ValidateWindows from '../platform-validation/validate-windows.ts';
 import System from '../../../model/system/system.ts';
 
 class SetupWindows {
-  public static async setup(parameters: Parameters) {
-    ValidateWindows.validate(parameters);
-    await this.generateWinSdkRegistryKey(parameters);
+  public static async setup(options: Options) {
+    ValidateWindows.validate(options);
+    await this.generateWinSdkRegistryKey(options);
   }
 
-  private static async generateWinSdkRegistryKey(parameters) {
-    const { targetPlatform, cliStoragePath } = parameters;
+  private static async generateWinSdkRegistryKey(options: Options) {
+    const { targetPlatform, cliStoragePath } = options;
 
     if (!['StandaloneWindows', 'StandaloneWindows64', 'WSAPlayer'].includes(targetPlatform)) return;
 

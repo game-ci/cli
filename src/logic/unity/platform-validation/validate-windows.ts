@@ -1,10 +1,10 @@
-import { fsSync as fs } from '../../../dependencies.ts';
-import { Parameters } from '../../../model/index.ts';
+import { fsSync as fs, Options } from '../../../dependencies.ts';
 
 class ValidateWindows {
-  public static validate(parameters: Parameters) {
-    ValidateWindows.validateWindowsPlatformRequirements(parameters.targetPlatform);
-    if (!parameters.unityEmail || !parameters.unityPassword) {
+  public static validate(options: Options) {
+    const { targetPlatform, unityEmail, unityPassword } = options;
+    ValidateWindows.validateWindowsPlatformRequirements(targetPlatform);
+    if (!unityEmail || !unityPassword) {
       throw new Error(String.dedent`
         Unity email and password must be set for Windows based builds to authenticate the license.
 
@@ -13,7 +13,7 @@ class ValidateWindows {
     }
   }
 
-  private static validateWindowsPlatformRequirements(platform) {
+  private static validateWindowsPlatformRequirements(platform: string) {
     switch (platform) {
       case 'StandaloneWindows':
         this.checkForVisualStudio();

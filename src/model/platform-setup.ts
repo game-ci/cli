@@ -1,18 +1,19 @@
-import { Parameters } from './index.ts';
 import { SetupMac, SetupWindows } from '../logic/unity/platform-setup/index.ts';
-import ValidateWindows from '../logic/unity/platform-validation/validate-windows.ts';
+import { Options } from '../dependencies.ts';
 
 class PlatformSetup {
-  static async setup(parameters: Parameters, actionFolder: string) {
-    switch (process.platform) {
+  static async setup(options: Options) {
+    const { hostPlatform } = options;
+
+    if (!hostPlatform) throw new Error('hostPlatform is not defined');
+
+    switch (hostPlatform) {
       case 'win32':
-        await SetupWindows.setup(parameters);
+        await SetupWindows.setup(options);
         break;
       case 'darwin':
-        await SetupMac.setup(parameters, actionFolder);
+        await SetupMac.setup(options);
         break;
-
-      // Add other baseOS's here
     }
   }
 }
