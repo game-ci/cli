@@ -24,6 +24,10 @@ export class CliCommands {
     await this.testCommand();
     await this.buildCommand();
     await this.remoteCommands();
+
+    // This is needed to run the engine and vcs detection middleware.
+    // Their output is used to register the correct commands based on the detected engine and vcs.
+    await this.yargs.parseAsync();
   }
 
   private async configCommand() {
