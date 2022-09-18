@@ -4,9 +4,10 @@ import { GitRepoReader } from '../model/input-readers/git-repo.ts';
 import { GithubCliReader } from '../model/input-readers/github-cli.ts';
 import CloudRunnerConstants from '../model/cloud-runner/services/cloud-runner-constants.ts';
 import CloudRunnerBuildGuid from '../model/cloud-runner/services/cloud-runner-guid.ts';
+import { IOptions } from './options-interface.ts';
 
-export class RemoteOptions {
-  public static configure(yargs: YargsInstance): void {
+export class RemoteOptions implements IOptions {
+  public static async configure(yargs: YargsInstance): Promise<void> {
     // const cloudRunnerCluster = Cli.isCliMode
     //   ? this.input.getInput('cloudRunnerCluster') || 'aws'
     //   : this.input.getInput('cloudRunnerCluster') || 'local';

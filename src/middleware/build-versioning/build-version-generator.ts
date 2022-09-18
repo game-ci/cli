@@ -75,7 +75,7 @@ export default class BuildVersionGenerator {
   /**
    * Log up to maxDiffLines of the git diff.
    */
-  static async logDiff() {
+  public async logDiff() {
     const diffCommand = `git --no-pager diff | head -n ${this.maxDiffLines.toString()}`;
     const result = await System.shellRun(diffCommand);
 
@@ -98,7 +98,7 @@ export default class BuildVersionGenerator {
     }
 
     if ((await this.isDirty()) && !allowDirtyBuild) {
-      await BuildVersionGenerator.logDiff();
+      await this.logDiff();
       throw new Error('Branch is dirty. Refusing to base semantic version on uncommitted changes');
     }
 

@@ -5,9 +5,9 @@ class GameCI {
     try {
       // Configure
       const cli = await new Cli(Deno.args, Deno.cwd());
-      await cli.configureLogger();
-      await cli.configureGlobalSettings();
-      await cli.configureGlobalOptions();
+      await cli.setup();
+      await cli.registerCommands();
+      await cli.registerSchemaForChosenCommand();
 
       // Command
       const { command, options } = await cli.validateAndParseArguments();
