@@ -49,8 +49,9 @@ const { V1EnvVar, V1EnvVarSource, V1SecretKeySelector } = k8s;
 // These explicit type definitions are needed for auto-import to work
 type YargsInstance = yargs.Argv;
 type YargsArguments = YargsArgs;
+type Options = YargsArguments; // Use when you want to abstract away from the CLI logic
 
-export type { YargsArguments, YargsInstance };
+export type { YargsArguments, YargsInstance, Options };
 export {
   __dirname,
   __filename,

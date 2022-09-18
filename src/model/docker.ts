@@ -1,20 +1,23 @@
 import ImageEnvironmentFactory from './image-environment-factory.ts';
-import { path, fsSync as fs } from '../dependencies.ts';
+import { path, fsSync as fs, Options } from '../dependencies.ts';
 import System from './system/system.ts';
 
 class Docker {
-  static async run(image, parameters) {
-    log.warning('running docker process for', process.platform);
+  static async run(image, options: Options) {
+    const { hostPlatform, hostOS } = options;
+
+    log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
+
     let command = '';
-    switch (Deno.build.os) {
+    switch (hostOS) {
       case 'windows': {
         // Todo: check if docker daemon is set for Windows or Linux containers.
-        command = await this.getWindowsCommand(image, parameters);
+        command = await this.getWindowsCommand(image, options);
         break;
       }
       case 'linux':
       case 'darwin': {
-        command = await this.getLinuxCommand(image, parameters);
+        command = await this.getLinuxCommand(image, options);
         break;
       }
     }
@@ -42,56 +45,66 @@ class Docker {
     }
   }
 
-  static async getLinuxCommand(image, parameters): string {
-    const { workspace, actionFolder, runnerTempPath, sshAgent, gitPrivateToken } = parameters;
+  static async getLinuxCommand(image: string, options: Options): string {
+    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken } = options;
 
-    const githubHome = path.join(runnerTempPath, '_github_home');
-    await fs.ensureDir(githubHome);
-    const githubWorkflow = path.join(runnerTempPath, '_github_workflow');
-    await fs.ensureDir(githubWorkflow);
+    const home = homeDir;
 
-    return String.dedent`
+    // Todo - test on GitHub
+    // const home = path.join(runnerTempPath, '_github_home');
+    // await fs.ensureDir(home);
+
+    // const githubWorkflow = path.join(runnerTempPath, '_github_workflow');
+    // await fs.ensureDir(githubWorkflow);
+
+    return (
+      String.dedent`
       docker run \
         --rm \
         --workdir /github/workspace \
-        ${ImageEnvironmentFactory.getEnvVarString(parameters)} \
+        ${ImageEnvironmentFactory.getEnvVarString(options)} \
         --env UNITY_SERIAL \
         --env GITHUB_WORKSPACE=/github/workspace \
         ${gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : ''} \
         ${sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : ''} \
-        --volume "${githubHome}":"/root:z" \
-        --volume "${githubWorkflow}":"/github/workflow:z" \
-        --volume "${workspace}":"/github/workspace:z" \
-        --volume "${actionFolder}/default-build-script:/UnityBuilderAction:z" \
-        --volume "${actionFolder}/platforms/ubuntu/steps:/steps:z" \
-        --volume "${actionFolder}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z" \
+        --volume "${home}":"/root:z" \
+       ` +
+      // Todo - do we really need to pass this into the image???
+      // --volume "${githubWorkflow}":"/github/workflow:z" \
+      `
+        --volume "${currentWorkDir}":"/github/workspace:z" \
+        --volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z" \
+        --volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z" \
+        --volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z" \
         ${sshAgent ? `--volume ${sshAgent}:/ssh-agent` : ''} \
         ${sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : ''} \
         ${image} \
         /bin/bash -c /entrypoint.sh
-    `;
+    `
+    );
   }
 
-  static async getWindowsCommand(image: any, parameters: any): string {
-    const { workspace, actionFolder, unitySerial, gitPrivateToken, cliStoragePath } = parameters;
+  static async getWindowsCommand(image: string, options: Options): string {
+    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath } = options;
 
     // Note: the equals sign (=) is needed in Powershell.
+    // Note: homedir is currently not configured for windows (yet).
     return String.dedent`
       docker run \
         --rm \
         --workdir="c:/github/workspace" \
-        ${ImageEnvironmentFactory.getEnvVarString(parameters)} \
+        ${ImageEnvironmentFactory.getEnvVarString(options)} \
         --env UNITY_SERIAL="${unitySerial}" \
         --env GITHUB_WORKSPACE=c:/github/workspace \
         --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \
-        --volume="${workspace}":"c:/github/workspace" \
+        --volume="${currentWorkDir}":"c:/github/workspace" \
         --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \
         --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \
         --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \
         --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" \
-        --volume="${actionFolder}/default-build-script":"c:/UnityBuilderAction" \
-        --volume="${actionFolder}/platforms/windows":"c:/steps" \
-        --volume="${actionFolder}/BlankProject":"c:/BlankProject" \
+        --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \
+        --volume="${cliDistPath}/platforms/windows":"c:/steps" \
+        --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \
         ${image} \
         powershell c:/steps/entrypoint.ps1
     `;

@@ -7,8 +7,8 @@ import { open } from 'https://deno.land/x/opener@v1.0.1/mod.ts';
 
 export class OpenConfigFolderCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
-    const cliStorageAbsolutePath = `${getHomeDir()}/.game-ci`;
-    await open(`file://${cliStorageAbsolutePath}/`);
+    const cliStoragePath = `${getHomeDir()}/.game-ci`;
+    await open(`file://${cliStoragePath}/`);
 
     return true;
   }

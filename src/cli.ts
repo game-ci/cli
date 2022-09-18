@@ -7,7 +7,7 @@ import { CliCommands } from './cli-commands.ts';
 
 export class Cli {
   private readonly yargs: YargsInstance;
-  private readonly cliStorageAbsolutePath: string;
+  private readonly cliStoragePath: string;
   private readonly cliStorageCanonicalPath: string;
   private readonly cliPath: string;
   private readonly cliDistPath: string;
@@ -15,16 +15,20 @@ export class Cli {
   private readonly currentWorkDir: string;
   private readonly isRunningLocally: boolean;
   private readonly hostPlatform: string | 'darwin' | 'linux' | 'win32';
+  private readonly hostOS: 'windows' | 'macos' | 'linux';
   private command: CommandInterface;
 
   constructor(args: Deno.Args, cwd: string) {
-    this.cliStorageAbsolutePath = `${getHomeDir()}/.game-ci`;
-    this.cliStorageCanonicalPath = '~/.game-ci';
     this.yargs = yargs(args);
     this.currentWorkDir = cwd;
+
+    this.homeDir = getHomeDir();
+    this.cliStoragePath = `${this.homeDir}/.game-ci`;
+    this.cliStorageCanonicalPath = '~/.game-ci';
     this.isRunningLocally = !Boolean(Deno.env.get('CI'));
-    this.hostPlatform = process.platform;
     this.command = new NonExistentCommand('non-existent');
+    this.hostPlatform = process.platform;
+    this.hostOS = Deno.build.os;
 
     // Todo make these variables portable when generating the cli binary
     this.cliPath = __dirname;
@@ -103,7 +107,7 @@ export class Cli {
 
   protected async configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
-    const defaultAbsolutePath = `${this.cliStorageAbsolutePath}/${this.configFileName}`;
+    const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
 
     this.yargs
       .parserConfiguration({
@@ -135,11 +139,14 @@ export class Cli {
 
         return this.loadConfig(configPath);
       })
+      .default('homeDir', this.homeDir)
+      .default('currentWorkDir', this.currentWorkDir)
       .default('cliPath', this.cliPath)
       .default('cliDistPath', this.cliDistPath)
-      .default('currentWorkDir', this.currentWorkDir)
+      .default('cliStoragePath', this.cliStoragePath)
       .default('isRunningLocally', this.isRunningLocally)
-      .default('hostPlatform', this.hostPlatform);
+      .default('hostPlatform', this.hostPlatform)
+      .default('hostOS', this.hostOS);
   }
 
   private async registerCommand(args: YargsArguments) {
