@@ -38,12 +38,14 @@ export class Cli {
   }
 
   public async registerCommands() {
-    const register = (yargs) => yargs.middleware([this.registerCommand.bind(this)]);
-    await new CliCommands(this.yargs, register).registerAll();
+    await this.nonStrict(async () => {
+      const register = (yargs) => yargs.middleware([this.registerCommand.bind(this)]);
+      await new CliCommands(this.yargs, register).registerAll();
+      await this.yargs.parseAsync();
+    });
   }
 
   public async registerSchemaForChosenCommand() {
-    await this.yargs.parseAsync();
     await this.command.configureOptions(this.yargs);
   }
 
@@ -63,38 +65,40 @@ export class Cli {
   }
 
   private async configureLogger() {
-    await this.yargs
-      .options('quiet', {
-        alias: 'q',
-        description: 'Suppress all output',
-        type: 'boolean',
-        demandOption: false,
-        default: false,
-      })
-      .options('verbose', {
-        alias: 'v',
-        description: 'Enable verbose logging',
-        type: 'boolean',
-        demandOption: false,
-        default: false,
-      })
-      .options('veryVerbose', {
-        alias: 'vv',
-        description: 'Enable very verbose logging',
-        type: 'boolean',
-        demandOption: false,
-        default: false,
-      })
-      .options('maxVerbose', {
-        alias: 'vvv',
-        description: 'Enable debug logging',
-        demandOption: false,
-        type: 'boolean',
-        default: false,
-      })
-      .default([{ logLevel: 'placeholder' }, { logLevelName: 'placeholder' }])
-      .middleware([configureLogger], true)
-      .parseAsync();
+    await this.nonStrict(async () => {
+      await this.yargs
+        .options('quiet', {
+          alias: 'q',
+          description: 'Suppress all output',
+          type: 'boolean',
+          demandOption: false,
+          default: false,
+        })
+        .options('verbose', {
+          alias: 'v',
+          description: 'Enable verbose logging',
+          type: 'boolean',
+          demandOption: false,
+          default: false,
+        })
+        .options('veryVerbose', {
+          alias: 'vv',
+          description: 'Enable very verbose logging',
+          type: 'boolean',
+          demandOption: false,
+          default: false,
+        })
+        .options('maxVerbose', {
+          alias: 'vvv',
+          description: 'Enable debug logging',
+          demandOption: false,
+          type: 'boolean',
+          default: false,
+        })
+        .default([{ logLevel: 'placeholder' }, { logLevelName: 'placeholder' }])
+        .middleware([configureLogger], true)
+        .parseAsync();
+    });
   }
 
   protected async configureGlobalSettings() {
@@ -176,5 +180,12 @@ export class Cli {
     } catch (error) {
       throw new Error(`Could not parse config file ${configPath}`);
     }
+  }
+
+  protected async nonStrict(fn: () => void) {
+    const previousStrict = this.yargs.getStrict();
+    this.yargs.strict(false);
+    await fn();
+    this.yargs.strict(previousStrict);
   }
 }
