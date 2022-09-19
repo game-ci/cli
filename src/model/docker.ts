@@ -23,6 +23,8 @@ class Docker {
     }
 
     try {
+      if (log.isVeryVerbose) log.debug(`docker command: ${command}`);
+
       const test = await System.run(command, { attach: true });
       log.warning('test', test);
     } catch (error) {
@@ -45,7 +47,7 @@ class Docker {
     }
   }
 
-  static async getLinuxCommand(image: string, options: Options): string {
+  private static async getLinuxCommand(image: string, options: Options): Promise<string> {
     const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken } = options;
 
     const home = homeDir;
@@ -84,28 +86,28 @@ class Docker {
     );
   }
 
-  static async getWindowsCommand(image: string, options: Options): string {
+  private static async getWindowsCommand(image: string, options: Options): Promise<string> {
     const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath } = options;
 
     // Note: the equals sign (=) is needed in Powershell.
     // Note: homedir is currently not configured for windows (yet).
     return String.dedent`
-      docker run \
-        --rm \
-        --workdir="c:/github/workspace" \
-        ${ImageEnvironmentFactory.getEnvVarString(options)} \
-        --env UNITY_SERIAL="${unitySerial}" \
-        --env GITHUB_WORKSPACE=c:/github/workspace \
-        --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \
-        --volume="${currentWorkDir}":"c:/github/workspace" \
-        --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \
-        --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \
-        --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \
-        --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" \
-        --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \
-        --volume="${cliDistPath}/platforms/windows":"c:/steps" \
-        --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \
-        ${image} \
+      docker run \`
+        --rm \`
+        --workdir="c:/github/workspace" \`
+        ${ImageEnvironmentFactory.getEnvVarString(options)} \`
+        --env UNITY_SERIAL="${unitySerial}" \`
+        --env GITHUB_WORKSPACE=c:/github/workspace \`
+        --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \`
+        --volume="${currentWorkDir}":"c:/github/workspace" \`
+        --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`
+        --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \`
+        --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \`
+        --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" \`
+        --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`
+        --volume="${cliDistPath}/platforms/windows":"c:/steps" \`
+        --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`
+        ${image} \`
         powershell c:/steps/entrypoint.ps1
     `;
   }

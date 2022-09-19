@@ -7,8 +7,9 @@ class Parameter {
 }
 
 class ImageEnvironmentFactory {
-  public static getEnvVarString(parameters) {
-    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(parameters);
+  public static getEnvVarString(options) {
+    const { hostOS } = options;
+    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
     let string = '';
     for (const p of environmentVariables) {
       if (p.value === '' || p.value === undefined) {
@@ -19,14 +20,20 @@ class ImageEnvironmentFactory {
         continue;
       }
 
-      if (Deno.build.os === 'windows') {
+      if (hostOS === 'windows') {
         // The ampersand (&) character is not allowed. The & operator is reserved for future use; wrap an ampersand in
         // double quotation marks ("&") to pass it as part of a string.
         const escapedValue = typeof p.value !== 'string' ? p.value : p.value?.replace(/&/, '\\"&\\"');
-        string += `--env ${p.name}='${escapedValue}' `;
+        string += `--env ${p.name}='${escapedValue}' \`\n`;
       } else {
-        string += `--env ${p.name}="${p.value}" `;
+        string += `--env ${p.name}="${p.value}"\n`;
       }
+    }
+
+    if (hostOS === 'windows') {
+      string = string.replace(/`\n$/, '');
+    } else {
+      string = string.replace(/\n$/, '');
     }
 
     return string;
@@ -41,7 +48,7 @@ class ImageEnvironmentFactory {
       { name: 'UNITY_EMAIL', value: parameters.unityEmail },
       { name: 'UNITY_PASSWORD', value: parameters.unityPassword },
       { name: 'UNITY_SERIAL', value: parameters.unitySerial },
-      { name: 'UNITY_VERSION', value: parameters.editorVersion },
+      { name: 'UNITY_VERSION', value: parameters.engineVersion },
       { name: 'USYM_UPLOAD_AUTH_TOKEN', value: parameters.uploadAuthToken },
       { name: 'PROJECT_PATH', value: parameters.projectPath },
       { name: 'BUILD_TARGET', value: parameters.targetPlatform },

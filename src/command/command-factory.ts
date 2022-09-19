@@ -24,6 +24,8 @@ export class CommandFactory {
     }
 
     switch (this.engine) {
+      case Engine.unknown:
+        throw new Error('Engine not detected from projectPath');
       case Engine.unity:
         return this.createUnityCommand(command, subCommands);
       default:
