@@ -1,19 +1,20 @@
-import CloudRunnerLogger from '../services/cloud-runner-logger.ts';
-import { core } from '../../../dependencies.ts';
-import CloudRunner from '../cloud-runner.ts';
+import CloudRunnerLogger from '../services/cloud-runner-logger';
+import * as core from '@actions/core';
+import CloudRunner from '../cloud-runner';
+import CloudRunnerSecret from '../services/cloud-runner-secret';
+import BuildParameters from '../../build-parameters';
 
 export class CloudRunnerError {
-  public static async handleException(error: unknown) {
+  public static async handleException(error: unknown, buildParameters: BuildParameters, secrets: CloudRunnerSecret[]) {
     CloudRunnerLogger.error(JSON.stringify(error, undefined, 4));
-    log.error('Cloud runner failed');
-
-    await CloudRunner.Provider.cleanup(
-      CloudRunner.buildParameters.buildGuid,
-      CloudRunner.buildParameters,
-      CloudRunner.buildParameters.branch,
-      CloudRunner.defaultSecrets,
-    );
-
-    Deno.exit(1);
+    core.setFailed('Cloud Runner failed');
+    if (CloudRunner.Provider !== undefined) {
+      await CloudRunner.Provider.cleanupWorkflow(
+        buildParameters.buildGuid,
+        buildParameters,
+        buildParameters.branch,
+        secrets,
+      );
+    }
   }
 }

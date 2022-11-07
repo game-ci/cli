@@ -1,10 +1,10 @@
-import { aws } from '../../../../dependencies.ts';
-import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def.ts';
-import CloudRunnerSecret from '../../services/cloud-runner-secret.ts';
-import { AWSCloudFormationTemplates } from './aws-cloud-formation-templates.ts';
-import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
-import { AWSError } from './aws-error.ts';
-import CloudRunner from '../../cloud-runner.ts';
+import * as SDK from 'aws-sdk';
+import CloudRunnerAWSTaskDef from './cloud-runner-aws-task-def';
+import CloudRunnerSecret from '../../services/cloud-runner-secret';
+import { AWSCloudFormationTemplates } from './aws-cloud-formation-templates';
+import CloudRunnerLogger from '../../services/cloud-runner-logger';
+import { AWSError } from './aws-error';
+import CloudRunner from '../../cloud-runner';
 
 export class AWSJobStack {
   private baseStackName: string;
@@ -13,7 +13,7 @@ export class AWSJobStack {
   }
 
   public async setupCloudFormations(
-    CF: aws.CloudFormation,
+    CF: SDK.CloudFormation,
     buildGuid: string,
     image: string,
     entrypoint: string[],
@@ -69,6 +69,7 @@ export class AWSJobStack {
     const secretsMappedToCloudFormationParameters = secrets.map((x) => {
       return { ParameterKey: x.ParameterKey.replace(/[^\dA-Za-z]/g, ''), ParameterValue: x.ParameterValue };
     });
+    const logGroupName = `${this.baseStackName}/${taskDefStackName}`;
     const parameters = [
       {
         ParameterKey: 'EnvironmentName',
@@ -81,6 +82,10 @@ export class AWSJobStack {
       {
         ParameterKey: 'ServiceName',
         ParameterValue: taskDefStackName,
+      },
+      {
+        ParameterKey: 'LogGroupName',
+        ParameterValue: logGroupName,
       },
       {
         ParameterKey: 'Command',
@@ -115,10 +120,11 @@ export class AWSJobStack {
         if (element.StackName === taskDefStackName && element.StackStatus !== 'DELETE_COMPLETE') {
           previousStackExists = true;
           CloudRunnerLogger.log(`Previous stack still exists: ${JSON.stringify(element)}`);
+          await new Promise((promise) => setTimeout(promise, 5000));
         }
       }
     }
-    const createStackInput: aws.CloudFormation.CreateStackInput = {
+    const createStackInput: SDK.CloudFormation.CreateStackInput = {
       StackName: taskDefStackName,
       TemplateBody: taskDefCloudFormation,
       Capabilities: ['CAPABILITY_IAM'],
@@ -134,13 +140,13 @@ export class AWSJobStack {
       throw error;
     }
 
-    const { StackResources: taskDefResources } = await CF.describeStackResources({
-      StackName: taskDefStackName,
-    }).promise();
+    const taskDefResources = (
+      await CF.describeStackResources({
+        StackName: taskDefStackName,
+      }).promise()
+    ).StackResources;
 
-    const { StackResources: baseResources } = await CF.describeStackResources({
-      StackName: this.baseStackName,
-    }).promise();
+    const baseResources = (await CF.describeStackResources({ StackName: this.baseStackName }).promise()).StackResources;
 
     return {
       taskDefStackName,

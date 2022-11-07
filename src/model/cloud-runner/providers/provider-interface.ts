@@ -1,27 +1,59 @@
-import Parameters from '../../parameters.ts';
-import CloudRunnerEnvironmentVariable from '../services/cloud-runner-environment-variable.ts';
-import CloudRunnerSecret from '../services/cloud-runner-secret.ts';
+import BuildParameters from '../../build-parameters';
+import CloudRunnerEnvironmentVariable from '../services/cloud-runner-environment-variable';
+import CloudRunnerSecret from '../services/cloud-runner-secret';
+import { ProviderResource } from './provider-resource';
+import { ProviderWorkflow } from './provider-workflow';
 
 export interface ProviderInterface {
-  cleanup(
+  cleanupWorkflow(
+    // eslint-disable-next-line no-unused-vars
     buildGuid: string,
-    buildParameters: Parameters,
+    // eslint-disable-next-line no-unused-vars
+    buildParameters: BuildParameters,
+    // eslint-disable-next-line no-unused-vars
     branchName: string,
+    // eslint-disable-next-line no-unused-vars
     defaultSecretsArray: { ParameterKey: string; EnvironmentVariable: string; ParameterValue: string }[],
   );
-  setup(
+  setupWorkflow(
+    // eslint-disable-next-line no-unused-vars
     buildGuid: string,
-    buildParameters: Parameters,
+    // eslint-disable-next-line no-unused-vars
+    buildParameters: BuildParameters,
+    // eslint-disable-next-line no-unused-vars
     branchName: string,
+    // eslint-disable-next-line no-unused-vars
     defaultSecretsArray: { ParameterKey: string; EnvironmentVariable: string; ParameterValue: string }[],
   );
-  runTask(
+  runTaskInWorkflow(
+    // eslint-disable-next-line no-unused-vars
     buildGuid: string,
+    // eslint-disable-next-line no-unused-vars
     image: string,
+    // eslint-disable-next-line no-unused-vars
     commands: string,
+    // eslint-disable-next-line no-unused-vars
     mountdir: string,
+    // eslint-disable-next-line no-unused-vars
     workingdir: string,
+    // eslint-disable-next-line no-unused-vars
     environment: CloudRunnerEnvironmentVariable[],
+    // eslint-disable-next-line no-unused-vars
     secrets: CloudRunnerSecret[],
   ): Promise<string>;
+  garbageCollect(
+    // eslint-disable-next-line no-unused-vars
+    filter: string,
+    // eslint-disable-next-line no-unused-vars
+    previewOnly: boolean,
+    // eslint-disable-next-line no-unused-vars
+    olderThan: Number,
+    // eslint-disable-next-line no-unused-vars
+    fullCache: boolean,
+    // eslint-disable-next-line no-unused-vars
+    baseDependencies: boolean,
+  ): Promise<string>;
+  listResources(): Promise<ProviderResource[]>;
+  listWorkflow(): Promise<ProviderWorkflow[]>;
+  watchWorkflow(): Promise<string>;
 }

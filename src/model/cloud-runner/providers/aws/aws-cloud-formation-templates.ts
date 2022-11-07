@@ -1,4 +1,4 @@
-import { TaskDefinitionFormation } from './cloud-formations/task-definition-formation.ts';
+import { TaskDefinitionFormation } from './cloud-formations/task-definition-formation';
 
 export class AWSCloudFormationTemplates {
   public static getParameterTemplate(p1) {

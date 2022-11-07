@@ -1,9 +1,9 @@
-import { aws } from '../../../../dependencies.ts';
+import * as AWS from 'aws-sdk';
 
 class CloudRunnerAWSTaskDef {
   public taskDefStackName!: string;
   public taskDefCloudFormation!: string;
-  public taskDefResources: aws.CloudFormation.StackResources | undefined;
-  public baseResources: aws.CloudFormation.StackResources | undefined;
+  public taskDefResources: AWS.CloudFormation.StackResources | undefined;
+  public baseResources: AWS.CloudFormation.StackResources | undefined;
 }
 export default CloudRunnerAWSTaskDef;

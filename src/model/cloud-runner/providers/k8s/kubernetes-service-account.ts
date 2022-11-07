@@ -1,7 +1,8 @@
-import { k8s, k8sTypes } from '../../../../dependencies.ts';
+import { CoreV1Api } from '@kubernetes/client-node';
+import * as k8s from '@kubernetes/client-node';
 
 class KubernetesServiceAccount {
-  static async createServiceAccount(serviceAccountName: string, namespace: string, kubeClient: k8sTypes.CoreV1Api) {
+  static async createServiceAccount(serviceAccountName: string, namespace: string, kubeClient: CoreV1Api) {
     const serviceAccount = new k8s.V1ServiceAccount();
     serviceAccount.apiVersion = 'v1';
     serviceAccount.kind = 'ServiceAccount';

@@ -1,4 +1,4 @@
-import { core } from '../../../dependencies.ts';
+import * as core from '@actions/core';
 
 class CloudRunnerLogger {
   private static timestamp: number;
@@ -10,24 +10,24 @@ class CloudRunnerLogger {
   }
 
   public static log(message: string) {
-    log.info(message);
+    core.info(message);
   }
 
   public static logWarning(message: string) {
-    log.warning(message);
+    core.warning(message);
   }
 
   public static logLine(message: string) {
-    log.info(`${message}\n`);
+    core.info(`${message}\n`);
   }
 
   public static error(message: string) {
-    log.error(message);
+    core.error(message);
   }
 
   public static logWithTime(message: string) {
     const newTimestamp = this.createTimestamp();
-    log.info(
+    core.info(
       `${message} (Since previous: ${this.calculateTimeDiff(
         newTimestamp,
         this.timestamp,
