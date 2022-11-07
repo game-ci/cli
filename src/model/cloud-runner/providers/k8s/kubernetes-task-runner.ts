@@ -1,12 +1,15 @@
-import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
-import { k8sTypes, k8s, Writable, waitUntil } from '../../../../dependencies.ts';
-import { CloudRunnerStatics } from '../../cloud-runner-statics.ts';
-import { FollowLogStreamService } from '../../services/follow-log-stream-service.ts';
+import { CoreV1Api, KubeConfig, Log } from '@kubernetes/client-node';
+import { Writable } from 'stream';
+import CloudRunnerLogger from '../../services/cloud-runner-logger';
+import * as core from '@actions/core';
+import { CloudRunnerStatics } from '../../cloud-runner-statics';
+import waitUntil from 'async-wait-until';
+import { FollowLogStreamService } from '../../services/follow-log-stream-service';
 
 class KubernetesTaskRunner {
   static async runTask(
-    kubeConfig: k8sTypes.KubeConfig,
-    kubeClient: k8sTypes.CoreV1Api,
+    kubeConfig: KubeConfig,
+    kubeClient: CoreV1Api,
     jobName: string,
     podName: string,
     containerName: string,
@@ -37,19 +40,18 @@ class KubernetesTaskRunner {
     };
     try {
       const resultError = await new Promise((resolve) =>
-        new k8s.Log(kubeConfig).log(namespace, podName, containerName, stream, resolve, logOptions),
+        new Log(kubeConfig).log(namespace, podName, containerName, stream, resolve, logOptions),
       );
       stream.destroy();
       if (resultError) {
         throw resultError;
       }
       if (!didStreamAnyLogs) {
-        log.error('Failed to stream any logs, listing namespace events, check for an error with the container');
-        const listedEvents = await kubeClient.listNamespacedEvent(namespace);
-        log.error(
+        core.error('Failed to stream any logs, listing namespace events, check for an error with the container');
+        core.error(
           JSON.stringify(
             {
-              events: listedEvents.body.items
+              events: (await kubeClient.listNamespacedEvent(namespace)).body.items
                 .filter((x) => {
                   return x.involvedObject.name === podName || x.involvedObject.name === jobName;
                 })
@@ -78,7 +80,7 @@ class KubernetesTaskRunner {
     return output;
   }
 
-  static async watchUntilPodRunning(kubeClient: k8sTypes.CoreV1Api, podName: string, namespace: string) {
+  static async watchUntilPodRunning(kubeClient: CoreV1Api, podName: string, namespace: string) {
     let success: boolean = false;
     CloudRunnerLogger.log(`Watching ${podName} ${namespace}`);
     await waitUntil(
@@ -91,12 +93,13 @@ class KubernetesTaskRunner {
             status.body.status?.conditions?.[0].message || ''
           }`,
         );
+        if (success || phase !== 'Pending') return true;
 
-        return success || phase !== 'Pending';
+        return false;
       },
       {
-        timeout: 2_000_000,
-        intervalBetweenAttempts: 15_000,
+        timeout: 2000000,
+        intervalBetweenAttempts: 15000,
       },
     );
 
