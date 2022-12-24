@@ -2,7 +2,7 @@
 
 The CLI is currently a work in progress.
 
-We expect it to be working by the end of 2022.
+We expect it to be working in the first half of 2023.
 
 See [our roadmap](https://github.com/orgs/game-ci/projects/4/views/1) to follow our progress.
 
