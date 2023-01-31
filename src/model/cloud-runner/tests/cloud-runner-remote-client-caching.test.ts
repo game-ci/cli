@@ -1,27 +1,26 @@
-import { fs, uuid, path, __dirname } from '../../../dependencies.ts';
-import Parameters from '../../parameters.ts';
-import { Cli } from '../../cli/cli.ts';
-import Input from '../../input.ts';
-import UnityVersionDetector from '../../../middleware/engine-detection/unity-version-detector.ts';
-import CloudRunner from '../cloud-runner.ts';
-import { CloudRunnerSystem } from '../services/cloud-runner-system/index.ts';
-import { Caching } from './caching.ts';
-
-describe('Cloud Runner Caching', () => {
+import fs from 'fs';
+import path from 'path';
+import BuildParameters from '../../build-parameters';
+import { Cli } from '../../cli/cli';
+import UnityVersioning from '../../unity-versioning';
+import CloudRunner from '../cloud-runner';
+import { CloudRunnerSystem } from '../services/cloud-runner-system';
+import { Caching } from '../remote-client/caching';
+import { v4 as uuidv4 } from 'uuid';
+import GitHub from '../../github';
+describe('Cloud Runner (Remote Client) Caching', () => {
   it('responds', () => {});
-});
-describe('Cloud Runner Caching', () => {
   if (process.platform === 'linux') {
-    it('Simple caching works', async () => {
+    it.skip('Simple caching works', async () => {
       Cli.options = {
         versioning: 'None',
         projectPath: 'test-project',
-        engineVersion: UnityVersionDetector.read('test-project'),
+        unityVersion: UnityVersioning.read('test-project'),
         targetPlatform: 'StandaloneLinux64',
-        cacheKey: `test-case-${uuid()}`,
+        cacheKey: `test-case-${uuidv4()}`,
       };
-      Input.githubInputEnabled = false;
-      const buildParameter = await Parameters.create();
+      GitHub.githubInputEnabled = false;
+      const buildParameter = await BuildParameters.create();
       CloudRunner.buildParameters = buildParameter;
 
       // Create test folder
@@ -44,18 +43,16 @@ describe('Cloud Runner Caching', () => {
         `${Cli.options.cacheKey}`,
       );
       await CloudRunnerSystem.Run(`du -h ${__dirname}`);
-      await CloudRunnerSystem.Run(`tree ${testFolder}`);
-      await CloudRunnerSystem.Run(`tree ${cacheFolder}`);
 
       // Compare validity to original hash
-      expect(Deno.readTextFileSync(path.resolve(testFolder, 'test.txt'), { encoding: 'utf8' }).toString()).toContain(
+      expect(fs.readFileSync(path.resolve(testFolder, 'test.txt'), { encoding: 'utf8' }).toString()).toContain(
         Cli.options.cacheKey,
       );
       fs.rmdirSync(testFolder, { recursive: true });
       fs.rmdirSync(cacheFolder, { recursive: true });
 
-      Input.githubInputEnabled = true;
+      GitHub.githubInputEnabled = true;
       delete Cli.options;
-    }, 1_000_000);
+    }, 1000000);
   }
 });

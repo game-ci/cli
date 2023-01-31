@@ -1,7 +1,7 @@
-import CloudRunnerLogger from './cloud-runner-logger.ts';
-import { core } from '../../../dependencies.ts';
-import CloudRunner from '../cloud-runner.ts';
-import { CloudRunnerStatics } from '../cloud-runner-statics.ts';
+import CloudRunnerLogger from './cloud-runner-logger';
+import * as core from '@actions/core';
+import CloudRunner from '../cloud-runner';
+import { CloudRunnerStatics } from '../cloud-runner-statics';
 
 export class FollowLogStreamService {
   public static handleIteration(message, shouldReadLogs, shouldCleanup, output) {
@@ -9,25 +9,24 @@ export class FollowLogStreamService {
       CloudRunnerLogger.log('End of log transmission received');
       shouldReadLogs = false;
     } else if (message.includes('Rebuilding Library because the asset database could not be found!')) {
-      log.warning('LIBRARY NOT FOUND!');
+      core.warning('LIBRARY NOT FOUND!');
       core.setOutput('library-found', 'false');
     } else if (message.includes('Build succeeded')) {
       core.setOutput('build-result', 'success');
     } else if (message.includes('Build fail')) {
       core.setOutput('build-result', 'failed');
-      log.error('build-result: failed');
-      Deno.exit(1);
-    } else if (CloudRunner.buildParameters.cloudRunnerIntegrationTests && message.includes(': Listening for Jobs')) {
+      core.setFailed('unity build failed');
+      core.error('BUILD FAILED!');
+    } else if (CloudRunner.buildParameters.cloudRunnerDebug && message.includes(': Listening for Jobs')) {
       core.setOutput('cloud runner stop watching', 'true');
       shouldReadLogs = false;
       shouldCleanup = false;
-      log.warning('cloud runner stop watching');
+      core.warning('cloud runner stop watching');
     }
-    message = `[${CloudRunnerStatics.logPrefix}] ${message}`;
-    if (CloudRunner.buildParameters.cloudRunnerIntegrationTests) {
-      output += message;
+    if (CloudRunner.buildParameters.cloudRunnerDebug) {
+      output += `${message}\n`;
     }
-    CloudRunnerLogger.log(message);
+    CloudRunnerLogger.log(`[${CloudRunnerStatics.logPrefix}] ${message}`);
 
     return { shouldReadLogs, shouldCleanup, output };
   }

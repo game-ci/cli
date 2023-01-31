@@ -1,4 +1,4 @@
-import CloudRunnerLogger from '../services/cloud-runner-logger.ts';
+import CloudRunnerLogger from '../services/cloud-runner-logger';
 
 export class RemoteClientLogger {
   public static log(message: string) {
