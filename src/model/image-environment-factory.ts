@@ -1,13 +1,14 @@
 import Parameters from './parameters.ts';
 import { ReadLicense } from './input-readers/test-license-reader.ts';
+import { Options } from '../dependencies.ts';
 
-class Parameter {
+class DockerParameter {
   public name;
   public value;
 }
 
 class ImageEnvironmentFactory {
-  public static getEnvVarString(options) {
+  public static getEnvVarString(options: Options) {
     const { hostOS } = options;
     const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
     let string = '';
@@ -38,35 +39,35 @@ class ImageEnvironmentFactory {
 
     return string;
   }
-  public static getEnvironmentVariables(parameters: Parameters) {
+  public static getEnvironmentVariables(options: Options) {
     // Todo - replace with simple for of loop, mapping parameters to this specific format
     // All parameters should be straight forward at this point in the process.
     // We can convert between camelCase and UPPER_SNAKE_CASE relatively easily.
-    const environmentVariables: Parameter[] = [
-      { name: 'UNITY_LICENSE', value: parameters.unityLicense || ReadLicense(parameters) },
-      { name: 'UNITY_LICENSE_FILE', value: parameters.unityLicenseFile },
-      { name: 'UNITY_EMAIL', value: parameters.unityEmail },
-      { name: 'UNITY_PASSWORD', value: parameters.unityPassword },
-      { name: 'UNITY_SERIAL', value: parameters.unitySerial },
-      { name: 'UNITY_VERSION', value: parameters.engineVersion },
-      { name: 'USYM_UPLOAD_AUTH_TOKEN', value: parameters.uploadAuthToken },
-      { name: 'PROJECT_PATH', value: parameters.projectPath },
-      { name: 'BUILD_TARGET', value: parameters.targetPlatform },
-      { name: 'BUILD_NAME', value: parameters.buildName },
-      { name: 'BUILD_PATH', value: parameters.buildPath },
-      { name: 'BUILD_FILE', value: parameters.buildFile },
-      { name: 'BUILD_METHOD', value: parameters.buildMethod },
-      { name: 'VERSION', value: parameters.buildVersion },
-      { name: 'ANDROID_VERSION_CODE', value: parameters.androidVersionCode },
-      { name: 'ANDROID_KEYSTORE_NAME', value: parameters.androidKeystoreName },
-      { name: 'ANDROID_KEYSTORE_BASE64', value: parameters.androidKeystoreBase64 },
-      { name: 'ANDROID_KEYSTORE_PASS', value: parameters.androidKeystorePass },
-      { name: 'ANDROID_KEYALIAS_NAME', value: parameters.androidKeyaliasName },
-      { name: 'ANDROID_KEYALIAS_PASS', value: parameters.androidKeyaliasPass },
-      { name: 'ANDROID_TARGET_SDK_VERSION', value: parameters.androidTargetSdkVersion },
-      { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: parameters.androidSdkManagerParameters },
-      { name: 'CUSTOM_PARAMETERS', value: parameters.customParameters },
-      { name: 'CHOWN_FILES_TO', value: parameters.chownFilesTo },
+    const environmentVariables: DockerParameter[] = [
+      { name: 'UNITY_LICENSE', value: options.unityLicense || ReadLicense(options) },
+      { name: 'UNITY_LICENSE_FILE', value: options.unityLicenseFile },
+      { name: 'UNITY_EMAIL', value: options.unityEmail },
+      { name: 'UNITY_PASSWORD', value: options.unityPassword },
+      { name: 'UNITY_SERIAL', value: options.unitySerial },
+      { name: 'UNITY_VERSION', value: options.engineVersion },
+      { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
+      { name: 'PROJECT_PATH', value: options.projectPath },
+      { name: 'BUILD_TARGET', value: options.targetPlatform },
+      { name: 'BUILD_NAME', value: options.buildName },
+      { name: 'BUILD_PATH', value: options.buildPath },
+      { name: 'BUILD_FILE', value: options.buildFile },
+      { name: 'BUILD_METHOD', value: options.buildMethod },
+      { name: 'VERSION', value: options.buildVersion },
+      { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },
+      { name: 'ANDROID_KEYSTORE_NAME', value: options.androidKeystoreName },
+      { name: 'ANDROID_KEYSTORE_BASE64', value: options.androidKeystoreBase64 },
+      { name: 'ANDROID_KEYSTORE_PASS', value: options.androidKeystorePass },
+      { name: 'ANDROID_KEYALIAS_NAME', value: options.androidKeyaliasName },
+      { name: 'ANDROID_KEYALIAS_PASS', value: options.androidKeyaliasPass },
+      { name: 'ANDROID_TARGET_SDK_VERSION', value: options.androidTargetSdkVersion },
+      { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: options.androidSdkManagerParameters },
+      { name: 'CUSTOM_PARAMETERS', value: options.customParameters },
+      { name: 'CHOWN_FILES_TO', value: options.chownFilesTo },
       { name: 'GITHUB_REF', value: Deno.env.get('GITHUB_REF') },
       { name: 'GITHUB_SHA', value: Deno.env.get('GITHUB_SHA') },
       { name: 'GITHUB_REPOSITORY', value: Deno.env.get('GITHUB_REPOSITORY') },
@@ -83,7 +84,7 @@ class ImageEnvironmentFactory {
       { name: 'RUNNER_TEMP', value: Deno.env.get('RUNNER_TEMP') },
       { name: 'RUNNER_WORKSPACE', value: Deno.env.get('RUNNER_WORKSPACE') },
     ];
-    if (parameters.sshAgent) environmentVariables.push({ name: 'SSH_AUTH_SOCK', value: '/ssh-agent' });
+    if (options.sshAgent) environmentVariables.push({ name: 'SSH_AUTH_SOCK', value: '/ssh-agent' });
 
     return environmentVariables;
   }
