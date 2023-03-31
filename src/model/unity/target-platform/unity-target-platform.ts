@@ -10,6 +10,7 @@ class UnityTargetPlatform {
   public static readonly WebGL = 'WebGL';
   public static readonly WSAPlayer = 'WSAPlayer';
   public static readonly XboxOne = 'XboxOne';
+  public static readonly PS4 = 'PS4';
 
   // Unsupported
   public static readonly Lumin = 'Lumin';
@@ -25,7 +26,7 @@ class UnityTargetPlatform {
     return UnityTargetPlatform.StandaloneWindows64;
   }
 
-  static isWindows(platform) {
+  static isWindows(platform: string) {
     switch (platform) {
       case UnityTargetPlatform.StandaloneWindows:
       case UnityTargetPlatform.StandaloneWindows64:
@@ -35,7 +36,7 @@ class UnityTargetPlatform {
     }
   }
 
-  static isAndroid(platform) {
+  static isAndroid(platform: string) {
     switch (platform) {
       case UnityTargetPlatform.Android:
         return true;
@@ -44,7 +45,7 @@ class UnityTargetPlatform {
     }
   }
 
-  static determineBuildFileName(buildName, platform, androidAppBundle) {
+  static determineBuildFileName(buildName: string, platform: string, androidAppBundle: boolean) {
     if (UnityTargetPlatform.isWindows(platform)) {
       return `${buildName}.exe`;
     }

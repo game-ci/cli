@@ -20,9 +20,9 @@ export class CloudRunnerBuildCommandProcessor {
       echo "---${buildParameters.logId}"`;
   }
 
-  public static getHooks(customJobHooks): Hook[] {
+  public static getHooks(customJobHooks: string): Hook[] {
     const experimentHooks = customJobHooks;
-    let output = new Array<Hook>();
+    let output: Hook[] = new Array<Hook>();
     if (experimentHooks && experimentHooks !== '') {
       try {
         output = yaml.parse(experimentHooks);

@@ -10,6 +10,7 @@ import KubernetesJobSpecFactory from './kubernetes-job-spec-factory.ts';
 import KubernetesServiceAccount from './kubernetes-service-account.ts';
 import CloudRunnerLogger from '../../services/cloud-runner-logger.ts';
 import DependencyOverrideService from '../../services/depdency-override-service.ts';
+import "../../../../global.d.ts";
 
 class Kubernetes implements ProviderInterface {
   private kubeConfig: k8sTypes.KubeConfig;

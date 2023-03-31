@@ -4,9 +4,12 @@ import { GitRepoReader } from './input-readers/git-repo.ts';
 import { CommandInterface } from '../command/command-interface.ts';
 import { Environment } from '../core/env/environment.ts';
 import { Parameter } from './parameter.ts';
+import { base64 } from "../dependencies.ts";
 
 class Parameters {
-  private command: CommandInterface;
+  [key: string]: any;
+
+  private command!: CommandInterface;
   public editorVersion!: string;
   public customImage!: string;
   public unitySerial!: string;
@@ -60,6 +63,7 @@ class Parameters {
   public cloudRunnerIntegrationTests!: boolean;
   public cloudRunnerBuilderPlatform!: string | undefined;
   public isCliMode!: boolean;
+  public region!: string;
 
   private defaults: Partial<Parameters> = {
     region: 'eu-west-2',
@@ -76,16 +80,16 @@ class Parameters {
     // this.config = config;
   }
 
-  public get(query, useDefault = true) {
+  public get(query: string, useDefault = true) {
     const defaultValue = useDefault ? this.default(query) : undefined;
-    const value = this.input.get(query) || this.env.get(Parameter.toUpperSnakeCase(query)) || defaultValue;
+    const value = this.input.get(query) as string || this.env.get(Parameter.toUpperSnakeCase(query)) || defaultValue;
 
     if (log.isVeryVerbose) log.debug('Argument:', query, '=', value);
 
     return value;
   }
 
-  private default(query) {
+  private default(query: string) {
     return this.defaults[query];
   }
 
@@ -123,7 +127,7 @@ class Parameters {
     return unitySerial;
   }
 
-  private getSerialFromLicense(license) {
+  private getSerialFromLicense(license: string) {
     if (!license) {
       throw new Error(String.dedent`
           Missing Unity License File and no Unity Serial was found. If this is a personal license,
@@ -141,7 +145,7 @@ class Parameters {
     const endIndex = license.indexOf(endKey, startIndex);
 
     // Slice off the first 4 characters as they are garbage values
-    return Buffer.from(license.slice(startIndex, endIndex), 'base64').toString('binary').slice(4);
+    return new TextDecoder().decode(base64.decode(license.slice(startIndex, endIndex))).slice(4);
   }
 
   registerCommand(command: CommandInterface) {

@@ -71,7 +71,7 @@ class RunnerImageTag {
     };
   }
 
-  static getImagePlatformPrefixes(platform) {
+  static getImagePlatformPrefixes(platform: string) {
     switch (platform) {
       case 'win32':
         return 'windows';
@@ -82,7 +82,7 @@ class RunnerImageTag {
     }
   }
 
-  static getTargetPlatformToTargetPlatformSuffixMap(hostPlatform, targetPlatform, version) {
+  static getTargetPlatformToTargetPlatformSuffixMap(hostPlatform: string, targetPlatform: string, version: string) {
     log.info(hostPlatform, targetPlatform, version);
     const { generic, webgl, mac, windows, windowsIl2cpp, wsaPlayer, linux, linuxIl2cpp, android, ios, tvos, facebook } =
       RunnerImageTag.targetPlatformSuffixes;

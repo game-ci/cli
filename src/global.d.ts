@@ -1,7 +1,7 @@
 import { Verbosity } from './core/logger/index.ts';
 
 declare global {
-  interface String {
+  interface StringConstructor {
     dedent(indentedString: string): string;
   }
 
@@ -18,7 +18,7 @@ declare global {
   };
 }
 
-declare interface String {
+declare interface StringConstructor {
   dedent(indentedString: string): string;
 }
 

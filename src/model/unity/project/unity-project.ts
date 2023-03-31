@@ -3,7 +3,7 @@ class UnityProject {
     return 'Library';
   }
 
-  static getLibraryFolder(projectPath) {
+  static getLibraryFolder(projectPath: string) {
     return `${projectPath}/${UnityProject.libraryFolder}`;
   }
 }

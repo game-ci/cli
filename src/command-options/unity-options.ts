@@ -5,7 +5,7 @@ import { IOptions } from './options-interface.ts';
 
 export class UnityOptions implements IOptions {
   public static configure = async (yargs: YargsInstance): Promise<void> => {
-    yargs
+    await yargs
       .option('targetPlatform', {
         alias: 't',
         description: 'The platform to build your project for',
@@ -46,7 +46,7 @@ export class UnityOptions implements IOptions {
       .coerce('unityLicense', async (arg: string) => {
         if (arg.endsWith('.alf')) throw new Error('Unity License File (.ulf) expected, but got .alf');
 
-        return arg.endsWith('.ulf') ? Deno.readTextFile(arg, { encoding: 'utf8' }) : arg;
+        return arg.endsWith('.ulf') ? await Deno.readTextFile(arg, { encoding: 'utf8' }) : arg;
       })
       .option('customImage', {
         description: String.dedent`

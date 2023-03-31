@@ -11,18 +11,19 @@ export class Cli {
   private readonly cliStorageCanonicalPath: string;
   private readonly cliPath: string;
   private readonly cliDistPath: string;
-  private readonly configFileName: string;
+  private readonly configFileName!: string;
   private readonly currentWorkDir: string;
+  private readonly homeDir: string;
   private readonly isRunningLocally: boolean;
   private readonly hostPlatform: string | 'darwin' | 'linux' | 'win32';
-  private readonly hostOS: 'windows' | 'macos' | 'linux';
+  private readonly hostOS: typeof Deno.build.os;
   private command: CommandInterface;
 
-  constructor(args: Deno.Args, cwd: string) {
+  constructor(args: typeof Deno.args, cwd: string) {
     this.yargs = yargs(args);
     this.currentWorkDir = cwd;
 
-    this.homeDir = getHomeDir();
+    this.homeDir = getHomeDir() || "";
     this.cliStoragePath = `${this.homeDir}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
     this.isRunningLocally = !Boolean(Deno.env.get('CI'));
@@ -43,7 +44,7 @@ export class Cli {
 
   public async registerCommands() {
     await this.nonStrict(async () => {
-      const register = (yargs) => yargs.middleware([this.registerCommand.bind(this)]);
+      const register = (yargs: YargsArguments) => yargs.middleware([this.registerCommand.bind(this)]);
       await new CliCommands(this.yargs, register).registerAll();
       await this.yargs.parseAsync();
     });
@@ -151,7 +152,8 @@ export class Cli {
 
   private async registerCommand(args: YargsArguments) {
     const { engine, engineVersion, _: command } = args;
-    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(command);
+    const commandCast = command as string[];
+    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(commandCast);
   }
 
   protected async finalParse() {

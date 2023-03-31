@@ -2,6 +2,7 @@ import { fsSync as fs, path, core } from '../dependencies.ts';
 import { Cli } from './cli/cli.ts';
 import CloudRunnerQueryOverride from './cloud-runner/services/cloud-runner-query-override.ts';
 import { CliArguments } from '../core/cli/cli-arguments.ts';
+import CloudRunner from "./cloud-runner/cloud-runner.ts";
 
 /**
  * Input variables specified directly on the commandline.
@@ -30,7 +31,7 @@ class Input {
     }
 
     // Legacy (static)
-    log.warn(`Querying static`);
+    log.warning(`Querying static`);
     if (Input.githubInputEnabled) {
       const coreInput = core.getInput(query);
       if (coreInput && coreInput !== '') {
@@ -82,7 +83,7 @@ class Input {
     if (input) {
       return input;
     }
-    if (Input.cloudRunnerCluster !== 'local') {
+    if (CloudRunner.cloudRunnerCluster !== 'local') {
       return 'linux';
     }
 
