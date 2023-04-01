@@ -47,7 +47,7 @@ class Docker {
     }
   }
 
-  private static async getLinuxCommand(image: string, options: Options): Promise<string> {
+  private static getLinuxCommand(image: string, options: Options): string {
     const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken } = options;
 
     const home = homeDir;
@@ -87,7 +87,7 @@ class Docker {
     );
   }
 
-  private static async getWindowsCommand(image: string, options: Options): Promise<string> {
+  private static getWindowsCommand(image: string, options: Options): string {
     const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath } = options;
 
     // Note: the equals sign (=) is needed in Powershell.

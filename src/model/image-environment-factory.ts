@@ -75,7 +75,6 @@ class ImageEnvironmentFactory {
       { name: 'GITHUB_HEAD_REF', value: Deno.env.get('GITHUB_HEAD_REF') },
       { name: 'GITHUB_BASE_REF', value: Deno.env.get('GITHUB_BASE_REF') },
       { name: 'GITHUB_EVENT_NAME', value: Deno.env.get('GITHUB_EVENT_NAME') },
-      { name: 'GITHUB_WORKSPACE', value: '/github/workspace' },
       { name: 'GITHUB_ACTION', value: Deno.env.get('GITHUB_ACTION') },
       { name: 'GITHUB_EVENT_PATH', value: Deno.env.get('GITHUB_EVENT_PATH') },
       { name: 'RUNNER_OS', value: Deno.env.get('RUNNER_OS') },
