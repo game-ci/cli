@@ -2,7 +2,11 @@ import { Verbosity } from './core/logger/index.ts';
 
 declare global {
   interface StringConstructor {
-    dedent(indentedString: string): string;
+    dedent(template: TemplateStringsArray | string, ...values: unknown[]): string;
+  }
+
+  interface ErrorConstructor {
+    stackTraceLimit: number;
   }
 
   let log: {
@@ -16,12 +20,21 @@ declare global {
     warning: (msg: any, ...args: any[]) => void;
     error: (msg: any, ...args: any[]) => void;
   };
+
+  interface Window {
+    log: any;
+  }
 }
 
 declare interface StringConstructor {
-  dedent(indentedString: string): string;
+  dedent(template: TemplateStringsArray | string, ...values: unknown[]): string;
+}
+
+declare interface ErrorConstructor {
+  stackTraceLimit: number;
 }
 
 declare interface Window {
   log: any;
 }
+  

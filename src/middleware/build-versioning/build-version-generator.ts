@@ -1,5 +1,4 @@
 import NotImplementedException from '../../model/error/not-implemented-exception.ts';
-import Input from '../../model/input.ts';
 import System from '../../model/system/system.ts';
 import { Action } from '../../model/index.ts';
 import { VersioningStrategy } from '../../model/versioning/versioning-strategy.ts';
@@ -44,11 +43,6 @@ export default class BuildVersionGenerator {
   private get grepCompatibleInputVersionRegex() {
     return '^v?([0-9]+\\.)*[0-9]+.*';
   }
-
-  /**
-   * Get the branch name of the (related) branch
-   */
-  private async getCurrentBranch() {}
 
   /**
    * The commit SHA that triggered the workflow run.

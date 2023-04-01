@@ -44,7 +44,7 @@ export class Cli {
 
   public async registerCommands() {
     await this.nonStrict(async () => {
-      const register = (yargs: YargsArguments) => yargs.middleware([this.registerCommand.bind(this)]);
+      const register = (yargs: YargsInstance) => yargs.middleware([this.registerCommand.bind(this)]);
       await new CliCommands(this.yargs, register).registerAll();
       await this.yargs.parseAsync();
     });
@@ -106,9 +106,9 @@ export class Cli {
     });
   }
 
-  protected async configureGlobalSettings() {
+  protected configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
-    const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
+    
 
     this.yargs
       .parserConfiguration({
@@ -125,18 +125,17 @@ export class Cli {
       .epilogue('for more information, find our manual at https://game.ci/docs/cli')
       .middleware([])
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
-      .strict(true);
-
-    // Todo - enable `.env()` after this is merged: https://github.com/yargs/yargs/pull/2231
-    // this.yargs.env();
+      .strict(true)
+      .env();
   }
 
-  protected async configureGlobalOptions() {
+  protected configureGlobalOptions() {
+    const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
     this.yargs
-      .config('config', `default: .game-ci.yml`, async (override: string) => {
+      .config('config', `default: .game-ci.yml`, (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
-        const configPath = `${this.currentWorkDir}/.game-ci.yml`;
-        // const configPath = override || defaultAbsolutePath;
+        //const configPath = `${this.currentWorkDir}/.game-ci.yml`;
+        const configPath = override || defaultAbsolutePath;
 
         return this.loadConfig(configPath);
       })
@@ -150,7 +149,7 @@ export class Cli {
       .default('hostOS', this.hostOS);
   }
 
-  private async registerCommand(args: YargsArguments) {
+  private registerCommand(args: YargsArguments) {
     const { engine, engineVersion, _: command } = args;
     const commandCast = command as string[];
     this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(commandCast);
@@ -173,7 +172,7 @@ export class Cli {
 
   protected async loadConfig(configPath: string) {
     try {
-      let configFile = await Deno.readTextFile(configPath);
+      const configFile = await Deno.readTextFile(configPath);
 
       try {
         const jsonConfig = JSON.parse(configFile).cliOptions;
@@ -181,7 +180,8 @@ export class Cli {
 
         return jsonConfig;
       } catch {
-        const yamlConfig = yaml.parse(configFile).cliOptions;
+        const yamlConfigRaw = yaml.parse(configFile) as any;
+        const yamlConfig = yamlConfigRaw.cliOptions;
         if (log.isMaxVerbose) log.debug('yamlConfig', yamlConfig);
 
         return yamlConfig;

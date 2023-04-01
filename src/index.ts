@@ -1,10 +1,11 @@
 import { Cli } from './cli.ts';
+import { CommandInterface } from './command/command-interface.ts';
 
 class GameCI {
   public static async run() {
     try {
       // Configure
-      const cli = await new Cli(Deno.args, Deno.cwd());
+      const cli = new Cli(Deno.args, Deno.cwd());
       await cli.setup();
       await cli.registerCommands();
       await cli.registerSchemaForChosenCommand();
@@ -14,13 +15,13 @@ class GameCI {
       const success = await command.execute(options);
 
       // Result
-      await GameCI.handleResult(success, command);
+      GameCI.handleResult(success, command);
     } catch (error) {
-      await GameCI.handleError(error);
+      GameCI.handleError(error);
     }
   }
 
-  private static async handleResult(success: boolean, command: CommandInterface) {
+  private static handleResult(success: boolean, command: CommandInterface) {
     if (log.isQuiet) return;
 
     if (success) {
@@ -30,7 +31,7 @@ class GameCI {
     }
   }
 
-  private static async handleError(error) {
+  private static handleError(error: any) {
     try {
       log.error(error);
     } catch (metaError) {

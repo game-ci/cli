@@ -1,4 +1,4 @@
-import { fsSync as fs, Options } from '../../../dependencies.ts';
+import { fsSync as fs, Options, dedent } from '../../../dependencies.ts';
 
 class ValidateWindows {
   public static validate(options: Options) {
