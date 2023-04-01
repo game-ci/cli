@@ -125,8 +125,10 @@ export class Cli {
       .epilogue('for more information, find our manual at https://game.ci/docs/cli')
       .middleware([])
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
-      .strict(true)
-      .env();
+      .strict(true);
+
+      // Todo: Enable env as this is still throwing errors when added
+      // .env();
   }
 
   protected configureGlobalOptions() {
