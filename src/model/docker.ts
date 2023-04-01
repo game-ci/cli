@@ -78,6 +78,7 @@ class Docker {
         --volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z" \
         --volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z" \
         --volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z" \
+        --volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z" \
         ${sshAgent ? `--volume ${sshAgent}:/ssh-agent` : ''} \
         ${sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : ''} \
         ${image} \
@@ -107,6 +108,7 @@ class Docker {
         --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`
         --volume="${cliDistPath}/platforms/windows":"c:/steps" \`
         --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`
+        --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`
         ${image} \`
         powershell c:/steps/entrypoint.ps1
     `;

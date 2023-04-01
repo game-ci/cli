@@ -13,7 +13,7 @@ class SetupMac {
       await SetupMac.installUnity(options);
     }
 
-    await SetupMac.setEnvironmentVariables(options);
+    SetupMac.setEnvironmentVariables(options);
   }
 
   private static async installUnityHub(attach = false) {
@@ -48,6 +48,7 @@ class SetupMac {
     Deno.env.set('ACTION_FOLDER', options.cliPath);
     Deno.env.set('UNITY_VERSION', options.editorVersion);
     Deno.env.set('UNITY_SERIAL', options.unitySerial);
+    Deno.env.set('UNITY_LICENSING_SERVER', options.unityLicensingServer);
     Deno.env.set('PROJECT_PATH', options.projectPath);
     Deno.env.set('BUILD_TARGET', options.targetPlatform);
     Deno.env.set('BUILD_NAME', options.buildName);

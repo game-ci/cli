@@ -43,6 +43,13 @@ export class UnityOptions implements IOptions {
           demandOption: false,
           default: '',
         },
+        unityLicensingServer: {
+          alias: 'ls',
+          description: 'Licensing server to use for Unity activation',
+          type: 'string',
+          demandOption: false,
+          default: '',
+        }
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {

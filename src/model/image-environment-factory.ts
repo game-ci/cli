@@ -47,6 +47,7 @@ class ImageEnvironmentFactory {
       { name: 'UNITY_EMAIL', value: options.unityEmail },
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
+      { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
       { name: 'UNITY_VERSION', value: options.engineVersion },
       { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
       { name: 'PROJECT_PATH', value: options.projectPath },
