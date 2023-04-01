@@ -29,11 +29,23 @@ class SetupMac {
 
   private static async installUnity(options: Options, attach = false) {
     const unityChangeSet = await getUnityChangeSet(options.engineVersion);
-    const command = `${this.unityHubPath} -- --headless install \
+    let command = `${this.unityHubPath} -- --headless install \
                                           --version ${options.engineVersion} \
-                                          --changeset ${unityChangeSet.changeset} \
-                                          --module mac-il2cpp \
-                                          --childModules`;
+                                          --changeset ${unityChangeSet.changeset}`;
+
+    switch (options.targetPlatform) {
+      case 'iOS':
+        command += `--module ios `;
+        break;
+      case 'StandaloneOSX':
+        command += `--module mac-il2cpp `;
+        break;
+      case 'android':
+        command += `--module android `;
+        break;
+    }
+
+    command += `--childModules`;
 
     try {
       await System.run(command, { attach });
