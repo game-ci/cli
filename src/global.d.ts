@@ -37,4 +37,3 @@ declare interface ErrorConstructor {
 declare interface Window {
   log: any;
 }
-  

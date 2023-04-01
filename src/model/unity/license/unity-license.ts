@@ -38,4 +38,3 @@ class UnityLicense {
   }
   
   export default UnityLicense;
-  
