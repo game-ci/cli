@@ -1,6 +1,7 @@
 import { configureLogger as createLoggerAndSetVerbosity } from '../../core/logger/index.ts';
+import { Options } from '../../dependencies.ts';
 
-export const configureLogger = async (argv) => {
+export const configureLogger = async (argv: Options) => {
   const { quiet, verbose, veryVerbose, maxVerbose } = argv;
 
   let verbosity;
@@ -19,7 +20,6 @@ export const configureLogger = async (argv) => {
   await createLoggerAndSetVerbosity(verbosity);
 
   argv.logLevel = log.verbosity;
-  argv.logLevelName = log.verbosityName;
 
   argv.quiet = undefined;
   argv.verbose = undefined;

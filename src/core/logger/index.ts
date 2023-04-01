@@ -1,6 +1,7 @@
 import * as log from 'https://deno.land/std@0.151.0/log/mod.ts';
 import { fileFormatter, consoleFormatter } from './formatter.ts';
 import { getHomeDir, fsSync as fs } from '../../dependencies.ts';
+import { LogLevels, getLevelName } from 'https://deno.land/std@0.151.0/log/levels.ts';
 
 export enum Verbosity {
   quiet = -1,
@@ -22,9 +23,9 @@ export const configureLogger = async (verbosity: Verbosity) => {
   await fs.ensureDir(configFolder);
 
   // Handlers
-  let consoleLevel = 'INFO';
-  if (isQuiet) consoleLevel = 'ERROR';
-  if (isVerbose) consoleLevel = 'DEBUG';
+  let consoleLevel = getLevelName(LogLevels.NOTSET);
+  if (isQuiet) consoleLevel = getLevelName(LogLevels.ERROR);
+  if (isVerbose) consoleLevel = getLevelName(LogLevels.DEBUG);
   const consoleHandler = new log.handlers.ConsoleHandler(consoleLevel, { formatter: consoleFormatter });
   const fileHandler = new log.handlers.FileHandler('WARNING', {
     filename: `${configFolder}/game-ci.log`,

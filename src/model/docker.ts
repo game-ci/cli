@@ -3,7 +3,7 @@ import { path, fsSync as fs, Options } from '../dependencies.ts';
 import System from './system/system.ts';
 
 class Docker {
-  static async run(image, options: Options) {
+  static async run(image: string, options: Options) {
     const { hostPlatform, hostOS } = options;
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);

@@ -5,7 +5,7 @@ export default class UnityVersionDetector {
     return /20\d{2}\.\d\.\w{3,4}|3/;
   }
 
-  public static isUnityProject(projectPath) {
+  public static isUnityProject(projectPath: string) {
     try {
       UnityVersionDetector.read(projectPath);
 
@@ -15,20 +15,20 @@ export default class UnityVersionDetector {
     }
   }
 
-  static getUnityVersion(projectPath) {
+  static getUnityVersion(projectPath: string) {
     return UnityVersionDetector.read(projectPath);
   }
 
-  static read(projectPath) {
+  static read(projectPath: string) {
     const filePath = path.join(projectPath, 'ProjectSettings', 'ProjectVersion.txt');
     if (!fs.existsSync(filePath)) {
       throw new Error(`Project settings file not found at "${filePath}". Have you correctly set the projectPath?`);
     }
 
-    return UnityVersionDetector.parse(Deno.readTextFileSync(filePath, 'utf8'));
+    return UnityVersionDetector.parse(Deno.readTextFileSync(filePath));
   }
 
-  static parse(projectVersionTxt) {
+  static parse(projectVersionTxt: string) {
     const matches = projectVersionTxt.match(UnityVersionDetector.versionPattern);
     if (!matches || matches.length === 0) {
       throw new Error(`Failed to parse version from "${projectVersionTxt}".`);

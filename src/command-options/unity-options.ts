@@ -2,10 +2,11 @@ import type { YargsInstance } from '../dependencies.ts';
 import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
 import { UnityTargetPlatforms } from '../model/unity/target-platform/unity-target-platforms.ts';
 import { IOptions } from './options-interface.ts';
+import UnityLicense from '../model/unity/license/unity-license.ts';
 
 export class UnityOptions implements IOptions {
   public static configure = async (yargs: YargsInstance): Promise<void> => {
-    yargs
+    await yargs
       .option('targetPlatform', {
         alias: 't',
         description: 'The platform to build your project for',
@@ -44,9 +45,12 @@ export class UnityOptions implements IOptions {
         },
       })
       .coerce('unityLicense', async (arg: string) => {
-        if (arg.endsWith('.alf')) throw new Error('Unity License File (.ulf) expected, but got .alf');
-
-        return arg.endsWith('.ulf') ? Deno.readTextFile(arg, { encoding: 'utf8' }) : arg;
+        if (UnityLicense.isNonActivatedLicenseFile(arg)) {
+          throw new Error(String.dedent`Unity License File (.ulf) expected, but got .alf. 
+          Please activate your license file first.`);
+        }
+        
+        return UnityLicense.isValidLicenseFilePath(arg) ? await Deno.readTextFile(arg) : arg;
       })
       .option('customImage', {
         description: String.dedent`

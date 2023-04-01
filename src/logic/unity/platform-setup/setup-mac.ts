@@ -16,18 +16,18 @@ class SetupMac {
     await SetupMac.setEnvironmentVariables(options);
   }
 
-  private static async installUnityHub(silent = false) {
+  private static async installUnityHub(attach = false) {
     const command = 'brew install unity-hub';
     if (!fs.existsSync(this.unityHubPath)) {
       try {
-        await System.run(command, { silent, ignoreReturnCode: true });
+        await System.run(command, { attach });
       } catch (error) {
         throw new Error(`There was an error installing the Unity Editor. See logs above for details. ${error}`);
       }
     }
   }
 
-  private static async installUnity(options: Options, silent = false) {
+  private static async installUnity(options: Options, attach = false) {
     const unityChangeSet = await getUnityChangeSet(options.engineVersion);
     const command = `${this.unityHubPath} -- --headless install \
                                           --version ${options.engineVersion} \
@@ -36,13 +36,13 @@ class SetupMac {
                                           --childModules`;
 
     try {
-      await System.run(command, { silent, ignoreReturnCode: true });
+      await System.run(command, { attach });
     } catch (error) {
       throw new Error(`There was an error installing the Unity Editor. See logs above for details. ${error}`);
     }
   }
 
-  private static async setEnvironmentVariables(options: Options) {
+  private static setEnvironmentVariables(options: Options) {
     // Need to set environment variables from here because we execute
     // the scripts on the host for mac
     Deno.env.set('ACTION_FOLDER', options.cliPath);

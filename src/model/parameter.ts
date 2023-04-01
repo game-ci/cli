@@ -8,7 +8,7 @@ export class Parameter {
   public static toCamelCase(input: string) {
     return input
       .split('_')
-      .map((word) => `${word[0].toUppercase()}${word.slice(1).toLowerCase()}`)
+      .map((word) => `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`)
       .join('');
   }
 }

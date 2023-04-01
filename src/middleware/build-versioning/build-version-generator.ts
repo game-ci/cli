@@ -1,5 +1,4 @@
 import NotImplementedException from '../../model/error/not-implemented-exception.ts';
-import Input from '../../model/input.ts';
 import System from '../../model/system/system.ts';
 import { Action } from '../../model/index.ts';
 import { VersioningStrategy } from '../../model/versioning/versioning-strategy.ts';
@@ -7,8 +6,9 @@ import { VersioningStrategy } from '../../model/versioning/versioning-strategy.t
 export default class BuildVersionGenerator {
   private readonly maxDiffLines: number = 60;
   private readonly projectPath: string;
+  private readonly currentBranch: string;
 
-  constructor(projectPath, currentBranch) {
+  constructor(projectPath: string, currentBranch: string) {
     this.projectPath = projectPath;
     this.currentBranch = currentBranch;
   }
@@ -43,11 +43,6 @@ export default class BuildVersionGenerator {
   private get grepCompatibleInputVersionRegex() {
     return '^v?([0-9]+\\.)*[0-9]+.*';
   }
-
-  /**
-   * Get the branch name of the (related) branch
-   */
-  private async getCurrentBranch() {}
 
   /**
    * The commit SHA that triggered the workflow run.
@@ -92,7 +87,7 @@ export default class BuildVersionGenerator {
    *
    * @See: https://semver.org/
    */
-  private async generateSemanticVersion(allowDirtyBuild) {
+  private async generateSemanticVersion(allowDirtyBuild: boolean) {
     if (await this.isShallow()) {
       await this.fetch();
     }
@@ -264,7 +259,7 @@ export default class BuildVersionGenerator {
     const command = `git tag --list --merged HEAD | grep -E '${this.grepCompatibleInputVersionRegex}' | wc -l`;
 
     // Todo - make sure this cwd is actually passed in somehow
-    const result = await System.shellRun(command, { cwd: this.projectPath, silent: false });
+    const result = await System.shellRun(command, { cwd: this.projectPath, attach: false });
 
     log.debug(result);
 
@@ -299,7 +294,7 @@ export default class BuildVersionGenerator {
   /**
    * Run git in the specified project path
    */
-  private async git(arguments_, options = {}) {
+  private async git(arguments_: string, options = {}) {
     const result = await System.run(`git ${arguments_}`, { cwd: this.projectPath, ...options });
 
     log.warning(result);

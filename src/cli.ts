@@ -11,18 +11,19 @@ export class Cli {
   private readonly cliStorageCanonicalPath: string;
   private readonly cliPath: string;
   private readonly cliDistPath: string;
-  private readonly configFileName: string;
+  private readonly configFileName!: string;
   private readonly currentWorkDir: string;
+  private readonly homeDir: string;
   private readonly isRunningLocally: boolean;
   private readonly hostPlatform: string | 'darwin' | 'linux' | 'win32';
-  private readonly hostOS: 'windows' | 'macos' | 'linux';
+  private readonly hostOS: typeof Deno.build.os;
   private command: CommandInterface;
 
-  constructor(args: Deno.Args, cwd: string) {
+  constructor(args: typeof Deno.args, cwd: string) {
     this.yargs = yargs(args);
     this.currentWorkDir = cwd;
 
-    this.homeDir = getHomeDir();
+    this.homeDir = getHomeDir() || "";
     this.cliStoragePath = `${this.homeDir}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
     this.isRunningLocally = !Boolean(Deno.env.get('CI'));
@@ -43,7 +44,7 @@ export class Cli {
 
   public async registerCommands() {
     await this.nonStrict(async () => {
-      const register = (yargs) => yargs.middleware([this.registerCommand.bind(this)]);
+      const register = (yargs: YargsInstance) => yargs.middleware([this.registerCommand.bind(this)]);
       await new CliCommands(this.yargs, register).registerAll();
       await this.yargs.parseAsync();
     });
@@ -105,9 +106,9 @@ export class Cli {
     });
   }
 
-  protected async configureGlobalSettings() {
+  protected configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
-    const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
+    
 
     this.yargs
       .parserConfiguration({
@@ -126,16 +127,17 @@ export class Cli {
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
       .strict(true);
 
-    // Todo - enable `.env()` after this is merged: https://github.com/yargs/yargs/pull/2231
-    // this.yargs.env();
+      // Todo: Enable env as this is still throwing errors when added
+      // .env();
   }
 
-  protected async configureGlobalOptions() {
+  protected configureGlobalOptions() {
+    const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
     this.yargs
-      .config('config', `default: .game-ci.yml`, async (override: string) => {
+      .config('config', `default: .game-ci.yml`, (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
-        const configPath = `${this.currentWorkDir}/.game-ci.yml`;
-        // const configPath = override || defaultAbsolutePath;
+        //const configPath = `${this.currentWorkDir}/.game-ci.yml`;
+        const configPath = override || defaultAbsolutePath;
 
         return this.loadConfig(configPath);
       })
@@ -149,9 +151,10 @@ export class Cli {
       .default('hostOS', this.hostOS);
   }
 
-  private async registerCommand(args: YargsArguments) {
+  private registerCommand(args: YargsArguments) {
     const { engine, engineVersion, _: command } = args;
-    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(command);
+    const commandCast = command as string[];
+    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(commandCast);
   }
 
   protected async finalParse() {
@@ -171,7 +174,7 @@ export class Cli {
 
   protected async loadConfig(configPath: string) {
     try {
-      let configFile = await Deno.readTextFile(configPath);
+      const configFile = await Deno.readTextFile(configPath);
 
       try {
         const jsonConfig = JSON.parse(configFile).cliOptions;
@@ -179,7 +182,8 @@ export class Cli {
 
         return jsonConfig;
       } catch {
-        const yamlConfig = yaml.parse(configFile).cliOptions;
+        const yamlConfigRaw = yaml.parse(configFile) as any;
+        const yamlConfig = yamlConfigRaw.cliOptions;
         if (log.isMaxVerbose) log.debug('yamlConfig', yamlConfig);
 
         return yamlConfig;

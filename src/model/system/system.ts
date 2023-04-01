@@ -1,6 +1,13 @@
+import "../../global.d.ts";
+
 export interface RunOptions {
-  cwd: string;
-  attach: boolean;
+  cwd?: string;
+  attach?: boolean;
+}
+
+export interface RunResult {
+  status: Deno.ProcessStatus;
+  output: string;
 }
 
 class System {
@@ -14,7 +21,7 @@ class System {
    *
    * @throws  {Error}  if anything was output to stderr.
    */
-  static async run(command: string, options: RunOptions = {}): Promise<string> {
+  static async run(command: string, options: RunOptions = {}): Promise<RunResult> {
     const isWindows = Deno.build.os === 'windows';
     const shellMethod = isWindows ? System.powershellRun : System.shellRun;
 
@@ -23,22 +30,22 @@ class System {
     return shellMethod(command, options);
   }
 
-  static async shellRun(rawCommand: string, options: RunOptions = {}): Promise<string> {
+  static async shellRun(rawCommand: string, options: RunOptions = {}): Promise<RunResult> {
     const { attach, cwd } = options;
 
     let command = rawCommand;
     if (cwd) command = `cd ${cwd} ; ${command}`;
 
-    return attach ? System.runAndAttach('sh', ['-c', command]) : System.runAndCapture('sh', ['-c', command]);
+    return attach ? await System.runAndAttach('sh', ['-c', command]) : await System.runAndCapture('sh', ['-c', command]);
   }
 
-  static async powershellRun(rawCommand: string, options: RunOptions = {}): Promise<string> {
+  static async powershellRun(rawCommand: string, options: RunOptions = {}): Promise<RunResult> {
     const { attach, cwd } = options;
 
     let command = rawCommand;
     if (cwd) command = `cd ${cwd} ; ${command}`;
 
-    return attach ? System.runAndAttach('powershell', [command]) : System.runAndCapture('powershell', [command]);
+    return attach ? await System.runAndAttach('powershell', [command]) : await System.runAndCapture('powershell', [command]);
   }
 
   /**
@@ -57,7 +64,7 @@ class System {
    *
    * @deprecated not really deprecated, but please use System.run instead because this method will be made private.
    */
-  public static async runAndCapture(command, args: string | string[] = []): Promise<string> {
+  public static async runAndCapture(command: string, args: string | string[] = []): Promise<RunResult> {
     if (!Array.isArray(args)) args = [args];
 
     const argsString = args.join(' ');
@@ -106,7 +113,7 @@ class System {
    *
    * Todo - it would be nice to pipe the output to both stdout and capture it in the result object, but this doesn't seem possible yet.
    */
-  private static async runAndAttach(command, args: string | string[] = []): Promise<string> {
+  private static async runAndAttach(command: string, args: string | string[] = []): Promise<RunResult> {
     if (!Array.isArray(args)) args = [args];
 
     const process = Deno.run({ cmd: [command, ...args] });

@@ -6,6 +6,9 @@ import { OpenConfigFolderCommand } from './config/open-config-folder-command.ts'
 import { UnityRemoteBuildCommand } from './remote/unity-remote-build-command.ts';
 
 export class CommandFactory {
+  private engine: string = Engine.unknown;
+  private engineVersion!: string;
+
   constructor() {}
 
   selectEngine(engine: string, engineVersion: string) {

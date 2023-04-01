@@ -21,7 +21,7 @@ export class BuildOptions implements IOptions {
       })
       .default('buildPath', '')
       .default('buildFile', '')
-      .middleware(async (argv: YargsArguments) => {
+      .middleware((argv: YargsArguments) => {
         const { buildName, buildsPath, targetPlatform, androidAppBundle } = argv;
         argv.buildName = buildName || targetPlatform;
         argv.buildPath = `${buildsPath}/${targetPlatform}`;

@@ -1,10 +1,8 @@
-import Parameters from './parameters.ts';
-import { ReadLicense } from './input-readers/test-license-reader.ts';
 import { Options } from '../dependencies.ts';
 
 class DockerParameter {
-  public name;
-  public value;
+  public name!: string;
+  public value!: string;
 }
 
 class ImageEnvironmentFactory {
@@ -44,7 +42,7 @@ class ImageEnvironmentFactory {
     // All parameters should be straight forward at this point in the process.
     // We can convert between camelCase and UPPER_SNAKE_CASE relatively easily.
     const environmentVariables: DockerParameter[] = [
-      { name: 'UNITY_LICENSE', value: options.unityLicense || ReadLicense(options) },
+      { name: 'UNITY_LICENSE', value: options.unityLicense },
       { name: 'UNITY_LICENSE_FILE', value: options.unityLicenseFile },
       { name: 'UNITY_EMAIL', value: options.unityEmail },
       { name: 'UNITY_PASSWORD', value: options.unityPassword },

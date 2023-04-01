@@ -3,7 +3,7 @@ import System from '../../model/system/system.ts';
 export class GitDetector {
   private readonly projectPath: string;
 
-  constructor(projectPath) {
+  constructor(projectPath: string) {
     this.projectPath = projectPath;
   }
 

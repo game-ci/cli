@@ -38,27 +38,27 @@ export class CliCommands {
   }
 
   private async testCommand() {
-    await this.yargs.command('test [projectPath]', 'Runs the tests of a given project', async (yargs) => {
+    await this.yargs.command('test [projectPath]', 'Runs the tests of a given project', async (yargs: YargsInstance) => {
       ProjectOptions.preConfigure(yargs);
       this.register(yargs);
     });
   }
 
   private async buildCommand() {
-    await this.yargs.command('build [projectPath]', 'Builds a given project', async (yargs) => {
+    await this.yargs.command('build [projectPath]', 'Builds a given project', async (yargs: YargsInstance) => {
       ProjectOptions.preConfigure(yargs);
       this.register(yargs);
     });
   }
 
   private async remoteCommands() {
-    await this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs) => {
+    await this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs: YargsInstance) => {
       yargs
-        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs) => {
+        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs: YargsInstance) => {
           ProjectOptions.preConfigure(yargs);
           this.register(yargs);
         })
-        .command('otherSubCommand', 'Other sub command', async (yargs) => {
+        .command('otherSubCommand', 'Other sub command', async (yargs: YargsInstance) => {
           // Todo - implement all subcommands
           ProjectOptions.preConfigure(yargs);
           this.register(yargs);

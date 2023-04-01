@@ -21,13 +21,19 @@ import { getUnityChangeset as getUnityChangeSet } from 'https://deno.land/x/unit
 import { Buffer } from 'https://deno.land/std@0.151.0/io/buffer.ts';
 import { config, configSync } from 'https://deno.land/std@0.151.0/dotenv/mod.ts';
 import yargs from 'https://deno.land/x/yargs@v17.5.1-deno/deno.ts';
+import { YargsInstance } from "https://deno.land/x/yargs@v17.5.1-deno/build/lib/yargs-factory.js";
 import type { Arguments as YargsArgs } from 'https://deno.land/x/yargs@v17.5.1-deno/deno-types.ts';
 import { default as getHomeDir } from 'https://deno.land/x/dir@1.5.1/home_dir/mod.ts';
+import { FormatterFunction } from 'https://deno.land/std@0.151.0/log/handlers.ts';
+import { LogRecord } from 'https://deno.land/std@0.151.0/log/logger.ts';
+
 
 // Internally managed packages
 import waitUntil from './module/wait-until.ts';
 import { core } from './module/actions/index.ts';
 import { dedent } from './module/dedent.ts';
+
+import "./global.d.ts";
 
 // Polyfill for https://github.com/tc39/proposal-string-dedent
 String.dedent = dedent;
@@ -44,22 +50,22 @@ class Writable {
 const __filename = path.fromFileUrl(import.meta.url);
 const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
 
-const { V1EnvVar, V1EnvVarSource, V1SecretKeySelector } = k8s;
+//const { V1EnvVar, V1EnvVarSource, V1SecretKeySelector } = k8s;
 
 // These explicit type definitions are needed for auto-import to work
-type YargsInstance = yargs.Argv;
+//type YargsInstance = typeof yargs(Deno.args);
 type YargsArguments = YargsArgs;
 type Options = YargsArguments; // Use when you want to abstract away from the CLI logic
 
-export type { YargsArguments, YargsInstance, Options };
+export type { YargsArguments, Options, FormatterFunction, LogRecord }; //, YargsInstance
 export {
   __dirname,
   __filename,
   k8s,
   k8sTypes,
-  V1EnvVar,
-  V1EnvVarSource,
-  V1SecretKeySelector,
+  //V1EnvVar,
+  //V1EnvVarSource,
+  //V1SecretKeySelector,
   assert,
   aws,
   base64,
@@ -85,4 +91,6 @@ export {
   Writable,
   yaml,
   yargs,
+  YargsInstance,
+  dedent
 };

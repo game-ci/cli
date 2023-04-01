@@ -1,6 +1,4 @@
-import { pad } from 'https://deno.land/std@0.36.0/strings/pad.ts';
-import { FormatterFunction } from 'https://deno.land/std@0.151.0/log/handlers.ts';
-import { LogRecord } from 'https://deno.land/std@0.151.0/log/logger.ts';
+import { LogRecord, FormatterFunction } from '../../dependencies.ts';
 
 // See: https://github.com/denoland/deno_std/blob/0.151.0/log/README.md#custom-message-format
 export const createFormatter = ({
@@ -14,12 +12,11 @@ export const createFormatter = ({
   const column = (input: string, { width = 0, align = 'left' } = {}) => {
     const totalWidth = showBrackets ? width + 2 : width;
     const value = showBrackets ? `[${input}]` : ` ${input}`;
-    const paddingOptions = { side: align === 'left' ? 'right' : 'left' };
 
-    return pad(value, totalWidth, paddingOptions);
+    return align === 'left' ? value.padEnd(totalWidth) : value.padStart(totalWidth);
   };
 
-  const formatValue = (value) => {
+  const formatValue = (value: any) => {
     switch (typeof value) {
       case 'object':
         return Deno.inspect(value, { depth });
@@ -41,9 +38,9 @@ export const createFormatter = ({
 
     if (showTime) {
       const now = new Date();
-      const hours = pad(`${now.getHours()}`, 2, { char: '0' });
-      const minutes = pad(`${now.getMinutes()}`, 2, { char: '0' });
-      const seconds = pad(`${now.getSeconds()}`, 2, { char: '0' });
+      const hours = `${now.getHours()}`.padStart(2, '0');
+      const minutes = `${now.getMinutes()}`.padStart(2, '0');
+      const seconds = `${now.getSeconds()}`.padStart(2, '0');
       const time = [hours, minutes, seconds].join(':');
       line += column(time);
     }
@@ -54,7 +51,7 @@ export const createFormatter = ({
     }
 
     if (showLevel) {
-      line += column(level);
+      line += column(level.toString());
     }
 
     if (msg) {

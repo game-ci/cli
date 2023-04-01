@@ -11,3 +11,4 @@ logs/*
 !**/.gitkeep
 .env*
 !.env*.dist
+*.exe

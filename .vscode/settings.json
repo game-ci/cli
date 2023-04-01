@@ -28,5 +28,6 @@
     "!Select sequence",
     "!Split",
     "!Split sequence"
-  ]
+  ],
+  "deno.enable": true
 }
