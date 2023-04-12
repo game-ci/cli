@@ -45,13 +45,20 @@ class UnityTargetPlatform {
     }
   }
 
-  static determineBuildFileName(buildName: string, platform: string, androidAppBundle: boolean) {
+  static determineBuildFileName(buildName: string, platform: string, androidExportType: string) {
     if (UnityTargetPlatform.isWindows(platform)) {
       return `${buildName}.exe`;
     }
 
     if (UnityTargetPlatform.isAndroid(platform)) {
-      return androidAppBundle ? `${buildName}.aab` : `${buildName}.apk`;
+      switch (androidExportType) {
+        case 'androidPackage':
+          return `${buildName}.apk`;
+        case 'androidAppBundle':
+          return `${buildName}.aab`;
+        case 'androidStudioProject':
+          return `${buildName}`;
+      }
     }
 
     return buildName;

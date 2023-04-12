@@ -43,6 +43,13 @@ export class UnityOptions implements IOptions {
           demandOption: false,
           default: '',
         },
+        unityLicensingServer: {
+          alias: 'ls',
+          description: 'Licensing server to use for Unity activation',
+          type: 'string',
+          demandOption: false,
+          default: '',
+        }
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {
@@ -92,6 +99,20 @@ export class UnityOptions implements IOptions {
         description: String.dedent`
           User and optionally group (user or user:group or uid:gid),
           to give ownership of the resulting build artifacts.`,
+        type: 'string',
+        demandOption: false,
+        default: '',
+      })
+      .option('cacheUnityInstallationOnMac', {
+        description: 'Cache Unity installation on Mac.',
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('unityHubVersionOnMac', {
+        description: String.dedent`Unity Hub version to use on Mac. 
+        Should be of format Major.Minor.Patch, ie 3.4.0.
+        An empty string represents the latest available version on homebrew.`,
         type: 'string',
         demandOption: false,
         default: '',

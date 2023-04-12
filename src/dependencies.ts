@@ -4,7 +4,7 @@ import * as aws from 'https://deno.land/x/aws_api/client/mod.ts';
 import * as base64 from 'https://deno.land/std@0.145.0/encoding/base64.ts';
 import * as compress from 'https://deno.land/x/compress@v0.3.3/mod.ts';
 import * as fs from 'https://deno.land/std@0.152.0/node/fs/promises.ts';
-import * as fsSync from 'https://deno.land/std@0.152.0/fs/mod.ts';
+import * as fsSync from 'https://deno.land/std@0.182.0/fs/mod.ts';
 import * as k8s from 'https://deno.land/x/kubernetes_client/mod.ts';
 import * as k8sTypes from 'https://deno.land/x/kubernetes_apis/builtin/core@v1/mod.ts';
 import * as nanoid from 'https://deno.land/x/nanoid@v3.0.0/mod.ts';
@@ -17,7 +17,7 @@ import { v4 as uuid } from 'https://deno.land/std@0.142.0/uuid/mod.ts';
 import * as http from 'https://deno.land/std@0.145.0/node/http.ts';
 import * as string from 'https://deno.land/std@0.36.0/strings/mod.ts';
 import { Command } from 'https://deno.land/x/cmd@v1.2.0/commander/index.ts';
-import { getUnityChangeset as getUnityChangeSet } from 'https://deno.land/x/unity_changeset@2.0.0/src/index.ts';
+import { getUnityChangeset } from 'https://deno.land/x/unity_changeset@2.0.0/src/index.ts';
 import { Buffer } from 'https://deno.land/std@0.151.0/io/buffer.ts';
 import { config, configSync } from 'https://deno.land/std@0.151.0/dotenv/mod.ts';
 import yargs from 'https://deno.land/x/yargs@v17.5.1-deno/deno.ts';
@@ -26,7 +26,9 @@ import type { Arguments as YargsArgs } from 'https://deno.land/x/yargs@v17.5.1-d
 import { default as getHomeDir } from 'https://deno.land/x/dir@1.5.1/home_dir/mod.ts';
 import { FormatterFunction } from 'https://deno.land/std@0.151.0/log/handlers.ts';
 import { LogRecord } from 'https://deno.land/std@0.151.0/log/logger.ts';
+import { iterateReader } from "https://deno.land/std@0.182.0/streams/iterate_reader.ts";
 
+const platformEOL = Deno.build.os === "windows" ? fsSync.EOL.CRLF : fsSync.EOL.LF;
 
 // Internally managed packages
 import waitUntil from './module/wait-until.ts';
@@ -79,7 +81,7 @@ export {
   fs,
   fsSync,
   getHomeDir,
-  getUnityChangeSet,
+  getUnityChangeset,
   http,
   nanoid,
   path,
@@ -92,5 +94,7 @@ export {
   yaml,
   yargs,
   YargsInstance,
-  dedent
+  dedent,
+  iterateReader,
+  platformEOL,
 };

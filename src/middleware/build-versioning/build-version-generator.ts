@@ -72,7 +72,7 @@ export default class BuildVersionGenerator {
    */
   public async logDiff() {
     const diffCommand = `git --no-pager diff | head -n ${this.maxDiffLines.toString()}`;
-    const result = await System.shellRun(diffCommand);
+    const result = await System.run(diffCommand);
 
     log.debug(result.output);
   }
@@ -186,7 +186,7 @@ export default class BuildVersionGenerator {
   private async isShallow() {
     const output = await this.git('rev-parse --is-shallow-repository');
 
-    return output !== 'false';
+    return output.trim() !== 'false';
   }
 
   /**
@@ -257,9 +257,9 @@ export default class BuildVersionGenerator {
    */
   private async hasAnyVersionTags() {
     const command = `git tag --list --merged HEAD | grep -E '${this.grepCompatibleInputVersionRegex}' | wc -l`;
-
-    // Todo - make sure this cwd is actually passed in somehow
-    const result = await System.shellRun(command, { cwd: this.projectPath, attach: false });
+    const windowsCommand = `git tag --list --merged HEAD | Select-String -Pattern "${this.grepCompatibleInputVersionRegex}" | Measure-Object | Select-Object -ExpandProperty Count`
+    
+    const result = await System.run(command, windowsCommand, { cwd: this.projectPath, silent: false });
 
     log.debug(result);
 
@@ -274,19 +274,9 @@ export default class BuildVersionGenerator {
   /**
    * Get the total number of commits on head.
    *
-   * Note: HEAD should not be used, as it may be detached, resulting in an additional count.
    */
   private async getTotalNumberOfCommits() {
-    let commitIsh = 'HEAD';
-
-    // In CI the repo is checked out in detached head mode.
-    // We MUST specify the commitIsh that triggered the job.
-    // Todo - make this compatible with more CI systems
-    if (!Action.isRunningLocally) {
-      commitIsh = this.sha as string;
-    }
-
-    const numberOfCommitsAsString = await this.git(`rev-list --count ${commitIsh}`);
+    const numberOfCommitsAsString = await this.git(`rev-list --count HEAD`);
 
     return Number.parseInt(numberOfCommitsAsString, 10);
   }
@@ -295,7 +285,7 @@ export default class BuildVersionGenerator {
    * Run git in the specified project path
    */
   private async git(arguments_: string, options = {}) {
-    const result = await System.run(`git ${arguments_}`, { cwd: this.projectPath, ...options });
+    const result = await System.run(`git ${arguments_}`, undefined, { cwd: this.projectPath, ...options });
 
     log.warning(result);
 

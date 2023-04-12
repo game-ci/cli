@@ -8,9 +8,9 @@ export class GitDetector {
   }
 
   public async isGitRepository() {
-    const { status } = await System.shellRun(`git -C '${this.projectPath}' rev-parse 2>/dev/null`);
+    const { status } = await System.run(`git -C '${this.projectPath}' rev-parse`, undefined, { silent: true});
 
-    return status.code === 0;
+    return status?.code === 0;
   }
 
   public async getCurrentBranch() {
@@ -19,8 +19,8 @@ export class GitDetector {
 
     // Local
     if (!branchName) {
-      const { status, output } = await System.shellRun('git branch --show-current', { cwd: this.projectPath });
-      if (!status.success) throw new Error('did not expect "git branch --show-current"');
+      const { status, output } = await System.run('git branch --show-current', undefined, { cwd: this.projectPath });
+      if (!status?.success) throw new Error('did not expect "git branch --show-current"');
       branchName = output;
     }
 

@@ -13,7 +13,7 @@ import { ProjectOptions } from '../../command-options/project-options.ts';
 
 export class UnityBuildCommand extends CommandBase implements CommandInterface {
   public async execute(options: Options): Promise<boolean> {
-    const { cliPath, hostPlatform } = options;
+    const { hostPlatform } = options;
 
     PlatformValidation.checkCompatibility(options);
     CacheValidation.verify(options);
@@ -23,12 +23,13 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
 
     await PlatformSetup.setup(options);
     if (hostPlatform === 'darwin') {
-      await MacBuilder.run(cliPath);
+      await MacBuilder.run(options);
     } else {
       await Docker.run(image.toString(), options);
     }
 
     await Output.setBuildVersion(options.buildVersion);
+    await Output.setAndroidVersionCode(options.androidVersionCode);
 
     return false;
   }

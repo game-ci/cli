@@ -33,6 +33,13 @@ export class BuildOptions implements IOptions {
         type: 'string',
         demandOption: false,
         default: 'UnityBuilderAction.Builder.BuildProject',
+      })
+      .option('dockerWorkspacePath', {
+        description: String.dedent`The path to mount the workspace inside the docker container. For windows, leave out the drive letter. For example
+        c:/github/workspace should be defined as /github/workspace`,
+        type: 'string',
+        demandOption: false,
+        default: '/github/workspace',
       });
   }
 }
