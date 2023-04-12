@@ -1,56 +1,22 @@
-import "../../global.d.ts";
+import {iterateReader} from '../../dependencies.ts';
 
 export interface RunOptions {
   cwd?: string;
-  attach?: boolean;
+  silent?: boolean;
 }
 
 export interface RunResult {
-  status: Deno.ProcessStatus;
+  [key: string]: Deno.ProcessStatus | string | undefined;
+  status?: Deno.ProcessStatus;
   output: string;
+  error: string;
 }
 
 class System {
   /**
    * Run any command as if you're typing in shell.
    * Make sure it's Windows/MacOS/Ubuntu compatible or has alternative commands.
-   *
-   * Intended to always be silent and capture the output, unless attach is passed.
-   *
-   * @returns {string} output of the command on success or failure
-   *
-   * @throws  {Error}  if anything was output to stderr.
-   */
-  static async run(command: string, options: RunOptions = {}): Promise<RunResult> {
-    const isWindows = Deno.build.os === 'windows';
-    const shellMethod = isWindows ? System.powershellRun : System.shellRun;
-
-    if (log.isVeryVerbose) log.debug(`The following command is run using ${shellMethod.name}`);
-
-    return shellMethod(command, options);
-  }
-
-  static async shellRun(rawCommand: string, options: RunOptions = {}): Promise<RunResult> {
-    const { attach, cwd } = options;
-
-    let command = rawCommand;
-    if (cwd) command = `cd ${cwd} ; ${command}`;
-
-    return attach ? await System.runAndAttach('sh', ['-c', command]) : await System.runAndCapture('sh', ['-c', command]);
-  }
-
-  static async powershellRun(rawCommand: string, options: RunOptions = {}): Promise<RunResult> {
-    const { attach, cwd } = options;
-
-    let command = rawCommand;
-    if (cwd) command = `cd ${cwd} ; ${command}`;
-
-    return attach ? await System.runAndAttach('powershell', [command]) : await System.runAndCapture('powershell', [command]);
-  }
-
-  /**
-   * Internal cross-platform run, that spawns a new process and captures its output.
-   *
+   * 
    * If any error is written to stderr, this method will throw them.
    *   ❌ new Error(stdoutErrors)
    *
@@ -61,69 +27,79 @@ class System {
    * Example usage:
    *     System.newRun(sh, ['-c', 'echo something'])
    *     System.newRun(powershell, ['echo something'])
+   * @returns {string} output of the command on success or failure
    *
-   * @deprecated not really deprecated, but please use System.run instead because this method will be made private.
+   * @throws  {Error}  if anything was output to stderr or return code wasn't 0
    */
-  public static async runAndCapture(command: string, args: string | string[] = []): Promise<RunResult> {
-    if (!Array.isArray(args)) args = [args];
-
-    const argsString = args.join(' ');
-    const process = Deno.run({
-      cmd: [command, ...args],
-      stdout: 'piped',
-      stderr: 'piped',
-    });
-
-    const status = await process.status();
-    const outputBuffer = await process.output();
-    const errorBuffer = await process.stderrOutput();
-
-    process.close();
-
-    const output = new TextDecoder().decode(outputBuffer).replace(/[\n\r]+$/, '');
-    const error = new TextDecoder().decode(errorBuffer).replace(/[\n\r]+$/, '');
-
-    const result = { status, output };
-
-    // Log command output if verbose is enabled
-    if (log.isVeryVerbose) {
-      const symbol = status.success ? '✅' : '❗';
-      const truncatedOutput = output.length >= 30 ? `${output.slice(0, 27)}...` : output;
-      log.debug('Command:', command, argsString, symbol, {
-        status,
-        output: log.isMaxVerbose ? output : truncatedOutput,
-      });
+  static async run(command: string, options: RunOptions = {silent: false}): Promise<RunResult> {
+    let commandArray: string[];
+    switch(Deno.build.os) {
+      case 'windows':
+        if (log.isVeryVerbose) log.debug(`The following command is run using powershell`);
+        commandArray = ['powershell', command];
+        break;
+      default:
+        if (log.isVeryVerbose) log.debug(`The following command is run using sh`);
+        commandArray = ['sh -c', command];
+        break;
     }
 
-    if (error) {
-      // Make sure we don't swallow any output
-      const errorMessage = output ? `${error}\n\n---\n\nOutput before the error:\n${output}` : error;
+    const runCommand: Deno.RunOptions = { 
+      cmd: commandArray,
+      stdout: "piped", 
+      stderr: "piped" 
+    };
 
-      // Throw instead or returning when any output was written to stdout
+    if (options.cwd) runCommand.cwd = options.cwd;
+
+    const process = Deno.run(runCommand);
+
+    const stdoutIterator = iterateReader(process.stdout!);
+    const stderrIterator = iterateReader(process.stderr!);
+
+    const runResult: RunResult = { output: "", error: "" };
+
+    // This will pipe the output to stdout/stderr and store it in runResult simultaneously
+    const processOutput = async (iterator: AsyncIterable<Uint8Array>, outputStream: typeof Deno.stdout | typeof Deno.stderr, bufferName: string) => {
+      for await (const chunk of iterator) {
+        const text = new TextDecoder().decode(chunk);
+        runResult[bufferName] += text;
+
+        if (!options.silent) {
+          outputStream.write(chunk);
+        }
+      }
+    };
+
+    const [status] = await Promise.all([
+      process.status(),
+      processOutput(stdoutIterator, Deno.stdout, "output"),
+      processOutput(stderrIterator, Deno.stderr, "error")
+    ]);
+
+    runResult.status = status;
+
+    if (runResult.error !== '') {
+      // Make sure we don't swallow any output if silent and there is an error
+      const errorMessage = runResult.output && options.silent ? 
+        `${runResult.error}\n\n---\n\nOutput before the error:\n${runResult.output}` : 
+        runResult.error;
+
+      // Throw instead of returning when any output was written to stderr
       throw new Error(errorMessage);
     }
 
-    return result;
-  }
-
-  /**
-   * Output stdout and stderr to the terminal and attach to the process.
-   *
-   * Note that the return signature is slightly different from runAndCapture, because we don't have stderrOutput.
-   *
-   * Todo - it would be nice to pipe the output to both stdout and capture it in the result object, but this doesn't seem possible yet.
-   */
-  private static async runAndAttach(command: string, args: string | string[] = []): Promise<RunResult> {
-    if (!Array.isArray(args)) args = [args];
-
-    const process = Deno.run({ cmd: [command, ...args] });
-    const status = await process.status();
-
-    process.close();
-
-    if (!status.success) throw new Error(`Command failed with code ${status.code}`);
-
-    return { status, output: 'runAndAttach has access to the output stream' };
+    // Log command output if verbose is enabled and we haven't already printed the output
+    if (log.isVeryVerbose && options.silent) {
+      const symbol = status.success ? '✅' : '⚠️';
+      const truncatedOutput = runResult.output.length >= 30 ? `${runResult.output.slice(0, 27)}...` : runResult.output;
+      log.debug('Command:', commandArray[0], command, symbol, {
+        status,
+        output: log.isMaxVerbose ? runResult.output : truncatedOutput,
+      });
+    }
+    
+    return runResult;
   }
 }
 

@@ -1,10 +1,11 @@
 import ImageEnvironmentFactory from './image-environment-factory.ts';
 import { path, fsSync as fs, Options } from '../dependencies.ts';
 import System from './system/system.ts';
+import UnityBuildValidation from "./unity/build-validation/unity-build-validation.ts";
 
 class Docker {
   static async run(image: string, options: Options) {
-    const { hostPlatform, hostOS } = options;
+    const { hostPlatform, hostOS, engine } = options;
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
 
@@ -25,8 +26,15 @@ class Docker {
     try {
       if (log.isVeryVerbose) log.debug(`docker command: ${command}`);
 
-      const test = await System.run(command, { attach: true });
-      log.warning('test', test);
+      const dockerRun = await System.run(command);
+
+      switch (engine)
+      {
+        case 'unity':
+          UnityBuildValidation.validateBuild(dockerRun.output);
+          break;
+      }
+
     } catch (error) {
       if (error.message.includes('docker: image operating system "windows" cannot be used on this platform')) {
         throw new Error(String.dedent`

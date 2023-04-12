@@ -65,6 +65,8 @@ class ImageEnvironmentFactory {
       { name: 'ANDROID_KEYALIAS_PASS', value: options.androidKeyaliasPass },
       { name: 'ANDROID_TARGET_SDK_VERSION', value: options.androidTargetSdkVersion },
       { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: options.androidSdkManagerParameters },
+      { name: 'ANDROID_EXPORT_TYPE', value: options.androidExportType },
+      { name: 'ANDROID_SYMBOL_TYPE', value: options.androidSymbolType },
       { name: 'CUSTOM_PARAMETERS', value: options.customParameters },
       { name: 'CHOWN_FILES_TO', value: options.chownFilesTo },
       { name: 'GITHUB_REF', value: Deno.env.get('GITHUB_REF') },

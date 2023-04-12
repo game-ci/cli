@@ -4,11 +4,29 @@ import { IOptions } from './options-interface.ts';
 export class AndroidOptions implements IOptions {
   public static configure(yargs: YargsInstance): void {
     yargs
-      .option('androidAppBundle', {
-        description: 'Build an Android App Bundle',
-        type: 'boolean',
+      .options({
+        androidAppBundle: {
+          description: 'Build an Android App Bundle',
+          type: 'boolean',
+          demandOption: false,
+          deprecated: 'Use androidExportType instead',
+        },
+        androidExportType: {
+          description: 'Export type for Android Build',
+          type: 'string',
+          demandOption: false,
+          choices: ['androidPackage', 'androidAppBundle', 'androidStudioProject'],
+          conflicts: ['androidAppBundle'],
+          default: 'androidPackage',
+        }
+      })
+      .middleware([AndroidOptions.determineExportType])
+      .option('androidSymbolType', {
+        description: 'Debug symbol type to export with Android build',
+        type: 'string',
         demandOption: false,
-        default: false,
+        choices: ['none', 'public', 'debugging'],
+        default: 'none',
       })
       .options({
         androidKeystoreName: {
@@ -80,5 +98,14 @@ export class AndroidOptions implements IOptions {
     if (!androidTargetSdkVersion) return;
 
     argv.androidSdkManagerParameters = `platforms;android-${androidTargetSdkVersion}`;
+  }
+
+  // Can be removed when androidAppBundle is removed
+  private static determineExportType(argv: YargsArguments) {
+    const { androidAppBundle } = argv;
+
+    if (androidAppBundle) {
+      argv.androidExportType = 'androidAppBundle';
+    }
   }
 }

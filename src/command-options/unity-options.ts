@@ -102,6 +102,20 @@ export class UnityOptions implements IOptions {
         type: 'string',
         demandOption: false,
         default: '',
+      })
+      .option('cacheUnityInstallationOnMac', {
+        description: 'Cache Unity installation on Mac.',
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('unityHubVersionOnMac', {
+        description: String.dedent`Unity Hub version to use on Mac. 
+        Should be of format Major.Minor.Patch, ie 3.4.0.
+        An empty string represents the latest available version on homebrew.`,
+        type: 'string',
+        demandOption: false,
+        default: '',
       });
   };
 }

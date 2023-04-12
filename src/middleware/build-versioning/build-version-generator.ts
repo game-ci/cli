@@ -72,7 +72,7 @@ export default class BuildVersionGenerator {
    */
   public async logDiff() {
     const diffCommand = `git --no-pager diff | head -n ${this.maxDiffLines.toString()}`;
-    const result = await System.shellRun(diffCommand);
+    const result = await System.run(diffCommand);
 
     log.debug(result.output);
   }
@@ -259,7 +259,7 @@ export default class BuildVersionGenerator {
     const command = `git tag --list --merged HEAD | grep -E '${this.grepCompatibleInputVersionRegex}' | wc -l`;
 
     // Todo - make sure this cwd is actually passed in somehow
-    const result = await System.shellRun(command, { cwd: this.projectPath, attach: false });
+    const result = await System.run(command, { cwd: this.projectPath, silent: false });
 
     log.debug(result);
 
