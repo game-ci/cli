@@ -16,7 +16,9 @@
                 "-A",
                 "./src/index.ts",
                 "build",
-                "./test-project"
+                "./test-project",
+                "--allowDirtyBuild",
+                "true"
             ],
             "attachSimplePort": 9229
         }

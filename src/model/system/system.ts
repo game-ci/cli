@@ -31,16 +31,20 @@ class System {
    *
    * @throws  {Error}  if anything was output to stderr or return code wasn't 0
    */
-  static async run(command: string, options: RunOptions = {silent: false}): Promise<RunResult> {
+  static async run(command: string, windowsSpecificCommand?: string, options: RunOptions = {silent: false}): Promise<RunResult> {
     let commandArray: string[];
+    let commandToRun = command;
     switch(Deno.build.os) {
       case 'windows':
         if (log.isVeryVerbose) log.debug(`The following command is run using powershell`);
-        commandArray = ['powershell', command];
+        if (windowsSpecificCommand) {
+          commandToRun = windowsSpecificCommand;
+        }
+        commandArray = ['powershell', commandToRun];
         break;
       default:
         if (log.isVeryVerbose) log.debug(`The following command is run using sh`);
-        commandArray = ['sh -c', command];
+        commandArray = ['sh -c', commandToRun];
         break;
     }
 
@@ -93,7 +97,7 @@ class System {
     if (log.isVeryVerbose && options.silent) {
       const symbol = status.success ? '✅' : '⚠️';
       const truncatedOutput = runResult.output.length >= 30 ? `${runResult.output.slice(0, 27)}...` : runResult.output;
-      log.debug('Command:', commandArray[0], command, symbol, {
+      log.debug('Command:', commandArray[0], commandToRun, symbol, {
         status,
         output: log.isMaxVerbose ? runResult.output : truncatedOutput,
       });

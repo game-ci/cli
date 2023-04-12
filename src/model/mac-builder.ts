@@ -6,7 +6,7 @@ class MacBuilder {
   public static async run(options: Options, silent = false) {
     const { cliDistPath, engine } = options;
     log.warning('running the process');
-    const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, { silent });
+    const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, undefined, { silent });
 
     switch (engine)
       {

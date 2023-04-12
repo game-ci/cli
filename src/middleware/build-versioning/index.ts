@@ -10,6 +10,6 @@ export const buildVersioning = async (argv: Options) => {
   argv.buildVersion = await buildVersionGenerator.determineBuildVersion(versioningStrategy, version, allowDirtyBuild);
 
   if (!androidVersionCode) {
-    argv.androidVersionCode = AndroidBuildVersionGenerator.determineVersionCode(buildVersion);
+    argv.androidVersionCode = AndroidBuildVersionGenerator.determineVersionCode(argv.buildVersion);
   }
 };

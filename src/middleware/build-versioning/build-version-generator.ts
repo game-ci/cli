@@ -257,9 +257,9 @@ export default class BuildVersionGenerator {
    */
   private async hasAnyVersionTags() {
     const command = `git tag --list --merged HEAD | grep -E '${this.grepCompatibleInputVersionRegex}' | wc -l`;
-
-    // Todo - make sure this cwd is actually passed in somehow
-    const result = await System.run(command, { cwd: this.projectPath, silent: false });
+    const windowsCommand = `git tag --list --merged HEAD | Select-String -Pattern "${this.grepCompatibleInputVersionRegex}" | Measure-Object | Select-Object -ExpandProperty Count`
+    
+    const result = await System.run(command, windowsCommand, { cwd: this.projectPath, silent: false });
 
     log.debug(result);
 
@@ -295,7 +295,7 @@ export default class BuildVersionGenerator {
    * Run git in the specified project path
    */
   private async git(arguments_: string, options = {}) {
-    const result = await System.run(`git ${arguments_}`, { cwd: this.projectPath, ...options });
+    const result = await System.run(`git ${arguments_}`, undefined, { cwd: this.projectPath, ...options });
 
     log.warning(result);
 
