@@ -20,8 +20,8 @@ class PlatformSetup {
   }
 
   private static SetupShared(options: Options) {
-    const { cliDistFolder, unityLicensingServer } = options;
-    const servicesConfigPath = `${cliDistFolder}/unity-config/services-config.json`;
+    const { cliDistPath, unityLicensingServer } = options;
+    const servicesConfigPath = `${cliDistPath}/unity-config/services-config.json`;
     const servicesConfigPathTemplate = `${servicesConfigPath}.template`;
     if (!fs.existsSync(servicesConfigPathTemplate)) {
       log.error(`Missing services config ${servicesConfigPathTemplate}`);

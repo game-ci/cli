@@ -274,19 +274,9 @@ export default class BuildVersionGenerator {
   /**
    * Get the total number of commits on head.
    *
-   * Note: HEAD should not be used, as it may be detached, resulting in an additional count.
    */
   private async getTotalNumberOfCommits() {
-    let commitIsh = 'HEAD';
-
-    // In CI the repo is checked out in detached head mode.
-    // We MUST specify the commitIsh that triggered the job.
-    // Todo - make this compatible with more CI systems
-    if (!Action.isRunningLocally) {
-      commitIsh = this.sha as string;
-    }
-
-    const numberOfCommitsAsString = await this.git(`rev-list --count ${commitIsh}`);
+    const numberOfCommitsAsString = await this.git(`rev-list --count HEAD`);
 
     return Number.parseInt(numberOfCommitsAsString, 10);
   }

@@ -56,7 +56,7 @@ class Docker {
   }
 
   private static getLinuxCommand(image: string, options: Options): string {
-    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken } = options;
+    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath } = options;
 
     const home = homeDir;
 
@@ -71,10 +71,10 @@ class Docker {
       String.dedent`
       docker run \
         --rm \
-        --workdir /github/workspace \
+        --workdir ${dockerWorkspacePath} \
         ${ImageEnvironmentFactory.getEnvVarString(options)} \
         --env UNITY_SERIAL \
-        --env GITHUB_WORKSPACE=/github/workspace \
+        --env GITHUB_WORKSPACE=${dockerWorkspacePath} \
         ${gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : ''} \
         ${sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : ''} \
         --volume "${home}":"/root:z" \
@@ -82,7 +82,7 @@ class Docker {
       // Todo - do we really need to pass this into the image???
       // --volume "${githubWorkflow}":"/github/workflow:z" \
       `
-        --volume "${currentWorkDir}":"/github/workspace:z" \
+        --volume "${currentWorkDir}":"${dockerWorkspacePath}:z" \
         --volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z" \
         --volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z" \
         --volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z" \
@@ -96,19 +96,19 @@ class Docker {
   }
 
   private static getWindowsCommand(image: string, options: Options): string {
-    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath } = options;
+    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath } = options;
 
     // Note: the equals sign (=) is needed in Powershell.
     // Note: homedir is currently not configured for windows (yet).
     return String.dedent`
       docker run \`
         --rm \`
-        --workdir="c:/github/workspace" \`
+        --workdir="c:${dockerWorkspacePath}" \`
         ${ImageEnvironmentFactory.getEnvVarString(options)} \`
         --env UNITY_SERIAL="${unitySerial}" \`
-        --env GITHUB_WORKSPACE=c:/github/workspace \`
+        --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \`
         --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \`
-        --volume="${currentWorkDir}":"c:/github/workspace" \`
+        --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \`
         --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`
         --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \`
         --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \`
