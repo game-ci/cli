@@ -186,7 +186,7 @@ export default class BuildVersionGenerator {
   private async isShallow() {
     const output = await this.git('rev-parse --is-shallow-repository');
 
-    return output !== 'false';
+    return output.trim() !== 'false';
   }
 
   /**
