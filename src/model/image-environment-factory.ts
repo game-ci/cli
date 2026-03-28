@@ -87,4 +87,4 @@ class ImageEnvironmentFactory {
   }
 }
 
-export default ImageEnvironmentFactory;
+export { ImageEnvironmentFactory };

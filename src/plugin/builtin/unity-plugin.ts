@@ -1,5 +1,5 @@
 import type { GameCIPlugin } from '../plugin-interface.ts';
-import UnityVersionDetector from '../../middleware/engine-detection/unity-version-detector.ts';
+import { UnityVersionDetector } from '../../middleware/engine-detection/unity-version-detector.ts';
 import { UnityBuildCommand } from '../../command/build/unity-build-command.ts';
 import { UnityRemoteBuildCommand } from '../../command/remote/unity-remote-build-command.ts';
 import { NonExistentCommand } from '../../command/null/non-existent-command.ts';

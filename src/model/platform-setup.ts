@@ -39,4 +39,4 @@ class PlatformSetup {
   }
 }
 
-export default PlatformSetup;
+export { PlatformSetup };

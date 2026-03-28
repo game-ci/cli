@@ -278,4 +278,4 @@ type Scheduler = {
   schedule: ScheduleFn;
 };
 
-export default waitUntil;
+export { waitUntil };

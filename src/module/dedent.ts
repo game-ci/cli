@@ -51,4 +51,4 @@ export function dedent(template: TemplateStringsArray | string, ...values: unkno
   return string;
 }
 
-export default dedent;
+export { dedent };

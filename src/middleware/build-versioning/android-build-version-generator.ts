@@ -1,6 +1,6 @@
 import { semver } from '../../dependencies.ts';
 
-export default class AndroidBuildVersionGenerator {
+export class AndroidBuildVersionGenerator {
   public static determineVersionCode(version: string) {
     if (version === 'none') {
       log.info(`Versioning strategy is set to ${version}, so android version code should not be applied.`);

@@ -1,4 +1,4 @@
-import UnityTargetPlatform from '../target-platform/unity-target-platform.ts';
+import { UnityTargetPlatform } from '../target-platform/unity-target-platform.ts';
 import type { YargsArguments } from '../../../dependencies.ts';
 
 class RunnerImageTag {
@@ -167,4 +167,4 @@ class RunnerImageTag {
     return `${image}:${tag}`; // '0' here represents the docker repo version
   }
 }
-export default RunnerImageTag;
+export { RunnerImageTag };

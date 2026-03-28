@@ -61,4 +61,4 @@ class ValidateWindows {
   }
 }
 
-export default ValidateWindows;
+export { ValidateWindows };

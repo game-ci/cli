@@ -1,7 +1,7 @@
 import { fsSync as fs, path } from '../../dependencies.ts';
 import * as nodeFs from 'node:fs';
 
-export default class UnityVersionDetector {
+export class UnityVersionDetector {
   static get versionPattern() {
     return /20\d{2}\.\d\.\w{3,4}|3/;
   }

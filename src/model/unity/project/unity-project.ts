@@ -8,4 +8,4 @@ class UnityProject {
   }
 }
 
-export default UnityProject;
+export { UnityProject };

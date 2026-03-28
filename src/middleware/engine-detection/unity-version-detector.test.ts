@@ -1,4 +1,4 @@
-import UnityVersionDetector from './unity-version-detector.ts';
+import { UnityVersionDetector } from './unity-version-detector.ts';
 
 describe('Unity Versioning', () => {
   describe('parse', () => {
@@ -23,13 +23,19 @@ describe('Unity Versioning', () => {
     });
   });
 
-  describe('determineUnityVersion', () => {
-    it('defaults to parsed version', () => {
-      expect(UnityVersionDetector.determineUnityVersion('./test-project', 'auto')).toBe('2019.2.11f1');
+  describe('getUnityVersion', () => {
+    it('returns the version from test-project', () => {
+      expect(UnityVersionDetector.getUnityVersion('./test-project')).toBe('2019.2.11f1');
+    });
+  });
+
+  describe('isUnityProject', () => {
+    it('returns true for test-project', () => {
+      expect(UnityVersionDetector.isUnityProject('./test-project')).toBe(true);
     });
 
-    it('use specified unityVersion', () => {
-      expect(UnityVersionDetector.determineUnityVersion('./test-project', '1.2.3')).toBe('1.2.3');
+    it('returns false for invalid path', () => {
+      expect(UnityVersionDetector.isUnityProject('./nonexistent')).toBe(false);
     });
   });
 });

@@ -1,10 +1,9 @@
 import { describe, test, expect } from 'bun:test';
 import * as fs from 'node:fs';
-import { Foo } from './foo.ts';
 
 describe('integrity', () => {
-  test('Foo.bar() returns bar', () => {
-    expect(Foo.bar()).toBe('bar');
+  test('package.json exists', () => {
+    expect(fs.existsSync(`${process.cwd()}/package.json`)).toBe(true);
   });
 
   test('package-lock.json does not exist', () => {

@@ -37,4 +37,4 @@ class UnityLicense {
     }
   }
 
-  export default UnityLicense;
+  export { UnityLicense };

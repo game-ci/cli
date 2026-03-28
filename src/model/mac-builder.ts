@@ -1,6 +1,6 @@
 import type { Options } from '../dependencies.ts';
-import System from './system/system.ts';
-import UnityBuildValidation from './unity/build-validation/unity-build-validation.ts';
+import { System } from './system/system.ts';
+import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
 
 class MacBuilder {
   public static async run(options: Options, silent = false) {
@@ -16,4 +16,4 @@ class MacBuilder {
   }
 }
 
-export default MacBuilder;
+export { MacBuilder };

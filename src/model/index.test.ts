@@ -1,10 +1,16 @@
 import * as Index from './index.ts';
 
 describe('Index', () => {
-  test.each(['Action', 'BuildParameters', 'Cache', 'Docker', 'ImageTag', 'Input', 'Platform', 'Project', 'Unity'])(
-    'exports %s',
-    (exportedModule) => {
-      expect(Index[exportedModule]).toBeDefined();
-    },
-  );
+  test.each([
+    'Action',
+    'CacheValidation',
+    'Docker',
+    'RunnerImageTag',
+    'Output',
+    'UnityTargetPlatform',
+    'UnityProject',
+    'BuildVersionGenerator',
+  ])('exports %s', (exportedModule) => {
+    expect(Index[exportedModule]).toBeDefined();
+  });
 });

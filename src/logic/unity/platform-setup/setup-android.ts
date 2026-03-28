@@ -18,4 +18,4 @@ class SetupAndroid {
   }
 }
 
-export default SetupAndroid;
+export { SetupAndroid };

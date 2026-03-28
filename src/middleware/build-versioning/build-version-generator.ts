@@ -1,9 +1,9 @@
-import NotImplementedException from '../../model/error/not-implemented-exception.ts';
-import System from '../../model/system/system.ts';
+import { NotImplementedException } from '../../model/error/not-implemented-exception.ts';
+import { System } from '../../model/system/system.ts';
 import { Action } from '../../model/index.ts';
 import { VersioningStrategy } from '../../model/versioning/versioning-strategy.ts';
 
-export default class BuildVersionGenerator {
+export class BuildVersionGenerator {
   private readonly maxDiffLines: number = 60;
   private readonly projectPath: string;
   private readonly currentBranch: string;

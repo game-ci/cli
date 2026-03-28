@@ -1,6 +1,6 @@
 import { fsSync as fs } from '../../../dependencies.ts';
 import type { Options } from '../../../dependencies.ts';
-import System from '../../../model/system/system.ts';
+import { System } from '../../../model/system/system.ts';
 
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
@@ -129,4 +129,4 @@ class SetupMac {
   }
 }
 
-export default SetupMac;
+export { SetupMac };

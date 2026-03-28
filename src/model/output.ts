@@ -10,4 +10,4 @@ class Output {
   }
 }
 
-export default Output;
+export { Output };

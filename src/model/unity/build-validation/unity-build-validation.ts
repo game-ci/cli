@@ -21,4 +21,4 @@ class UnityBuildValidation {
   }
 }
 
-export default UnityBuildValidation;
+export { UnityBuildValidation };

@@ -1,8 +1,8 @@
-import ImageEnvironmentFactory from './image-environment-factory.ts';
+import { ImageEnvironmentFactory } from './image-environment-factory.ts';
 import { path, fsSync as fs } from '../dependencies.ts';
 import type { Options } from '../dependencies.ts';
-import System from './system/system.ts';
-import UnityBuildValidation from './unity/build-validation/unity-build-validation.ts';
+import { System } from './system/system.ts';
+import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
 
 class Docker {
   static async run(image: string, options: Options) {
@@ -113,4 +113,4 @@ class Docker {
   }
 }
 
-export default Docker;
+export { Docker };

@@ -1,8 +1,8 @@
 import type { YargsInstance } from '../dependencies.ts';
-import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
+import { UnityTargetPlatform } from '../model/unity/target-platform/unity-target-platform.ts';
 import { UnityTargetPlatforms } from '../model/unity/target-platform/unity-target-platforms.ts';
 import { IOptions } from './options-interface.ts';
-import UnityLicense from '../model/unity/license/unity-license.ts';
+import { UnityLicense } from '../model/unity/license/unity-license.ts';
 import * as nodeFs from 'node:fs';
 
 export class UnityOptions implements IOptions {

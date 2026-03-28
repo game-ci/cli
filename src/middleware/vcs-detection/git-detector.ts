@@ -1,4 +1,4 @@
-import System from '../../model/system/system.ts';
+import { System } from '../../model/system/system.ts';
 
 export class GitDetector {
   private readonly projectPath: string;

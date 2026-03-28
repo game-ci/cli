@@ -1,5 +1,5 @@
-import BuildVersionGenerator from './build-version-generator.ts';
-import AndroidBuildVersionGenerator from './android-build-version-generator.ts';
+import { BuildVersionGenerator } from './build-version-generator.ts';
+import { AndroidBuildVersionGenerator } from './android-build-version-generator.ts';
 import type { Options } from '../../dependencies.ts';
 
 export const buildVersioning = async (argv: Options) => {

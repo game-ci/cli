@@ -32,4 +32,4 @@ class Action {
   }
 }
 
-export default Action;
+export { Action };

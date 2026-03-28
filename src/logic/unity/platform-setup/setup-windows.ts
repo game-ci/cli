@@ -1,7 +1,7 @@
 import { fsSync as fs } from '../../../dependencies.ts';
 import type { Options } from '../../../dependencies.ts';
-import ValidateWindows from '../platform-validation/validate-windows.ts';
-import System from '../../../model/system/system.ts';
+import { ValidateWindows } from '../platform-validation/validate-windows.ts';
+import { System } from '../../../model/system/system.ts';
 
 class SetupWindows {
   public static async setup(options: Options) {
@@ -22,4 +22,4 @@ class SetupWindows {
   }
 }
 
-export default SetupWindows;
+export { SetupWindows };

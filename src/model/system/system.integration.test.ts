@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
-import System from './system.ts';
+import { System } from './system.ts';
 
 describe('System', () => {
   describe('run', () => {

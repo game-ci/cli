@@ -20,7 +20,7 @@ type YargsInstance = YargsInstanceType;
 const platformEOL = process.platform === 'win32' ? '\r\n' : '\n';
 
 // Internally managed packages
-import waitUntil from './module/wait-until.ts';
+import { waitUntil } from './module/wait-until.ts';
 import { core } from './module/actions/index.ts';
 import { dedent } from './module/dedent.ts';
 
