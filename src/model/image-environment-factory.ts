@@ -1,4 +1,4 @@
-import { Options } from '../dependencies.ts';
+import type { Options } from '../dependencies.ts';
 
 class DockerParameter {
   public name!: string;
@@ -38,9 +38,6 @@ class ImageEnvironmentFactory {
     return string;
   }
   public static getEnvironmentVariables(options: Options) {
-    // Todo - replace with simple for of loop, mapping parameters to this specific format
-    // All parameters should be straight forward at this point in the process.
-    // We can convert between camelCase and UPPER_SNAKE_CASE relatively easily.
     const environmentVariables: DockerParameter[] = [
       { name: 'UNITY_LICENSE', value: options.unityLicense },
       { name: 'UNITY_LICENSE_FILE', value: options.unityLicenseFile },
@@ -69,20 +66,20 @@ class ImageEnvironmentFactory {
       { name: 'ANDROID_SYMBOL_TYPE', value: options.androidSymbolType },
       { name: 'CUSTOM_PARAMETERS', value: options.customParameters },
       { name: 'CHOWN_FILES_TO', value: options.chownFilesTo },
-      { name: 'GITHUB_REF', value: Deno.env.get('GITHUB_REF') },
-      { name: 'GITHUB_SHA', value: Deno.env.get('GITHUB_SHA') },
-      { name: 'GITHUB_REPOSITORY', value: Deno.env.get('GITHUB_REPOSITORY') },
-      { name: 'GITHUB_ACTOR', value: Deno.env.get('GITHUB_ACTOR') },
-      { name: 'GITHUB_WORKFLOW', value: Deno.env.get('GITHUB_WORKFLOW') },
-      { name: 'GITHUB_HEAD_REF', value: Deno.env.get('GITHUB_HEAD_REF') },
-      { name: 'GITHUB_BASE_REF', value: Deno.env.get('GITHUB_BASE_REF') },
-      { name: 'GITHUB_EVENT_NAME', value: Deno.env.get('GITHUB_EVENT_NAME') },
-      { name: 'GITHUB_ACTION', value: Deno.env.get('GITHUB_ACTION') },
-      { name: 'GITHUB_EVENT_PATH', value: Deno.env.get('GITHUB_EVENT_PATH') },
-      { name: 'RUNNER_OS', value: Deno.env.get('RUNNER_OS') },
-      { name: 'RUNNER_TOOL_CACHE', value: Deno.env.get('RUNNER_TOOL_CACHE') },
-      { name: 'RUNNER_TEMP', value: Deno.env.get('RUNNER_TEMP') },
-      { name: 'RUNNER_WORKSPACE', value: Deno.env.get('RUNNER_WORKSPACE') },
+      { name: 'GITHUB_REF', value: process.env.GITHUB_REF },
+      { name: 'GITHUB_SHA', value: process.env.GITHUB_SHA },
+      { name: 'GITHUB_REPOSITORY', value: process.env.GITHUB_REPOSITORY },
+      { name: 'GITHUB_ACTOR', value: process.env.GITHUB_ACTOR },
+      { name: 'GITHUB_WORKFLOW', value: process.env.GITHUB_WORKFLOW },
+      { name: 'GITHUB_HEAD_REF', value: process.env.GITHUB_HEAD_REF },
+      { name: 'GITHUB_BASE_REF', value: process.env.GITHUB_BASE_REF },
+      { name: 'GITHUB_EVENT_NAME', value: process.env.GITHUB_EVENT_NAME },
+      { name: 'GITHUB_ACTION', value: process.env.GITHUB_ACTION },
+      { name: 'GITHUB_EVENT_PATH', value: process.env.GITHUB_EVENT_PATH },
+      { name: 'RUNNER_OS', value: process.env.RUNNER_OS },
+      { name: 'RUNNER_TOOL_CACHE', value: process.env.RUNNER_TOOL_CACHE },
+      { name: 'RUNNER_TEMP', value: process.env.RUNNER_TEMP },
+      { name: 'RUNNER_WORKSPACE', value: process.env.RUNNER_WORKSPACE },
     ];
     if (options.sshAgent) environmentVariables.push({ name: 'SSH_AUTH_SOCK', value: '/ssh-agent' });
 

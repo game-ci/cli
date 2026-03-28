@@ -21,9 +21,7 @@ declare global {
     error: (msg: any, ...args: any[]) => void;
   };
 
-  interface Window {
-    log: any;
-  }
+  var process: typeof import('node:process');
 }
 
 declare interface StringConstructor {
@@ -32,8 +30,4 @@ declare interface StringConstructor {
 
 declare interface ErrorConstructor {
   stackTraceLimit: number;
-}
-
-declare interface Window {
-  log: any;
 }

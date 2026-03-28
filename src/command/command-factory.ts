@@ -1,9 +1,8 @@
 import { NonExistentCommand } from './null/non-existent-command.ts';
-import { UnityBuildCommand } from './build/unity-build-command.ts';
 import { CommandInterface } from './command-interface.ts';
 import { Engine } from '../model/engine/engine.ts';
 import { OpenConfigFolderCommand } from './config/open-config-folder-command.ts';
-import { UnityRemoteBuildCommand } from './remote/unity-remote-build-command.ts';
+import { PluginRegistry } from '../plugin/plugin-registry.ts';
 
 export class CommandFactory {
   private engine: string = Engine.unknown;
@@ -26,14 +25,17 @@ export class CommandFactory {
       return this.createConfigCommand(command, subCommands);
     }
 
-    switch (this.engine) {
-      case Engine.unknown:
-        throw new Error('Engine not detected from projectPath');
-      case Engine.unity:
-        return this.createUnityCommand(command, subCommands);
-      default:
-        throw new Error(`Engine ${this.engine} is not yet supported.`);
+    if (this.engine === Engine.unknown) {
+      throw new Error('Engine not detected from projectPath');
     }
+
+    // Query the plugin registry for a command matching this engine
+    const pluginCommand = PluginRegistry.createCommand(this.engine, command, subCommands);
+    if (pluginCommand) {
+      return pluginCommand;
+    }
+
+    throw new Error(`Engine "${this.engine}" is registered but has no handler for command "${command}".`);
   }
 
   private createConfigCommand(command: string, subCommands: string[]) {
@@ -43,29 +45,5 @@ export class CommandFactory {
       default:
         return new NonExistentCommand([command, ...subCommands].join(' '));
     }
-  }
-
-  private createUnityCommand(command: string, subCommands: string[]) {
-    switch (command) {
-      case 'build':
-        return new UnityBuildCommand(command);
-      case 'remote':
-        return this.createUnityRemoteCommand(command, subCommands);
-      default:
-        return this.createNonExistentCommand(command, subCommands);
-    }
-  }
-
-  private createUnityRemoteCommand(command: string, subCommands: string[]) {
-    switch (subCommands[0]) {
-      case 'build':
-        return new UnityRemoteBuildCommand(command);
-      default:
-        return this.createNonExistentCommand(command, subCommands);
-    }
-  }
-
-  private createNonExistentCommand(command: string, subCommands: string[]) {
-    return new NonExistentCommand([command, ...subCommands].join(' '));
   }
 }

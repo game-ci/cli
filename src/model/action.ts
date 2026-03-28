@@ -2,7 +2,7 @@ import { path, __dirname, __filename } from '../dependencies.ts';
 
 class Action {
   static get isRunningLocally() {
-    return Deno.env.get('RUNNER_WORKSPACE') === undefined;
+    return process.env.RUNNER_WORKSPACE === undefined;
   }
 
   static get isRunningFromSource() {
@@ -26,9 +26,9 @@ class Action {
   }
 
   static get workspace() {
-    if (Action.isRunningLocally) return Deno.cwd();
+    if (Action.isRunningLocally) return process.cwd();
 
-    return Deno.env.get('GITHUB_WORKSPACE');
+    return process.env.GITHUB_WORKSPACE;
   }
 }
 

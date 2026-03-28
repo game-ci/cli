@@ -1,4 +1,5 @@
 import { fsSync as fs, path, yaml, __dirname } from '../../dependencies.ts';
+import * as nodeFs from 'node:fs';
 
 export class ActionYamlReader {
   private actionYamlParsed: any;
@@ -7,7 +8,7 @@ export class ActionYamlReader {
     if (!fs.existsSync(filename)) {
       filename = path.join(__dirname, `..`, filename);
     }
-    this.actionYamlParsed = yaml.parse(Deno.readTextFileSync(filename));
+    this.actionYamlParsed = yaml.parse(nodeFs.readFileSync(filename, 'utf-8'));
   }
   public GetActionYamlValue(key: string) {
     return this.actionYamlParsed.inputs[key]?.description || 'No description found in action.yml';

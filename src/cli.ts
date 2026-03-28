@@ -1,12 +1,16 @@
-import { yaml, yargs, YargsInstance, YargsArguments, getHomeDir, __dirname, path } from './dependencies.ts';
+import { yaml, yargs, getHomeDir, __dirname, path, process, fs } from './dependencies.ts';
+import type { YargsInstance, YargsArguments } from './dependencies.ts';
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
 import { CommandFactory } from './command/command-factory.ts';
 import { NonExistentCommand } from './command/null/non-existent-command.ts';
 import { CliCommands } from './cli-commands.ts';
+import { PluginRegistry } from './plugin/plugin-registry.ts';
+import { PluginLoader } from './plugin/plugin-loader.ts';
+import { unityPlugin } from './plugin/builtin/unity-plugin.ts';
 
 export class Cli {
-  private readonly yargs: YargsInstance;
+  private readonly yargs: ReturnType<typeof yargs>;
   private readonly cliStoragePath: string;
   private readonly cliStorageCanonicalPath: string;
   private readonly cliPath: string;
@@ -15,21 +19,21 @@ export class Cli {
   private readonly currentWorkDir: string;
   private readonly homeDir: string;
   private readonly isRunningLocally: boolean;
-  private readonly hostPlatform: string | 'darwin' | 'linux' | 'win32';
-  private readonly hostOS: typeof Deno.build.os;
+  private readonly hostPlatform: string;
+  private readonly hostOS: string;
   private command: CommandInterface;
 
-  constructor(args: typeof Deno.args, cwd: string) {
+  constructor(args: string[], cwd: string) {
     this.yargs = yargs(args);
     this.currentWorkDir = cwd;
 
-    this.homeDir = getHomeDir() || "";
+    this.homeDir = getHomeDir() || '';
     this.cliStoragePath = `${this.homeDir}/.game-ci`;
     this.cliStorageCanonicalPath = '~/.game-ci';
-    this.isRunningLocally = !Boolean(Deno.env.get('CI'));
+    this.isRunningLocally = !Boolean(process.env.CI);
     this.command = new NonExistentCommand('non-existent');
     this.hostPlatform = process.platform;
-    this.hostOS = Deno.build.os;
+    this.hostOS = process.platform === 'win32' ? 'windows' : process.platform;
 
     // Todo make these variables portable when generating the cli binary
     this.cliPath = __dirname;
@@ -40,18 +44,29 @@ export class Cli {
     await this.configureLogger();
     await this.configureGlobalSettings();
     await this.configureGlobalOptions();
+    await this.loadPlugins();
+  }
+
+  private async loadPlugins() {
+    // Register built-in plugins
+    await PluginRegistry.register(unityPlugin);
+
+    // Load external plugins from config or CLI args
+    // Users can specify plugins in .game-ci.yml or via --plugin flag
+    // Example: game-ci --plugin @game-ci/orchestrator-plugin build
+    // For now, external plugin loading is available via PluginLoader.load()
   }
 
   public async registerCommands() {
     await this.nonStrict(async () => {
-      const register = (yargs: YargsInstance) => yargs.middleware([this.registerCommand.bind(this)]);
-      await new CliCommands(this.yargs, register).registerAll();
+      const register = (yargs: any) => yargs.middleware([this.registerCommand.bind(this)]);
+      await new CliCommands(this.yargs as any, register).registerAll();
       await this.yargs.parseAsync();
     });
   }
 
   public async registerSchemaForChosenCommand() {
-    await this.command.configureOptions(this.yargs);
+    await this.command.configureOptions(this.yargs as any);
   }
 
   public async validateAndParseArguments() {
@@ -108,7 +123,7 @@ export class Cli {
 
   protected configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
-    
+
 
     this.yargs
       .parserConfiguration({
@@ -165,16 +180,17 @@ export class Cli {
     return options;
   }
 
-  protected static handleFailure(message: string, error: Error, yargs: YargsInstance) {
+  protected static handleFailure(message: string, error: Error, yargs: any) {
     if (error) throw error;
 
     log.warning(message);
-    Deno.exit(1);
+    process.exit(1);
   }
 
-  protected async loadConfig(configPath: string) {
+  protected loadConfig(configPath: string) {
     try {
-      const configFile = await Deno.readTextFile(configPath);
+      const { readFileSync } = require('node:fs');
+      const configFile = readFileSync(configPath, 'utf-8');
 
       try {
         const jsonConfig = JSON.parse(configFile).cliOptions;

@@ -1,4 +1,4 @@
-import { YargsInstance } from '../dependencies.ts';
+import type { YargsInstance } from '../dependencies.ts';
 
 export class IOptions {
   static configure: (yargs: YargsInstance) => Promise<void> | void;

@@ -1,4 +1,4 @@
-import UnityVersionDetector from './unity-version-detector.ts';
+import { PluginRegistry } from '../../plugin/plugin-registry.ts';
 
 export class EngineDetector {
   private readonly projectPath: string;
@@ -8,15 +8,7 @@ export class EngineDetector {
   }
 
   public detect(): { engine: string; engineVersion: string } {
-    if (UnityVersionDetector.isUnityProject(this.projectPath)) {
-      const engineVersion = UnityVersionDetector.getUnityVersion(this.projectPath);
-
-      return { engine: 'unity', engineVersion };
-    }
-
-    return {
-      engine: 'unknown',
-      engineVersion: 'unknown',
-    };
+    // Query the plugin registry for engine detection
+    return PluginRegistry.detectEngine(this.projectPath);
   }
 }

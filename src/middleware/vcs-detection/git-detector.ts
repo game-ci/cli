@@ -32,7 +32,7 @@ export class GitDetector {
    * @deprecated
    */
   private get headRef() {
-    return Deno.env.get('GITHUB_HEAD_REF');
+    return process.env.GITHUB_HEAD_REF;
   }
 
   /**
@@ -40,6 +40,6 @@ export class GitDetector {
    * @deprecated
    */
   private get ref() {
-    return Deno.env.get('GITHUB_REF');
+    return process.env.GITHUB_REF;
   }
 }

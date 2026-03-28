@@ -1,4 +1,5 @@
-import { fsSync, Options, dedent } from '../../../dependencies.ts';
+import { fsSync } from '../../../dependencies.ts';
+import type { Options } from '../../../dependencies.ts';
 import UnityProject from '../../../model/unity/project/unity-project.ts';
 
 class CacheValidation {

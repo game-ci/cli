@@ -21,13 +21,13 @@ class UnityLicense {
 
     static getLicenseSerialFromUlf(fileContents: string) {
         const startIndex = fileContents.indexOf(UnityLicense.licenseStartKey) + UnityLicense.licenseStartKey.length;
-        
+
         if (startIndex < 0) {
           throw new Error(`License File was corrupted, unable to locate serial`);
         }
-        
+
         const endIndex = fileContents.indexOf(UnityLicense.licenseEndKey, startIndex);
-        
+
         if (endIndex < 0) {
           throw new Error(`License File was corrupted, unable to locate serial`);
         }
@@ -36,5 +36,5 @@ class UnityLicense {
         return new TextDecoder().decode(base64.decode(fileContents.slice(startIndex, endIndex))).slice(4);
     }
   }
-  
+
   export default UnityLicense;

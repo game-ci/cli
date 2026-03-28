@@ -1,5 +1,5 @@
 import UnityTargetPlatform from '../target-platform/unity-target-platform.ts';
-import { YargsArguments } from '../../../dependencies.ts';
+import type { YargsArguments } from '../../../dependencies.ts';
 
 class RunnerImageTag {
   public repository: string;

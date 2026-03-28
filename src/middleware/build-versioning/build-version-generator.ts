@@ -49,7 +49,7 @@ export default class BuildVersionGenerator {
    * @deprecated
    */
   private get sha() {
-    return Deno.env.get('GITHUB_SHA');
+    return process.env.GITHUB_SHA;
   }
 
   /**
@@ -79,13 +79,6 @@ export default class BuildVersionGenerator {
 
   /**
    * Automatically generates a version based on SemVer out of the box.
-   *
-   * The version works as follows: `<major>.<minor>.<patch>` for example `0.1.2`.
-   *
-   * The latest tag dictates `<major>.<minor>`
-   * The number of commits since that tag dictates`<patch>`.
-   *
-   * @See: https://semver.org/
    */
   private async generateSemanticVersion(allowDirtyBuild: boolean) {
     if (await this.isShallow()) {
@@ -180,22 +173,12 @@ export default class BuildVersionGenerator {
     }
   }
 
-  /**
-   * Returns whether the repository is shallow.
-   */
   private async isShallow() {
     const output = await this.git('rev-parse --is-shallow-repository');
 
     return output.trim() !== 'false';
   }
 
-  /**
-   * Retrieves refs from the configured remote.
-   *
-   * Fetch unshallow for incomplete repository, but fall back to normal fetch.
-   *
-   * Note: `--all` should not be used, and would break fetching for push event.
-   */
   private async fetch() {
     try {
       await this.git('fetch --unshallow');
@@ -205,20 +188,9 @@ export default class BuildVersionGenerator {
     }
   }
 
-  /**
-   * Retrieves information about the branch.
-   *
-   * Format: `v0.12-24-gd2198ab`
-   *
-   * In this format v0.12 is the latest tag, 24 are the number of commits since, and gd2198ab
-   * identifies the current commit.
-   */
   private async getVersionDescription() {
     let commitIsh = 'HEAD';
 
-    // In CI the repo is checked out in detached head mode.
-    // We MUST specify the commitIsh that triggered the job.
-    // Todo - make this compatible with more CI systems
     if (!Action.isRunningLocally) {
       commitIsh = this.sha as string;
     }
@@ -226,9 +198,6 @@ export default class BuildVersionGenerator {
     return this.git(`describe --long --tags --always ${commitIsh}`);
   }
 
-  /**
-   * Returns whether there are uncommitted changes that are not ignored.
-   */
   private async isDirty() {
     const output = await this.git('status --porcelain');
     const isDirty = output !== '';
@@ -243,22 +212,14 @@ export default class BuildVersionGenerator {
     return isDirty;
   }
 
-  /**
-   * Get the tag if there is one pointing at HEAD
-   */
   private async getTag() {
     return await this.git('tag --points-at HEAD');
   }
 
-  /**
-   * Whether the current tree has any version tags yet.
-   *
-   * Note: Currently this is run in all OSes, so the syntax must be cross-platform.
-   */
   private async hasAnyVersionTags() {
     const command = `git tag --list --merged HEAD | grep -E '${this.grepCompatibleInputVersionRegex}' | wc -l`;
     const windowsCommand = `git tag --list --merged HEAD | Select-String -Pattern "${this.grepCompatibleInputVersionRegex}" | Measure-Object | Select-Object -ExpandProperty Count`
-    
+
     const result = await System.run(command, windowsCommand, { cwd: this.projectPath, silent: false });
 
     log.debug(result);
@@ -271,19 +232,12 @@ export default class BuildVersionGenerator {
     return numberOfTags !== 0;
   }
 
-  /**
-   * Get the total number of commits on head.
-   *
-   */
   private async getTotalNumberOfCommits() {
     const numberOfCommitsAsString = await this.git(`rev-list --count HEAD`);
 
     return Number.parseInt(numberOfCommitsAsString, 10);
   }
 
-  /**
-   * Run git in the specified project path
-   */
   private async git(arguments_: string, options = {}) {
     const result = await System.run(`git ${arguments_}`, undefined, { cwd: this.projectPath, ...options });
 

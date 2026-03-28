@@ -1,16 +1,29 @@
 import { CommandInterface } from '../command-interface.ts';
 import { CommandBase } from '../command-base.ts';
-import { YargsInstance, YargsArguments } from '../../dependencies.ts';
-
-import { default as getHomeDir } from 'https://deno.land/x/dir@1.5.1/home_dir/mod.ts';
-import { open } from 'https://deno.land/x/opener@v1.0.1/mod.ts';
+import type { YargsInstance, YargsArguments } from '../../dependencies.ts';
+import { getHomeDir } from '../../dependencies.ts';
+import { exec } from 'node:child_process';
 
 export class OpenConfigFolderCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
     const cliStoragePath = `${getHomeDir()}/.game-ci`;
-    await open(`file://${cliStoragePath}/`);
 
-    return true;
+    // Open folder using platform-appropriate command
+    const openCommand =
+      process.platform === 'win32' ? `start "" "${cliStoragePath}"` :
+      process.platform === 'darwin' ? `open "${cliStoragePath}"` :
+      `xdg-open "${cliStoragePath}"`;
+
+    return new Promise((resolve) => {
+      exec(openCommand, (err) => {
+        if (err) {
+          log.error(`Failed to open config folder: ${err.message}`);
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    });
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {}

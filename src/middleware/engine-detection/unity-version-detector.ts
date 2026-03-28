@@ -1,4 +1,5 @@
 import { fsSync as fs, path } from '../../dependencies.ts';
+import * as nodeFs from 'node:fs';
 
 export default class UnityVersionDetector {
   static get versionPattern() {
@@ -25,7 +26,7 @@ export default class UnityVersionDetector {
       throw new Error(`Project settings file not found at "${filePath}". Have you correctly set the projectPath?`);
     }
 
-    return UnityVersionDetector.parse(Deno.readTextFileSync(filePath));
+    return UnityVersionDetector.parse(nodeFs.readFileSync(filePath, 'utf-8'));
   }
 
   static parse(projectVersionTxt: string) {

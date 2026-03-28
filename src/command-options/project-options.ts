@@ -1,4 +1,5 @@
-import { getHomeDir, YargsInstance } from '../dependencies.ts';
+import { getHomeDir } from '../dependencies.ts';
+import type { YargsInstance } from '../dependencies.ts';
 import { engineDetection } from '../middleware/engine-detection/index.ts';
 import { vcsDetection } from '../middleware/vcs-detection/index.ts';
 import { IOptions } from './options-interface.ts';

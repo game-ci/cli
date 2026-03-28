@@ -3,6 +3,7 @@ import UnityTargetPlatform from '../model/unity/target-platform/unity-target-pla
 import { UnityTargetPlatforms } from '../model/unity/target-platform/unity-target-platforms.ts';
 import { IOptions } from './options-interface.ts';
 import UnityLicense from '../model/unity/license/unity-license.ts';
+import * as nodeFs from 'node:fs';
 
 export class UnityOptions implements IOptions {
   public static configure = async (yargs: YargsInstance): Promise<void> => {
@@ -53,11 +54,11 @@ export class UnityOptions implements IOptions {
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {
-          throw new Error(String.dedent`Unity License File (.ulf) expected, but got .alf. 
+          throw new Error(String.dedent`Unity License File (.ulf) expected, but got .alf.
           Please activate your license file first.`);
         }
-        
-        return UnityLicense.isValidLicenseFilePath(arg) ? await Deno.readTextFile(arg) : arg;
+
+        return UnityLicense.isValidLicenseFilePath(arg) ? nodeFs.readFileSync(arg, 'utf-8') : arg;
       })
       .option('customImage', {
         description: String.dedent`
@@ -110,7 +111,7 @@ export class UnityOptions implements IOptions {
         default: false,
       })
       .option('unityHubVersionOnMac', {
-        description: String.dedent`Unity Hub version to use on Mac. 
+        description: String.dedent`Unity Hub version to use on Mac.
         Should be of format Major.Minor.Patch, ie 3.4.0.
         An empty string represents the latest available version on homebrew.`,
         type: 'string',

@@ -1,6 +1,6 @@
 import BuildVersionGenerator from './build-version-generator.ts';
 import AndroidBuildVersionGenerator from './android-build-version-generator.ts';
-import { Options } from "../../dependencies.ts";
+import type { Options } from '../../dependencies.ts';
 
 export const buildVersioning = async (argv: Options) => {
   const { projectPath, currentBranch, versioningStrategy, version, allowDirtyBuild, androidVersionCode, buildVersion } = argv;

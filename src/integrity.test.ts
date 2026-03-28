@@ -1,25 +1,13 @@
-import { assert, assertFalse, assertEquals, assertThrows } from './deps-test.ts';
-import { existsSync } from 'https://deno.land/std/fs/mod.ts';
+import { describe, test, expect } from 'bun:test';
+import * as fs from 'node:fs';
 import { Foo } from './foo.ts';
 
-// Todo - Remove this test after we have some coverage
-assertEquals(Foo.bar(), 'bar');
+describe('integrity', () => {
+  test('Foo.bar() returns bar', () => {
+    expect(Foo.bar()).toBe('bar');
+  });
 
-// Todo - Enable this test, once node_modules are completely phased out.
-// Deno.test('package.json does not exist', async () => {
-//   assertFalse(existsSync(`${Deno.cwd()}/package.json`));
-// });
-
-Deno.test('package-lock.json does not exist', async () => {
-  assertFalse(existsSync(`${Deno.cwd()}/package-lock.json`));
+  test('package-lock.json does not exist', () => {
+    expect(fs.existsSync(`${process.cwd()}/package-lock.json`)).toBe(false);
+  });
 });
-
-// Todo - Enable this test, once node_modules are completely phased out.
-// Deno.test('yarn.lock does not exist', async () => {
-//   assertFalse(existsSync(`${Deno.cwd()}/yarn.lock`));
-// });
-
-// Todo - Enable this test, once node_modules are completely phased out.
-// Deno.test('node_modules does not exist', async () => {
-//   assertFalse(existsSync(`${Deno.cwd()}/node_modules`));
-// });

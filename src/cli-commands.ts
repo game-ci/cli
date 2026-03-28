@@ -1,4 +1,4 @@
-import { YargsInstance } from './dependencies.ts';
+import type { YargsInstance } from './dependencies.ts';
 import { ProjectOptions } from './command-options/project-options.ts';
 
 /**

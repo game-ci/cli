@@ -1,7 +1,7 @@
-import * as log from 'https://deno.land/std@0.151.0/log/mod.ts';
 import { fileFormatter, consoleFormatter } from './formatter.ts';
 import { getHomeDir, fsSync as fs } from '../../dependencies.ts';
-import { LogLevels, getLevelName } from 'https://deno.land/std@0.151.0/log/levels.ts';
+import * as nodePath from 'node:path';
+import * as nodeFs from 'node:fs';
 
 export enum Verbosity {
   quiet = -1,
@@ -20,53 +20,76 @@ export const configureLogger = async (verbosity: Verbosity) => {
 
   // Config folder
   const configFolder = `${getHomeDir()}/.game-ci`;
-  await fs.ensureDir(configFolder);
+  fs.ensureDir(configFolder);
 
-  // Handlers
-  let consoleLevel = getLevelName(LogLevels.NOTSET);
-  if (isQuiet) consoleLevel = getLevelName(LogLevels.ERROR);
-  if (isVerbose) consoleLevel = getLevelName(LogLevels.DEBUG);
-  const consoleHandler = new log.handlers.ConsoleHandler(consoleLevel, { formatter: consoleFormatter });
-  const fileHandler = new log.handlers.FileHandler('WARNING', {
-    filename: `${configFolder}/game-ci.log`,
-    formatter: fileFormatter,
-  });
+  const logFilePath = nodePath.join(configFolder, 'game-ci.log');
 
-  // Make sure it saves on Ctrl+C interrupt https://github.com/denoland/deno_std/issues/2193
-  Deno.addSignalListener('SIGINT', () => fileHandler.flush());
+  // Create a simple logger that writes to console and file
+  const writeToFile = (level: string, msg: string) => {
+    const now = new Date();
+    const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    const line = `${timestamp} [${level}] ${msg}\n`;
+    try {
+      nodeFs.appendFileSync(logFilePath, line);
+    } catch {
+      // Silently fail file writes
+    }
+  };
 
-  await log.setup({
-    handlers: {
-      consoleHandler,
-      fileHandler,
+  const formatArgs = (msg: any, args: any[]): string => {
+    const parts = [typeof msg === 'string' ? msg : inspect(msg)];
+    for (const arg of args) {
+      parts.push(typeof arg === 'string' ? arg : inspect(arg));
+    }
+    return parts.join(' ');
+  };
+
+  const inspect = (value: any): string => {
+    if (value === undefined) return 'undefined';
+    if (value === null) return 'null';
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
+  // Flush file on SIGINT
+  process.on('SIGINT', () => process.exit(0));
+
+  const logger = {
+    verbosity,
+    verbosityName: Verbosity[verbosity],
+    isQuiet,
+    isVerbose,
+    isVeryVerbose,
+    isMaxVerbose,
+
+    debug: (msg: any, ...args: any[]) => {
+      const formatted = formatArgs(msg, args);
+      writeToFile('DEBUG', formatted);
+      if (isVerbose && !isQuiet) console.debug(`[DEBUG] ${formatted}`);
     },
 
-    loggers: {
-      default: {
-        level: 'DEBUG',
-        handlers: ['consoleHandler', 'fileHandler'],
-      },
+    info: (msg: any, ...args: any[]) => {
+      const formatted = formatArgs(msg, args);
+      writeToFile('INFO', formatted);
+      if (!isQuiet) console.log(`[INFO] ${formatted}`);
     },
-  });
 
-  /**
-   * Allows using `log.debug` and other methods directly from anywhere
-   *
-   * Example
-   *   log.debug('something', [{ a: { b: { c: { d: ['a', 'b'] } } } }], 'something', {
-   *     a: { b: { c: { d: { e: { f: { g: 'foo' } } } } } },
-   *   });
-   *
-   * Outputs:
-   *   [DEBUG] something [ { a: { b: [Object] } } ] something { a: { b: { c: [Object] } } }
-   */
-  window.log = log.getLogger();
+    warning: (msg: any, ...args: any[]) => {
+      const formatted = formatArgs(msg, args);
+      writeToFile('WARNING', formatted);
+      if (!isQuiet) console.warn(`[WARN] ${formatted}`);
+    },
 
-  // Verbosity
-  window.log.verbosity = verbosity;
-  window.log.verbosityName = Verbosity[verbosity];
-  window.log.isQuiet = isQuiet;
-  window.log.isVerbose = isVerbose;
-  window.log.isVeryVerbose = isVeryVerbose;
-  window.log.isMaxVerbose = isMaxVerbose;
+    error: (msg: any, ...args: any[]) => {
+      const formatted = formatArgs(msg, args);
+      writeToFile('ERROR', formatted);
+      console.error(`[ERROR] ${formatted}`);
+    },
+  };
+
+  (globalThis as any).log = logger;
 };

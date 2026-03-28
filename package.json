@@ -1,0 +1,38 @@
+{
+  "name": "@game-ci/cli",
+  "version": "0.1.0",
+  "description": "GameCI CLI - Build automation for game engines",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "game-ci": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "test": "bun test",
+    "lint": "echo 'Not implemented yet.'"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4",
+    "yargs": "^17.7.2",
+    "semver": "^7.5.4",
+    "nanoid": "^5.0.4",
+    "dotenv": "^16.3.1",
+    "opener": "^1.5.2"
+  },
+  "devDependencies": {
+    "@types/yargs": "^17.0.32",
+    "@types/semver": "^7.5.6",
+    "bun-types": "latest",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/game-ci/cli.git"
+  }
+}
