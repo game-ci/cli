@@ -9,12 +9,12 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Deno environment
-        uses: denolib/setup-deno@v2.3.0
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
       - name: Code conventions
-        run: deno task lint
+        run: bun run lint
       - name: Unit/Integration tests
-        run: deno task coverage
-      - name: Upload coverage to Codecov
-        run: curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && ./codecov
+        run: bun test
