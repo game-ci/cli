@@ -1,5 +1,6 @@
 import { PluginRegistry } from './plugin-registry.ts';
 import type { GameCIPlugin } from './plugin-interface.ts';
+import { CliProtocolProvider } from './cli-protocol-provider.ts';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -12,11 +13,14 @@ export class PluginLoader {
    * - npm package name (e.g., "@game-ci/unity-plugin")
    * - Local path (e.g., "./plugins/my-plugin" or "/abs/path/to/plugin")
    * - GitHub repo (e.g., "github:game-ci/unity-builder")
+   * - Executable binary (e.g., "executable:/path/to/game-ci-orchestrator")
    */
   static async load(source: string): Promise<GameCIPlugin> {
     let plugin: GameCIPlugin;
 
-    if (source.startsWith('github:')) {
+    if (source.startsWith('executable:')) {
+      plugin = PluginLoader.loadFromExecutable(source.slice(11));
+    } else if (source.startsWith('github:')) {
       plugin = await PluginLoader.loadFromGitHub(source.slice(7));
     } else if (source.startsWith('.') || source.startsWith('/') || path.isAbsolute(source)) {
       plugin = await PluginLoader.loadFromPath(source);
@@ -66,6 +70,38 @@ export class PluginLoader {
 
     const mod = await import(resolvedPath);
     return mod.default || mod;
+  }
+
+  /**
+   * Create a plugin from an external executable binary.
+   *
+   * The executable must implement the JSON-over-stdin/stdout protocol
+   * (the `serve` command in the orchestrator binary).
+   *
+   * Registers a single provider strategy "cli-protocol" that spawns the
+   * executable and communicates via JSON protocol.
+   */
+  private static loadFromExecutable(executablePath: string): GameCIPlugin {
+    const resolvedPath = path.resolve(executablePath);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`Executable plugin path does not exist: ${resolvedPath}`);
+    }
+
+    // Create a plugin that wraps the executable as a CliProtocolProvider
+    const CliProtocolProviderCtor = class extends CliProtocolProvider {
+      constructor(options: Record<string, any>) {
+        super({ ...options, providerExecutable: resolvedPath });
+      }
+    };
+
+    return {
+      name: `executable:${path.basename(resolvedPath)}`,
+      version: '1.0.0',
+      providers: {
+        'cli-protocol': CliProtocolProviderCtor as any,
+      },
+    };
   }
 
   /**

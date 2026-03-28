@@ -2,14 +2,19 @@ name: Engine Smoke Tests
 
 on:
   push:
-    branches: [main, 'feat/**']
-  pull_request: {}
+    branches: [main, 'release/**', 'feat/**']
+  pull_request:
+    branches: [main, 'release/**']
   workflow_dispatch:
     inputs:
       godot-version:
         description: 'Godot CI image tag'
         required: false
         default: '4.3'
+      unreal-image:
+        description: 'Custom Unreal Engine Docker image (optional, leave empty to skip UE test)'
+        required: false
+        default: ''
 
 jobs:
   # ─── Godot — detect + build using third-party image ────────────
@@ -19,8 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
+      - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         run: bun install
@@ -69,8 +76,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
+      - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         run: bun install
@@ -143,3 +152,95 @@ jobs:
             if (m.engine !== 'unreal') throw new Error('wrong engine');
             console.log('UE stub build verified:', JSON.stringify(m));
           "
+
+  # ─── Unreal Engine real image (manual only) ─────────────────────
+  unreal-smoke-test:
+    name: Unreal Engine smoke test
+    runs-on: ubuntu-latest
+    if: github.event.inputs.unreal-image != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Pull and verify Unreal Engine container
+        run: |
+          UE_IMAGE="${{ github.event.inputs.unreal-image }}"
+          echo "Pulling: ${UE_IMAGE}"
+          docker pull "${UE_IMAGE}"
+          docker run --rm "${UE_IMAGE}" \
+            bash -c "echo 'UE container OK'"
+
+  # ─── Executable Plugin Protocol Tests ───────────────────────────
+  protocol-tests:
+    name: Executable plugin protocol tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Test CLI plugin system can load executable plugin
+        run: |
+          bun -e "
+            import { CliProtocolProvider } from './src/plugin/cli-protocol-provider.ts';
+
+            // Verify construction with executable path
+            const provider = new CliProtocolProvider({ providerExecutable: '/usr/bin/echo' });
+            console.log('CliProtocolProvider constructed OK');
+
+            // Verify all ProviderPlugin methods exist
+            const methods = ['setupWorkflow', 'cleanupWorkflow', 'runTaskInWorkflow',
+                           'garbageCollect', 'listResources', 'listWorkflow', 'watchWorkflow'];
+            for (const m of methods) {
+              if (typeof provider[m] !== 'function') {
+                throw new Error('Missing method: ' + m);
+              }
+            }
+            console.log('All ProviderPlugin methods present');
+          "
+
+      - name: Test PluginLoader handles executable: prefix
+        run: |
+          bun -e "
+            import { PluginLoader } from './src/plugin/plugin-loader.ts';
+            import { PluginRegistry } from './src/plugin/plugin-registry.ts';
+
+            PluginRegistry.reset();
+
+            // Verify executable: prefix with a real binary on the system
+            try {
+              const plugin = await PluginLoader.load('executable:/usr/bin/echo');
+              console.log('Loaded executable plugin:', plugin.name);
+              console.log('Providers:', Object.keys(plugin.providers || {}));
+
+              const providers = PluginRegistry.getAvailableProviders();
+              console.log('Registered providers:', providers);
+
+              if (!providers.includes('cli-protocol')) {
+                throw new Error('cli-protocol provider not registered');
+              }
+              console.log('Executable plugin integration test PASSED');
+            } catch (e) {
+              console.error('Test failed:', e.message);
+              process.exit(1);
+            }
+          "
+
+      - name: Run protocol provider tests
+        run: bun test src/plugin/cli-protocol-provider.test.ts
+
+      - name: Run plugin loader tests
+        run: bun test src/plugin/plugin-loader.test.ts
