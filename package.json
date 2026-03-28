@@ -17,9 +17,7 @@
     "yaml": "^2.3.4",
     "yargs": "^17.7.2",
     "semver": "^7.5.4",
-    "nanoid": "^5.0.4",
-    "dotenv": "^16.3.1",
-    "opener": "^1.5.2"
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/yargs": "^17.0.32",

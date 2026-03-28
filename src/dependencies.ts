@@ -3,20 +3,14 @@ import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
 import * as process from 'node:process';
-import * as http from 'node:http';
-import * as crypto from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { fileURLToPath } from 'node:url';
 
 import * as semver from 'semver';
 import * as yaml from 'yaml';
-import { nanoid, customAlphabet } from 'nanoid';
-import { config, configDotenv } from 'dotenv';
+import { config } from 'dotenv';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-
-// Re-export nanoid with compatible API
-const nanoidCompat = { nanoid, customAlphabet };
 
 // Type imports from yargs
 import type { Argv as YargsInstanceType, Arguments as YargsArgs } from 'yargs';
@@ -37,12 +31,6 @@ String.dedent = dedent;
 
 // Errors from yargs can be very verbose and not very descriptive
 Error.stackTraceLimit = 15;
-
-class Writable {
-  constructor() {
-    throw new Error('Writable is not implemented'); // stream
-  }
-}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,19 +89,15 @@ export {
   Buffer,
   config,
   core,
-  crypto,
   dedent,
   fs,
   fsSyncCompat as fsSync,
   getHomeDir,
-  http,
-  nanoidCompat as nanoid,
   path,
   platformEOL,
   process,
   semver,
   waitUntil,
-  Writable,
   yaml,
   yargs,
   hideBin,
