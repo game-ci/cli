@@ -1,0 +1,104 @@
+name: Release CLI Binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach binaries to (e.g., v0.1.0)'
+        required: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+            bun-target: bun-linux-x64
+            asset: game-ci-linux-x64
+          - target: linux-arm64
+            runner: ubuntu-latest
+            bun-target: bun-linux-arm64
+            asset: game-ci-linux-arm64
+          - target: macos-x64
+            runner: macos-latest
+            bun-target: bun-darwin-x64
+            asset: game-ci-macos-x64
+          - target: macos-arm64
+            runner: macos-latest
+            bun-target: bun-darwin-arm64
+            asset: game-ci-macos-arm64
+          - target: windows-x64
+            runner: windows-latest
+            bun-target: bun-windows-x64
+            asset: game-ci-windows-x64.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build standalone binary
+        run: bun build src/index.ts --compile --target ${{ matrix.bun-target }} --outfile ${{ matrix.asset }}
+
+      - name: Verify binary (native only)
+        if: >-
+          (matrix.target == 'macos-arm64' && runner.arch == 'ARM64') ||
+          (matrix.target == 'macos-x64' && runner.arch == 'X64') ||
+          (matrix.target == 'linux-x64') ||
+          (matrix.target == 'windows-x64')
+        run: ./${{ matrix.asset }} --help
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  checksums:
+    name: Generate checksums and upload
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd binaries
+          sha256sum game-ci-* > checksums.txt
+          cat checksums.txt
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload to release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd binaries
+          gh release upload "${{ steps.tag.outputs.tag }}" \
+            game-ci-* checksums.txt \
+            --repo ${{ github.repository }} \
+            --clobber
