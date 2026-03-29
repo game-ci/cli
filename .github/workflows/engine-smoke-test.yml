@@ -86,11 +86,8 @@ jobs:
 
       - name: Build UE CI stub
         run: |
-          cat > /tmp/Dockerfile.ue-stub <<'DOCKERFILE'
-          FROM alpine:3.19
-          RUN apk add --no-cache bash
-          RUN mkdir -p /home/ue4/UnrealEngine/Engine/Build/BatchFiles && \
-              cat > /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh <<'SCRIPT'
+          mkdir -p /tmp/ue-stub-ctx
+          cat > /tmp/ue-stub-ctx/RunUAT.sh <<'SCRIPT'
           #!/bin/bash
           echo "=== RunUAT.sh (CI Stub) ==="
           PROJECT=""
@@ -111,11 +108,18 @@ jobs:
           fi
           echo "=== Build OK ==="
           SCRIPT
-              chmod +x /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh
+          chmod +x /tmp/ue-stub-ctx/RunUAT.sh
+
+          cat > /tmp/ue-stub-ctx/Dockerfile <<'DOCKERFILE'
+          FROM alpine:3.19
+          RUN apk add --no-cache bash
+          RUN mkdir -p /home/ue4/UnrealEngine/Engine/Build/BatchFiles
+          COPY RunUAT.sh /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh
+          RUN chmod +x /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh
           WORKDIR /build
           DOCKERFILE
 
-          docker build -t game-ci/ue-stub:latest -f /tmp/Dockerfile.ue-stub .
+          docker build -t game-ci/ue-stub:latest -f /tmp/ue-stub-ctx/Dockerfile /tmp/ue-stub-ctx
 
       - name: Run UE stub build
         run: |
