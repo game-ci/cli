@@ -1,0 +1,13 @@
+; Minimal Godot project for CLI smoke testing
+; Verifies that game-ci can detect and build a Godot project.
+
+[application]
+
+config/name="GameCI CLI Smoke Test"
+config/description="Minimal project for CLI validation"
+run/main_scene=""
+config/features=PackedStringArray("4.3")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

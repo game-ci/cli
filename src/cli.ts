@@ -8,6 +8,8 @@ import { CliCommands } from './cli-commands.ts';
 import { PluginRegistry } from './plugin/plugin-registry.ts';
 import { PluginLoader } from './plugin/plugin-loader.ts';
 import { unityPlugin } from './plugin/builtin/unity-plugin.ts';
+import { godotPlugin } from './plugin/builtin/godot-plugin.ts';
+import { unrealPlugin } from './plugin/builtin/unreal-plugin.ts';
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -50,6 +52,8 @@ export class Cli {
   private async loadPlugins() {
     // Register built-in plugins
     await PluginRegistry.register(unityPlugin);
+    await PluginRegistry.register(godotPlugin);
+    await PluginRegistry.register(unrealPlugin);
 
     // Load external plugins from config or CLI args
     // Users can specify plugins in .game-ci.yml or via --plugin flag

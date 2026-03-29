@@ -1,0 +1,8 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.4",
+  "Description": "Minimal CI smoke test for game-ci CLI",
+  "Category": "",
+  "Modules": [],
+  "Plugins": []
+}
