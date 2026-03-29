@@ -2,7 +2,9 @@ import { ValidationError } from './validation-error.ts';
 
 describe('ValidationError', () => {
   it('instantiates', () => {
-    expect(() => new ValidationError()).not.toThrow();
+    const error = new ValidationError();
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toStrictEqual('ValidationError');
   });
 
   test.each(['one'])('Displays title %s', (message) => {

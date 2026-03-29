@@ -46,7 +46,11 @@ describe('RunnerImageTag', () => {
 
   describe('toString', () => {
     it('returns the correct version', () => {
-      const image = new RunnerImageTag({ engineVersion: '2099.1.1111', targetPlatform: some.targetPlatform });
+      const image = new RunnerImageTag({
+        engineVersion: '2099.1.1111',
+        targetPlatform: some.targetPlatform,
+        hostPlatform: process.platform,
+      });
       switch (process.platform) {
         case 'win32':
           expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2099.1.1111-1`);
@@ -60,6 +64,7 @@ describe('RunnerImageTag', () => {
       const image = new RunnerImageTag({
         engineVersion: '2099.1.1111',
         targetPlatform: some.targetPlatform,
+        hostPlatform: process.platform,
         customImage: `${defaults.image}:2099.1.1111@347598437689743986`,
       });
 
@@ -67,7 +72,11 @@ describe('RunnerImageTag', () => {
     });
 
     it('returns the specific build platform', () => {
-      const image = new RunnerImageTag({ engineVersion: '2019.2.11f1', targetPlatform: 'WebGL' });
+      const image = new RunnerImageTag({
+        engineVersion: '2019.2.11f1',
+        targetPlatform: 'WebGL',
+        hostPlatform: process.platform,
+      });
 
       switch (process.platform) {
         case 'win32':
@@ -80,7 +89,10 @@ describe('RunnerImageTag', () => {
     });
 
     it('returns no specific build platform for generic targetPlatforms', () => {
-      const image = new RunnerImageTag({ targetPlatform: 'NoTarget' });
+      const image = new RunnerImageTag({
+        targetPlatform: 'NoTarget',
+        hostPlatform: process.platform,
+      });
 
       switch (process.platform) {
         case 'win32':

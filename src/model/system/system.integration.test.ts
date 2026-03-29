@@ -18,8 +18,8 @@ describe('System', () => {
           expect(result.output.trim()).toBe('test');
         });
 
-        test('throws on when error code is not 0', async () => {
-          await expect(System.run('false')).rejects.toThrow();
+        test('throws when command writes to stderr', async () => {
+          await expect(System.run('echo fail >&2')).rejects.toThrow();
         });
       }
     });

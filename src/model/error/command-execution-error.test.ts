@@ -2,7 +2,9 @@ import { CommandExecutionError } from './command-execution-error.ts';
 
 describe('CommandExecutionError', () => {
   it('instantiates', () => {
-    expect(() => new CommandExecutionError()).not.toThrow();
+    const error = new CommandExecutionError();
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toStrictEqual('CommandExecutionError');
   });
 
   test.each(['one'])('Displays title %s', (message) => {

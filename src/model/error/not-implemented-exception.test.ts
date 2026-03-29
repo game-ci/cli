@@ -2,7 +2,9 @@ import { NotImplementedException } from './not-implemented-exception.ts';
 
 describe('NotImplementedException', () => {
   it('instantiates', () => {
-    expect(() => new NotImplementedException()).not.toThrow();
+    const error = new NotImplementedException();
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toStrictEqual('NotImplementedException');
   });
 
   test.each(['one'])('Displays title %s', (message) => {
