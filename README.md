@@ -2,7 +2,7 @@
 
 Build automation for game engines — Unity, Unreal Engine, Godot, and more.
 
-The CLI is a thin, plugin-based runtime. Engine support, cloud providers, and remote build orchestration are loaded as plugins.
+The CLI is a thin, plugin-based runtime. Engine support, cloud providers, and remote build orchestration are loaded as plugins. Local and local-docker builds are powered by the [orchestrator](../orchestrator/).
 
 ## Install
 
@@ -44,6 +44,150 @@ bun run start -- --help
 game-ci --help
 game-ci build --engine unity --projectPath ./my-project
 game-ci remote build --providerStrategy local-docker
+```
+
+## Quick Start: Godot
+
+### Godot — Local
+
+```bash
+# Export a Godot project (requires Godot installed locally)
+godot --headless --export-release "Linux/X11" ./build/game
+
+# Or run tests
+godot --headless --script res://tests/run_tests.gd
+```
+
+### Godot — Local Docker
+
+```bash
+# Export using the community Godot CI image (no local install needed)
+docker run --rm \
+  -v "$(pwd):/project" \
+  -w /project \
+  barichello/godot-ci:4.3 \
+  godot --headless --export-release "Linux/X11" /project/build/game
+```
+
+### Godot via Orchestrator (Local Docker)
+
+```bash
+game-ci orchestrate \
+  --engine godot \
+  --provider-strategy local-docker \
+  --target-platform linux \
+  --custom-job '- name: godot-export
+  image: barichello/godot-ci:4.3
+  commands: |
+    godot --headless --export-release "Linux/X11" /build/output/game'
+```
+
+### Godot via Orchestrator (Local System)
+
+```bash
+game-ci orchestrate \
+  --engine godot \
+  --provider-strategy local-system \
+  --target-platform linux \
+  --custom-job '- name: godot-export
+  image: local
+  commands: |
+    godot --headless --export-release "Linux/X11" ./build/game'
+```
+
+## Quick Start: Unreal Engine
+
+### Unreal Engine — Local
+
+Requires a local UE installation. `RunUAT` is in the engine's `Engine/Build/BatchFiles/` directory:
+
+```bash
+# Linux / macOS
+/path/to/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+  BuildCookRun \
+  -project="$(pwd)/MyProject.uproject" \
+  -targetplatform=Linux \
+  -clientconfig=Shipping \
+  -build -cook -stage -pak -archive \
+  -archivedirectory="$(pwd)/output" \
+  -noP4 -unattended
+
+# Windows
+"C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\RunUAT.bat" ^
+  BuildCookRun ^
+  -project="%cd%\MyProject.uproject" ^
+  -targetplatform=Win64 ^
+  -clientconfig=Shipping ^
+  -build -cook -stage -pak -archive ^
+  -archivedirectory="%cd%\output" ^
+  -noP4 -unattended
+```
+
+### Unreal Engine — Local Docker
+
+UE Docker images are large (35–120 GB). Choose an image source based on your access:
+
+| Image | Size | Access |
+| --- | --- | --- |
+| `ghcr.io/epicgames/unreal-engine:dev-slim-5.4` | ~35 GB | Requires [Epic Games GitHub org](https://github.com/EpicGames) membership |
+| [adamrehn/ue4-docker](https://github.com/adamrehn/ue4-docker) | ~40 GB | Self-built from your UE license |
+
+```bash
+# Using the official Epic slim image
+docker run --rm \
+  -v "$(pwd):/project" \
+  -w /project \
+  ghcr.io/epicgames/unreal-engine:dev-slim-5.4 \
+  /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+    BuildCookRun \
+    -project=/project/MyProject.uproject \
+    -targetplatform=Linux \
+    -clientconfig=Shipping \
+    -build -cook -stage -pak -archive \
+    -archivedirectory=/project/output \
+    -noP4 -unattended
+```
+
+### Unreal Engine via Orchestrator (Local Docker)
+
+```bash
+game-ci orchestrate \
+  --engine unreal \
+  --provider-strategy local-docker \
+  --target-platform linux \
+  --custom-job '- name: ue-build
+  image: ghcr.io/epicgames/unreal-engine:dev-slim-5.4
+  commands: |
+    /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+      BuildCookRun \
+      -project=/build/MyProject.uproject \
+      -targetplatform=Linux \
+      -clientconfig=Shipping \
+      -build -cook -stage -pak -archive \
+      -archivedirectory=/build/output \
+      -noP4 -unattended'
+```
+
+### Unreal Engine via Orchestrator (Local System)
+
+Runs directly on the host using your local UE installation:
+
+```bash
+game-ci orchestrate \
+  --engine unreal \
+  --provider-strategy local-system \
+  --target-platform linux \
+  --custom-job '- name: ue-build
+  image: local
+  commands: |
+    /path/to/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+      BuildCookRun \
+      -project=$(pwd)/MyProject.uproject \
+      -targetplatform=Linux \
+      -clientconfig=Shipping \
+      -build -cook -stage -pak -archive \
+      -archivedirectory=$(pwd)/output \
+      -noP4 -unattended'
 ```
 
 ## Plugin System
