@@ -130,7 +130,7 @@ UE Docker images are large (35–120 GB). Choose an image source based on your a
 | Image | Size | Access |
 | --- | --- | --- |
 | `ghcr.io/epicgames/unreal-engine:dev-slim-5.4` | ~35 GB | Requires [Epic Games GitHub org](https://github.com/EpicGames) membership |
-| [adamrehn/ue4-docker](https://github.com/adamrehn/ue4-docker) | ~40 GB | Self-built from your UE license |
+| [Community UE5 images](https://unrealcontainers.com/docs/obtaining-images) | ~40 GB | Self-built from your UE license via [ue5-docker](https://github.com/evoverses/ue5-docker) or similar |
 
 ```bash
 # Using the official Epic slim image
