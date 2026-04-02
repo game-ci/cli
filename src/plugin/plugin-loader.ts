@@ -1,6 +1,8 @@
 import { PluginRegistry } from './plugin-registry.ts';
 import type { GameCIPlugin } from './plugin-interface.ts';
 import { CliProtocolPlugin } from './cli-protocol-plugin.ts';
+
+const globalLogger = typeof globalThis !== 'undefined' && 'log' in globalThis ? (globalThis as any).log : undefined;
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -44,7 +46,7 @@ export class PluginLoader {
         const plugin = await PluginLoader.load(source);
         plugins.push(plugin);
       } catch (error: any) {
-        log?.warning?.(`Failed to load plugin from "${source}": ${error.message}`);
+      globalLogger?.warning?.(`Failed to load plugin from "${source}": ${error.message}`);
       }
     }
     return plugins;

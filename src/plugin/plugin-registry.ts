@@ -8,6 +8,8 @@ import type {
 import type { YargsInstance } from '../dependencies.ts';
 import { CommandInterface } from '../command/command-interface.ts';
 
+const globalLogger = typeof globalThis !== 'undefined' && 'log' in globalThis ? (globalThis as any).log : undefined;
+
 /**
  * Central plugin registry.
  *
@@ -50,7 +52,7 @@ export class PluginRegistry {
       await plugin.onLoad();
     }
 
-    log?.info?.(`Plugin registered: ${plugin.name}${plugin.version ? ` v${plugin.version}` : ''}`);
+    globalLogger?.info?.(`Plugin registered: ${plugin.name}${plugin.version ? ` v${plugin.version}` : ''}`);
   }
 
   /**
