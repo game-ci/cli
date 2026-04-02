@@ -226,7 +226,7 @@ jobs:
             console.log('All required CLI execution methods present');
           "
 
-      - name: Test PluginLoader handles executable: prefix
+      - name: "Test PluginLoader handles executable: prefix"
         run: |
           bun -e "
             import { PluginLoader } from './src/plugin/plugin-loader.ts';
