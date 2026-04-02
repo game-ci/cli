@@ -7,10 +7,11 @@ import type { CommandInterface } from '../../command/command-interface.ts';
  * Built-in Unreal Engine plugin.
  * Registers UE project detection and UE-specific commands.
  *
- * UE builds require a custom Docker image due to EULA restrictions.
- * Common options:
+ * UE builds require either a local UE installation or a custom Docker image
+ * due to EULA and distribution restrictions.
+ * Common image options:
  *   - ghcr.io/epicgames/unreal-engine (official, requires access)
- *   - adamrehn/ue4-docker (community)
+ *   - community-built UE5 images from licensed sources
  */
 export const unrealPlugin: GameCIPlugin = {
   name: 'unreal',

@@ -16,6 +16,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   # ─── Godot — detect + build using third-party image ────────────
   godot-build:
@@ -23,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -30,7 +35,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Test Godot engine detection
         run: |
@@ -51,14 +56,17 @@ jobs:
             -w /project \
             "barichello/godot-ci:${GODOT_VERSION}" \
             bash -c '
+              set -euo pipefail
               echo "Godot $(godot --headless --version)"
               mkdir -p build
-              godot --headless --verbose --export-release "Linux/X11" build/game.x86_64 2>&1 || \
-              godot --headless --verbose --export-release "Linux" build/game.x86_64 2>&1 || {
-                echo "Export preset not matched — import validation"
+              if [ -f export_presets.cfg ]; then
+                godot --headless --verbose --export-release "Linux/X11" build/game.x86_64 2>&1 || \
+                godot --headless --verbose --export-release "Linux" build/game.x86_64 2>&1
+              else
+                echo "No export presets found, running import validation instead"
                 godot --headless --import 2>&1
-              }
-              ls -la build/ 2>/dev/null || true
+              fi
+              ls -la build/
             '
 
       - name: Verify output
@@ -75,6 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -82,7 +92,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Test Unreal engine detection
         run: |
@@ -160,6 +170,8 @@ jobs:
     if: github.event.inputs.unreal-image != ''
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -167,7 +179,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Pull and verify Unreal Engine container
         run: |
@@ -177,12 +189,14 @@ jobs:
           docker run --rm "${UE_IMAGE}" \
             bash -c "echo 'UE container OK'"
 
-  # ─── Executable Plugin Protocol Tests ───────────────────────────
+  # ─── Executable CLI Plugin Tests ────────────────────────────────
   protocol-tests:
-    name: Executable plugin protocol tests
+    name: Executable CLI plugin tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -190,26 +204,26 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Test CLI plugin system can load executable plugin
         run: |
           bun -e "
-            import { CliProtocolProvider } from './src/plugin/cli-protocol-provider.ts';
+            import { CliProtocolPlugin } from './src/plugin/cli-protocol-plugin.ts';
 
             // Verify construction with executable path
-            const provider = new CliProtocolProvider({ providerExecutable: '/usr/bin/echo' });
-            console.log('CliProtocolProvider constructed OK');
+            const plugin = new CliProtocolPlugin({ providerExecutable: '/usr/bin/echo' });
+            console.log('CliProtocolPlugin constructed OK');
 
-            // Verify all ProviderPlugin methods exist
+            // Verify all execution methods required by the CLI exist
             const methods = ['setupWorkflow', 'cleanupWorkflow', 'runTaskInWorkflow',
                            'garbageCollect', 'listResources', 'listWorkflow', 'watchWorkflow'];
             for (const m of methods) {
-              if (typeof provider[m] !== 'function') {
+              if (typeof plugin[m] !== 'function') {
                 throw new Error('Missing method: ' + m);
               }
             }
-            console.log('All ProviderPlugin methods present');
+            console.log('All required CLI execution methods present');
           "
 
       - name: Test PluginLoader handles executable: prefix
@@ -239,8 +253,8 @@ jobs:
             }
           "
 
-      - name: Run protocol provider tests
-        run: bun test src/plugin/cli-protocol-provider.test.ts
+      - name: Run CLI plugin tests
+        run: bun test src/plugin/cli-protocol-plugin.test.ts
 
       - name: Run plugin loader tests
         run: bun test src/plugin/plugin-loader.test.ts

@@ -1,14 +1,14 @@
 import type { ProviderPlugin } from './plugin-interface.ts';
 
 /**
- * JSON protocol types matching the orchestrator's CliProviderRequest/Response.
+ * JSON protocol types matching the orchestrator's CLI plugin request/response.
  */
-interface CliProviderRequest {
+interface CliProtocolPluginRequest {
   command: string;
   params: Record<string, any>;
 }
 
-interface CliProviderResponse {
+interface CliProtocolPluginResponse {
   success: boolean;
   result?: any;
   error?: string;
@@ -20,19 +20,19 @@ const RUN_TASK_TIMEOUT_MS = 7_200_000; // 2 hours
 const WATCH_WORKFLOW_TIMEOUT_MS = 3_600_000; // 1 hour
 
 /**
- * Provider that communicates with an external executable (e.g. the orchestrator
- * binary) via JSON-over-stdin/stdout protocol.
+ * CLI protocol plugin wrapper that communicates with an external executable
+ * (e.g. the orchestrator binary) via JSON-over-stdin/stdout protocol.
  *
- * This enables process-isolated, language-agnostic provider plugins. The external
- * executable must implement the `serve` command that reads CliProviderRequest
- * from stdin and writes CliProviderResponse to stdout.
+ * This enables process-isolated, language-agnostic CLI plugins. The external
+ * executable must implement the `serve` command that reads CliProtocolPluginRequest
+ * from stdin and writes CliProtocolPluginResponse to stdout.
  *
  * Protocol:
  *   stdin → { "command": "run-task", "params": { ... } }
  *   stdout ← { "success": true, "output": "...", "result": ... }
- *   stderr ← log messages (forwarded to console)
+ *   stderr <- log messages (forwarded to console)
  */
-export class CliProtocolProvider implements ProviderPlugin {
+export class CliProtocolPlugin implements ProviderPlugin {
   private readonly executablePath: string;
   private readonly executableArgs: string[];
   private readonly buildOptions: Record<string, any>;
@@ -47,7 +47,7 @@ export class CliProtocolProvider implements ProviderPlugin {
     const executable = options.providerExecutable || options.cliExecutable;
     if (!executable || typeof executable !== 'string') {
       throw new Error(
-        'CliProtocolProvider requires --provider-executable (path to orchestrator binary). ' +
+        'CliProtocolPlugin requires --provider-executable (path to orchestrator binary). ' +
         'Example: game-ci remote build --providerStrategy cli-protocol --provider-executable ./game-ci-orchestrator',
       );
     }
@@ -154,10 +154,10 @@ export class CliProtocolProvider implements ProviderPlugin {
     command: string,
     params: Record<string, any>,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
-  ): Promise<CliProviderResponse> {
-    const request: CliProviderRequest = { command, params };
+  ): Promise<CliProtocolPluginResponse> {
+    const request: CliProtocolPluginRequest = { command, params };
 
-    return new Promise<CliProviderResponse>((resolve, reject) => {
+    return new Promise<CliProtocolPluginResponse>((resolve, reject) => {
       const proc = Bun.spawn([this.executablePath, ...this.executableArgs], {
         stdin: 'pipe',
         stdout: 'pipe',
@@ -168,7 +168,7 @@ export class CliProtocolProvider implements ProviderPlugin {
       const timer = setTimeout(() => {
         timedOut = true;
         proc.kill();
-        reject(new Error(`CliProtocolProvider: command '${command}' timed out after ${timeoutMs}ms`));
+        reject(new Error(`CliProtocolPlugin: command '${command}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
       // Write request to stdin
@@ -194,13 +194,13 @@ export class CliProtocolProvider implements ProviderPlugin {
 
         // Find the last JSON response line in stdout
         const lines = stdout.split('\n').filter((l: string) => l.trim());
-        let response: CliProviderResponse | undefined;
+        let response: CliProtocolPluginResponse | undefined;
 
         for (let i = lines.length - 1; i >= 0; i--) {
           try {
             const parsed = JSON.parse(lines[i].trim());
             if (typeof parsed === 'object' && parsed !== null && 'success' in parsed) {
-              response = parsed as CliProviderResponse;
+              response = parsed as CliProtocolPluginResponse;
               break;
             }
           } catch {
@@ -212,20 +212,20 @@ export class CliProtocolProvider implements ProviderPlugin {
           if (response.success) {
             resolve(response);
           } else {
-            reject(new Error(`CliProtocolProvider ${command} failed: ${response.error || 'Unknown error'}`));
+            reject(new Error(`CliProtocolPlugin ${command} failed: ${response.error || 'Unknown error'}`));
           }
         } else if (exitCode === 0) {
           resolve({ success: true, output: stdout.trim() });
         } else {
           reject(new Error(
-            `CliProtocolProvider ${command} exited with code ${exitCode}` +
+            `CliProtocolPlugin ${command} exited with code ${exitCode}` +
             (stderr ? `: ${stderr.trim()}` : ''),
           ));
         }
       }).catch((error) => {
         clearTimeout(timer);
         if (!timedOut) {
-          reject(new Error(`CliProtocolProvider: failed to spawn '${this.executablePath}': ${error.message}`));
+          reject(new Error(`CliProtocolPlugin: failed to spawn '${this.executablePath}': ${error.message}`));
         }
       });
     });
@@ -239,10 +239,10 @@ export class CliProtocolProvider implements ProviderPlugin {
     command: string,
     params: Record<string, any>,
     timeoutMs: number,
-  ): Promise<CliProviderResponse> {
-    const request: CliProviderRequest = { command, params };
+  ): Promise<CliProtocolPluginResponse> {
+    const request: CliProtocolPluginRequest = { command, params };
 
-    return new Promise<CliProviderResponse>((resolve, reject) => {
+    return new Promise<CliProtocolPluginResponse>((resolve, reject) => {
       const proc = Bun.spawn([this.executablePath, ...this.executableArgs], {
         stdin: 'pipe',
         stdout: 'pipe',
@@ -253,7 +253,7 @@ export class CliProtocolProvider implements ProviderPlugin {
       const timer = setTimeout(() => {
         timedOut = true;
         proc.kill();
-        reject(new Error(`CliProtocolProvider: command '${command}' timed out after ${timeoutMs}ms`));
+        reject(new Error(`CliProtocolPlugin: command '${command}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
       // Write request to stdin
@@ -262,7 +262,7 @@ export class CliProtocolProvider implements ProviderPlugin {
       writer.close();
 
       const outputLines: string[] = [];
-      let lastJsonResponse: CliProviderResponse | undefined;
+      let lastJsonResponse: CliProtocolPluginResponse | undefined;
 
       // Stream stdout
       const stdoutReader = proc.stdout.getReader();
@@ -284,7 +284,7 @@ export class CliProtocolProvider implements ProviderPlugin {
             try {
               const parsed = JSON.parse(trimmed);
               if (typeof parsed === 'object' && parsed !== null && 'success' in parsed) {
-                lastJsonResponse = parsed as CliProviderResponse;
+                lastJsonResponse = parsed as CliProtocolPluginResponse;
                 continue;
               }
             } catch {
@@ -312,7 +312,7 @@ export class CliProtocolProvider implements ProviderPlugin {
           try {
             const parsed = JSON.parse(trimmed);
             if (typeof parsed === 'object' && parsed !== null && 'success' in parsed) {
-              lastJsonResponse = parsed as CliProviderResponse;
+              lastJsonResponse = parsed as CliProtocolPluginResponse;
             } else {
               outputLines.push(trimmed);
             }
@@ -334,20 +334,20 @@ export class CliProtocolProvider implements ProviderPlugin {
               output: lastJsonResponse.output || outputLines.join('\n'),
             });
           } else {
-            reject(new Error(`CliProtocolProvider ${command} failed: ${lastJsonResponse.error || 'Unknown error'}`));
+            reject(new Error(`CliProtocolPlugin ${command} failed: ${lastJsonResponse.error || 'Unknown error'}`));
           }
         } else if (exitCode === 0) {
           resolve({ success: true, output: outputLines.join('\n') });
         } else {
           reject(new Error(
-            `CliProtocolProvider ${command} exited with code ${exitCode}` +
+            `CliProtocolPlugin ${command} exited with code ${exitCode}` +
             (stderr ? `: ${stderr.trim()}` : ''),
           ));
         }
       }).catch((error) => {
         clearTimeout(timer);
         if (!timedOut) {
-          reject(new Error(`CliProtocolProvider: failed to spawn '${this.executablePath}': ${error.message}`));
+          reject(new Error(`CliProtocolPlugin: failed to spawn '${this.executablePath}': ${error.message}`));
         }
       });
     });

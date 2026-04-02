@@ -1,6 +1,6 @@
 import { PluginRegistry } from './plugin-registry.ts';
 import type { GameCIPlugin } from './plugin-interface.ts';
-import { CliProtocolProvider } from './cli-protocol-provider.ts';
+import { CliProtocolPlugin } from './cli-protocol-plugin.ts';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -29,7 +29,7 @@ export class PluginLoader {
     }
 
     PluginLoader.validate(plugin, source);
-    await PluginRegistry.register(plugin);
+    await PluginRegistry.registerOnce(plugin);
 
     return plugin;
   }
@@ -39,7 +39,7 @@ export class PluginLoader {
    */
   static async loadAll(sources: string[]): Promise<GameCIPlugin[]> {
     const plugins: GameCIPlugin[] = [];
-    for (const source of sources) {
+    for (const source of new Set(sources)) {
       try {
         const plugin = await PluginLoader.load(source);
         plugins.push(plugin);
@@ -73,13 +73,13 @@ export class PluginLoader {
   }
 
   /**
-   * Create a plugin from an external executable binary.
+   * Create a CLI protocol plugin from an external executable binary.
    *
    * The executable must implement the JSON-over-stdin/stdout protocol
    * (the `serve` command in the orchestrator binary).
    *
-   * Registers a single provider strategy "cli-protocol" that spawns the
-   * executable and communicates via JSON protocol.
+   * Registers a single execution strategy "cli-protocol" backed by the
+   * executable and its JSON protocol.
    */
   private static loadFromExecutable(executablePath: string): GameCIPlugin {
     const resolvedPath = path.resolve(executablePath);
@@ -88,8 +88,8 @@ export class PluginLoader {
       throw new Error(`Executable plugin path does not exist: ${resolvedPath}`);
     }
 
-    // Create a plugin that wraps the executable as a CliProtocolProvider
-    const CliProtocolProviderCtor = class extends CliProtocolProvider {
+    // Create a plugin that wraps the executable as a CliProtocolPlugin
+    const CliProtocolPluginCtor = class extends CliProtocolPlugin {
       constructor(options: Record<string, any>) {
         super({ ...options, providerExecutable: resolvedPath });
       }
@@ -99,7 +99,7 @@ export class PluginLoader {
       name: `executable:${path.basename(resolvedPath)}`,
       version: '1.0.0',
       providers: {
-        'cli-protocol': CliProtocolProviderCtor as any,
+        'cli-protocol': CliProtocolPluginCtor as any,
       },
     };
   }

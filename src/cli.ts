@@ -28,6 +28,7 @@ export class Cli {
   constructor(args: string[], cwd: string) {
     this.yargs = yargs(args);
     this.currentWorkDir = cwd;
+    this.configFileName = '.game-ci.yml';
 
     this.homeDir = getHomeDir() || '';
     this.cliStoragePath = `${this.homeDir}/.game-ci`;
@@ -50,15 +51,17 @@ export class Cli {
   }
 
   private async loadPlugins() {
-    // Register built-in plugins
-    await PluginRegistry.register(unityPlugin);
-    await PluginRegistry.register(godotPlugin);
-    await PluginRegistry.register(unrealPlugin);
+    await PluginRegistry.registerOnce(unityPlugin);
+    await PluginRegistry.registerOnce(godotPlugin);
+    await PluginRegistry.registerOnce(unrealPlugin);
 
-    // Load external plugins from config or CLI args
-    // Users can specify plugins in .game-ci.yml or via --plugin flag
-    // Example: game-ci --plugin @game-ci/orchestrator-plugin build
-    // For now, external plugin loading is available via PluginLoader.load()
+    const options = await this.getPreCommandOptions();
+    const pluginSources = this.getPluginSources(options);
+    if (pluginSources.length === 0) {
+      return;
+    }
+
+    await PluginLoader.loadAll(pluginSources);
   }
 
   public async registerCommands() {
@@ -153,6 +156,17 @@ export class Cli {
   protected configureGlobalOptions() {
     const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
     this.yargs
+      .option('plugin', {
+        description:
+          'Load an external plugin from npm, a local path, github:<repo>, or executable:<path>',
+        type: 'string',
+        array: true,
+      })
+      .option('plugins', {
+        description: 'Alias for --plugin to support config-driven plugin arrays',
+        type: 'string',
+        array: true,
+      })
       .config('config', `default: .game-ci.yml`, (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
         //const configPath = `${this.currentWorkDir}/.game-ci.yml`;
@@ -168,6 +182,50 @@ export class Cli {
       .default('isRunningLocally', this.isRunningLocally)
       .default('hostPlatform', this.hostPlatform)
       .default('hostOS', this.hostOS);
+  }
+
+  private async getPreCommandOptions() {
+    let options: Record<string, unknown> = {};
+
+    await this.nonStrict(async () => {
+      options = await this.finalParse();
+    });
+
+    return options;
+  }
+
+  private getPluginSources(options: Record<string, unknown>): string[] {
+    const configOptions = this.getConfigOptions(options);
+    const sources = [
+      ...this.normalizePluginOption(configOptions.plugin),
+      ...this.normalizePluginOption(configOptions.plugins),
+      ...this.normalizePluginOption(options.plugin),
+      ...this.normalizePluginOption(options.plugins),
+    ];
+
+    return Array.from(new Set(sources));
+  }
+
+  private getConfigOptions(options: Record<string, unknown>): Record<string, unknown> {
+    const explicitConfigPath = typeof options.config === 'string' ? options.config : '';
+    const configPath = explicitConfigPath || path.join(this.currentWorkDir, this.configFileName);
+
+    return this.loadConfig(configPath);
+  }
+
+  private normalizePluginOption(value: unknown): string[] {
+    if (typeof value === 'string') {
+      return value.trim() ? [value.trim()] : [];
+    }
+
+    if (Array.isArray(value)) {
+      return value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+
+    return [];
   }
 
   private registerCommand(args: YargsArguments) {
@@ -209,6 +267,10 @@ export class Cli {
         return yamlConfig;
       }
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {};
+      }
+
       throw new Error(`Could not parse config file ${configPath}`);
     }
   }

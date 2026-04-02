@@ -1,11 +1,16 @@
 import { GodotVersionDetector } from './godot-version-detector.ts';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const fixtureRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../test-projects/godot-minimal',
+);
 
 describe('GodotVersionDetector', () => {
   describe('isGodotProject', () => {
     it('returns true for a Godot project', () => {
-      const projectPath = path.resolve(__dirname, '../../../test-projects/godot-minimal');
-      expect(GodotVersionDetector.isGodotProject(projectPath)).toBe(true);
+      expect(GodotVersionDetector.isGodotProject(fixtureRoot)).toBe(true);
     });
 
     it('returns false for a non-Godot directory', () => {
@@ -35,8 +40,7 @@ config/features=PackedStringArray("4.3")
 
   describe('getGodotVersion', () => {
     it('returns the version from the test project', () => {
-      const projectPath = path.resolve(__dirname, '../../../test-projects/godot-minimal');
-      expect(GodotVersionDetector.getGodotVersion(projectPath)).toBe('4.3');
+      expect(GodotVersionDetector.getGodotVersion(fixtureRoot)).toBe('4.3');
     });
   });
 });

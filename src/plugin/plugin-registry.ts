@@ -54,6 +54,24 @@ export class PluginRegistry {
   }
 
   /**
+   * Register a plugin only once by name.
+   */
+  static async registerOnce(plugin: GameCIPlugin): Promise<void> {
+    if (PluginRegistry.hasPlugin(plugin.name)) {
+      return;
+    }
+
+    await PluginRegistry.register(plugin);
+  }
+
+  /**
+   * Check whether a plugin with the given name is already registered.
+   */
+  static hasPlugin(name: string): boolean {
+    return PluginRegistry.plugins.some((plugin) => plugin.name === name);
+  }
+
+  /**
    * Detect engine from project path by querying all registered engine detectors.
    * Returns the first match, or { engine: 'unknown', engineVersion: 'unknown' }.
    */

@@ -2,7 +2,7 @@
 
 Build automation for game engines — Unity, Unreal Engine, Godot, and more.
 
-The CLI is a thin, plugin-based runtime. Engine support, cloud providers, and remote build orchestration are loaded as plugins. Local and local-docker builds are powered by the [orchestrator](../orchestrator/).
+The CLI is a thin, plugin-based runtime. Engine support, provider integrations, and remote build orchestration are loaded as plugins. The orchestrator is the intended provider/backend layer for local, Docker, and remote execution flows.
 
 ## Install
 
@@ -211,6 +211,15 @@ Plugins can register:
 - **Providers** — remote build providers (AWS, K8s, local-docker)
 
 See `src/plugin/plugin-interface.ts` for the plugin API.
+
+## CI Coverage Notes
+
+The Unreal Engine CI coverage in this repo uses a lightweight AutomationTool-compatible stub for validation on GitHub runners.
+
+That stub is only for CI and workflow-shape verification. It is not presented as a production Unreal runtime. Real Unreal builds are expected to run either:
+- against a local UE installation
+- against a real UE-capable container image
+- through an orchestrator/provider backend that targets one of those environments
 
 ## Development
 
