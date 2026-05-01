@@ -1,10 +1,9 @@
-import UnityTargetPlatform from '../target-platform/unity-target-platform.ts';
-import { YargsArguments } from '../../../dependencies.ts';
+import { UnityTargetPlatform } from '../target-platform/unity-target-platform.ts';
+import type { YargsArguments } from '../../../dependencies.ts';
 
 class RunnerImageTag {
   public repository: string;
   public name: string;
-  public cloudRunnerBuilderPlatform!: string | undefined;
   public engineVersion: string;
   public targetPlatform: any;
   public builderPlatform: string;
@@ -18,18 +17,13 @@ class RunnerImageTag {
       hostPlatform,
       targetPlatform,
       customImage,
-      cloudRunnerBuilderPlatform,
     } = options;
 
     if (!RunnerImageTag.versionPattern.test(engineVersion)) {
       throw new Error(`Invalid version "${engineVersion}".`);
     }
 
-    // Todo we might as well skip this class for customImage.
-    // Either
     this.customImage = customImage;
-
-    // Or
     this.repository = 'unityci';
     this.name = 'editor';
     this.engineVersion = engineVersion;
@@ -41,13 +35,6 @@ class RunnerImageTag {
       engineVersion,
     );
     this.imageRollingVersion = 1; // Will automatically roll to the latest non-breaking version.
-
-    // Cloud runner
-    this.cloudRunnerBuilderPlatform = cloudRunnerBuilderPlatform;
-    const isCloudRunnerLocal = cloudRunnerBuilderPlatform === 'local' || cloudRunnerBuilderPlatform === undefined;
-    if (!isCloudRunnerLocal) {
-      this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(cloudRunnerBuilderPlatform);
-    }
   }
 
   static get versionPattern() {
@@ -180,4 +167,4 @@ class RunnerImageTag {
     return `${image}:${tag}`; // '0' here represents the docker repo version
   }
 }
-export default RunnerImageTag;
+export { RunnerImageTag };

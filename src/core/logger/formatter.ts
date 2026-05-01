@@ -1,4 +1,5 @@
-import { LogRecord, FormatterFunction } from '../../dependencies.ts';
+import type { LogRecord, FormatterFunction } from '../../dependencies.ts';
+import { inspect } from 'node:util';
 
 // See: https://github.com/denoland/deno_std/blob/0.151.0/log/README.md#custom-message-format
 export const createFormatter = ({
@@ -19,7 +20,7 @@ export const createFormatter = ({
   const formatValue = (value: any) => {
     switch (typeof value) {
       case 'object':
-        return Deno.inspect(value, { depth });
+        return inspect(value, { depth });
       case 'undefined':
         return 'undefined';
       case 'string':

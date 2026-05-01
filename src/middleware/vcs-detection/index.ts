@@ -1,4 +1,4 @@
-import { Options } from '../../dependencies.ts';
+import type { Options } from '../../dependencies.ts';
 import { GitDetector } from './git-detector.ts';
 
 export const vcsDetection = async (argv: Options) => {

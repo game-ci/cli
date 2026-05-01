@@ -4,13 +4,14 @@ export class Environment implements EnvVariables {
   public readonly os: string;
   public readonly arch: string;
 
-  constructor(env: Deno.env, envFile: EnvVariables) {
+  [key: string]: string;
+
+  constructor(env: NodeJS.ProcessEnv, envFile: EnvVariables) {
     // Make an immutable copy of the environment variables.
-    for (const [key, value] of Object.entries(env.toObject())) {
-      // Todo - check if this ever happens at all
+    for (const [key, value] of Object.entries(env)) {
       if (value === undefined) {
-        // eslint-disable-next-line no-console
         console.error(`Environment variable ${key} is undefined.`);
+        continue;
       }
 
       this[key] = value;
@@ -22,8 +23,8 @@ export class Environment implements EnvVariables {
     }
 
     // Override specific variables.
-    this.os = Deno.build.os;
-    this.arch = Deno.build.arch;
+    this.os = process.platform;
+    this.arch = process.arch;
   }
 
   public get(key: string): string | undefined {

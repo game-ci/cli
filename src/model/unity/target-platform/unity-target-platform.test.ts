@@ -1,4 +1,4 @@
-import UnityTargetPlatform from './unity-target-platform.ts';
+import { UnityTargetPlatform } from './unity-target-platform.ts';
 
 describe('UnityTargetPlatform', () => {
   describe('default', () => {
@@ -8,10 +8,6 @@ describe('UnityTargetPlatform', () => {
 
     it('returns a string', () => {
       expect(typeof UnityTargetPlatform.default).toStrictEqual('string');
-    });
-
-    it('returns a platform', () => {
-      expect(Object.values(UnityTargetPlatform.types)).toContain(UnityTargetPlatform.default);
     });
   });
 

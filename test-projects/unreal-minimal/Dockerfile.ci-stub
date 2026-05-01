@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────
+# Mock Unreal Engine Runtime for CI
+#
+# Replicates the real UE container filesystem layout and build tool
+# interfaces (RunUAT.sh, UnrealBuildTool) so game-ci can develop
+# and test against the full UE build pipeline on standard GitHub
+# runners without the 50GB+ real UE image.
+#
+# Matches: UE 5.4 directory layout + AutomationTool CLI interface
+# ─────────────────────────────────────────────────────────────────
+FROM alpine:3.19
+
+RUN apk add --no-cache bash jq coreutils findutils
+
+# Replicate UE directory structure (matches official Epic layout)
+RUN mkdir -p \
+  /home/ue4/UnrealEngine/Engine/Build/BatchFiles \
+  /home/ue4/UnrealEngine/Engine/Binaries/Linux \
+  /home/ue4/UnrealEngine/Engine/Content \
+  /home/ue4/UnrealEngine/Engine/Programs/AutomationTool/Saved/Logs \
+  /home/ue4/UnrealEngine/Engine/Saved
+
+# Copy mock build tools
+COPY mock-ue/RunUAT.sh /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh
+COPY mock-ue/UnrealBuildTool.sh /home/ue4/UnrealEngine/Engine/Binaries/Linux/UnrealBuildTool
+
+RUN chmod +x \
+  /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+  /home/ue4/UnrealEngine/Engine/Binaries/Linux/UnrealBuildTool
+
+# Version marker (matches real UE convention)
+RUN echo '{ "MajorVersion": 5, "MinorVersion": 4, "PatchVersion": 0, "IsLicenseeVersion": false, "BranchName": "++UE5+Release-5.4" }' \
+  > /home/ue4/UnrealEngine/Engine/Build/Build.version
+
+WORKDIR /build
+
+# Default: run RunUAT.sh like a real UE container
+ENTRYPOINT ["/home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh"]
+CMD ["-help"]

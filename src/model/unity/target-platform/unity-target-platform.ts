@@ -65,4 +65,4 @@ class UnityTargetPlatform {
   }
 }
 
-export default UnityTargetPlatform;
+export { UnityTargetPlatform };

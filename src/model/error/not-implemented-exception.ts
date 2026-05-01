@@ -5,4 +5,4 @@ class NotImplementedException extends Error {
   }
 }
 
-export default NotImplementedException;
+export { NotImplementedException };

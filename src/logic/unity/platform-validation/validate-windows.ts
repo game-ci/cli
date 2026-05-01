@@ -1,4 +1,5 @@
-import { fsSync as fs, Options, dedent } from '../../../dependencies.ts';
+import { fsSync as fs } from '../../../dependencies.ts';
+import type { Options } from '../../../dependencies.ts';
 
 class ValidateWindows {
   public static validate(options: Options) {
@@ -34,7 +35,6 @@ class ValidateWindows {
   }
 
   private static checkForWin10SDK() {
-    // Check for Windows 10 SDK on runner
     const windows10SDKPathExists = fs.existsSync('C:/Program Files (x86)/Windows Kits');
     if (!windows10SDKPathExists) {
       throw new Error(String.dedent`
@@ -46,7 +46,6 @@ class ValidateWindows {
   }
 
   private static checkForVisualStudio() {
-    // Note: When upgrading to Server 2022, we will need to move to just "program files" since VS will be 64-bit
     const visualStudioInstallPathExists = fs.existsSync('C:/Program Files (x86)/Microsoft Visual Studio');
     const visualStudioDataPathExists = fs.existsSync('C:/ProgramData/Microsoft/VisualStudio');
 
@@ -62,4 +61,4 @@ class ValidateWindows {
   }
 }
 
-export default ValidateWindows;
+export { ValidateWindows };

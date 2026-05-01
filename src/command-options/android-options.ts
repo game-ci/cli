@@ -1,4 +1,4 @@
-import { YargsInstance, YargsArguments } from '../dependencies.ts';
+import type { YargsInstance, YargsArguments } from '../dependencies.ts';
 import { IOptions } from './options-interface.ts';
 
 export class AndroidOptions implements IOptions {

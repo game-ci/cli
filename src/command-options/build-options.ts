@@ -1,5 +1,5 @@
-import { YargsArguments, YargsInstance } from '../dependencies.ts';
-import UnityTargetPlatform from '../model/unity/target-platform/unity-target-platform.ts';
+import type { YargsArguments, YargsInstance } from '../dependencies.ts';
+import { UnityTargetPlatform } from '../model/unity/target-platform/unity-target-platform.ts';
 import { IOptions } from './options-interface.ts';
 
 export class BuildOptions implements IOptions {

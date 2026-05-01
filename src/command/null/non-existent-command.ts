@@ -1,5 +1,5 @@
 import { CommandInterface } from '../command-interface.ts';
-import { YargsInstance, YargsArguments } from '../../dependencies.ts';
+import type { YargsInstance, YargsArguments } from '../../dependencies.ts';
 import { CommandBase } from '../command-base.ts';
 
 export class NonExistentCommand extends CommandBase implements CommandInterface {

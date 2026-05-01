@@ -1,10 +1,236 @@
 # GameCI CLI
 
-The CLI is currently a work in progress.
+Build automation for game engines — Unity, Unreal Engine, Godot, and more.
 
-We expect it to be working in the first half of 2023.
+The CLI is a thin, plugin-based runtime. Engine support, provider integrations, and remote build orchestration are loaded as plugins. The orchestrator is the intended provider/backend layer for local, Docker, and remote execution flows.
 
-See [our roadmap](https://github.com/orgs/game-ci/projects/4/views/1) to follow our progress.
+## Install
+
+No Node.js or package manager required. Download a standalone binary:
+
+### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/game-ci/cli/main/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/game-ci/cli/main/install.ps1 | iex
+```
+
+### Options
+
+| Variable | Description | Default |
+|---|---|---|
+| `GAME_CI_VERSION` | Pin a specific version (e.g. `v0.1.0`) | latest |
+| `GAME_CI_INSTALL` | Override install directory | `~/.game-ci/bin` |
+
+After install, add `~/.game-ci/bin` to your `PATH` (the installer will prompt you).
+
+### From source (requires [Bun](https://bun.sh))
+
+```bash
+git clone https://github.com/game-ci/cli.git
+cd cli
+bun install
+bun run start -- --help
+```
+
+## Usage
+
+```bash
+game-ci --help
+game-ci build --engine unity --projectPath ./my-project
+game-ci remote build --providerStrategy local-docker
+```
+
+## Quick Start: Godot
+
+### Godot — Local
+
+```bash
+# Export a Godot project (requires Godot installed locally)
+godot --headless --export-release "Linux/X11" ./build/game
+
+# Or run tests
+godot --headless --script res://tests/run_tests.gd
+```
+
+### Godot — Local Docker
+
+```bash
+# Export using the community Godot CI image (no local install needed)
+docker run --rm \
+  -v "$(pwd):/project" \
+  -w /project \
+  barichello/godot-ci:4.3 \
+  godot --headless --export-release "Linux/X11" /project/build/game
+```
+
+### Godot via Orchestrator (Local Docker)
+
+```bash
+game-ci orchestrate \
+  --engine godot \
+  --provider-strategy local-docker \
+  --target-platform linux \
+  --custom-job '- name: godot-export
+  image: barichello/godot-ci:4.3
+  commands: |
+    godot --headless --export-release "Linux/X11" /build/output/game'
+```
+
+### Godot via Orchestrator (Local System)
+
+```bash
+game-ci orchestrate \
+  --engine godot \
+  --provider-strategy local-system \
+  --target-platform linux \
+  --custom-job '- name: godot-export
+  image: local
+  commands: |
+    godot --headless --export-release "Linux/X11" ./build/game'
+```
+
+## Quick Start: Unreal Engine
+
+### Unreal Engine — Local
+
+Requires a local UE installation. `RunUAT` is in the engine's `Engine/Build/BatchFiles/` directory:
+
+```bash
+# Linux / macOS
+/path/to/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+  BuildCookRun \
+  -project="$(pwd)/MyProject.uproject" \
+  -targetplatform=Linux \
+  -clientconfig=Shipping \
+  -build -cook -stage -pak -archive \
+  -archivedirectory="$(pwd)/output" \
+  -noP4 -unattended
+
+# Windows
+"C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\RunUAT.bat" ^
+  BuildCookRun ^
+  -project="%cd%\MyProject.uproject" ^
+  -targetplatform=Win64 ^
+  -clientconfig=Shipping ^
+  -build -cook -stage -pak -archive ^
+  -archivedirectory="%cd%\output" ^
+  -noP4 -unattended
+```
+
+### Unreal Engine — Local Docker
+
+UE Docker images are large (35–120 GB). Choose an image source based on your access:
+
+| Image | Size | Access |
+| --- | --- | --- |
+| `ghcr.io/epicgames/unreal-engine:dev-slim-5.4` | ~35 GB | Requires [Epic Games GitHub org](https://github.com/EpicGames) membership |
+| [Community UE5 images](https://unrealcontainers.com/docs/obtaining-images) | ~40 GB | Self-built from your UE license via [ue5-docker](https://github.com/evoverses/ue5-docker) or similar |
+
+```bash
+# Using the official Epic slim image
+docker run --rm \
+  -v "$(pwd):/project" \
+  -w /project \
+  ghcr.io/epicgames/unreal-engine:dev-slim-5.4 \
+  /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+    BuildCookRun \
+    -project=/project/MyProject.uproject \
+    -targetplatform=Linux \
+    -clientconfig=Shipping \
+    -build -cook -stage -pak -archive \
+    -archivedirectory=/project/output \
+    -noP4 -unattended
+```
+
+### Unreal Engine via Orchestrator (Local Docker)
+
+```bash
+game-ci orchestrate \
+  --engine unreal \
+  --provider-strategy local-docker \
+  --target-platform linux \
+  --custom-job '- name: ue-build
+  image: ghcr.io/epicgames/unreal-engine:dev-slim-5.4
+  commands: |
+    /home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+      BuildCookRun \
+      -project=/build/MyProject.uproject \
+      -targetplatform=Linux \
+      -clientconfig=Shipping \
+      -build -cook -stage -pak -archive \
+      -archivedirectory=/build/output \
+      -noP4 -unattended'
+```
+
+### Unreal Engine via Orchestrator (Local System)
+
+Runs directly on the host using your local UE installation:
+
+```bash
+game-ci orchestrate \
+  --engine unreal \
+  --provider-strategy local-system \
+  --target-platform linux \
+  --custom-job '- name: ue-build
+  image: local
+  commands: |
+    /path/to/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh \
+      BuildCookRun \
+      -project=$(pwd)/MyProject.uproject \
+      -targetplatform=Linux \
+      -clientconfig=Shipping \
+      -build -cook -stage -pak -archive \
+      -archivedirectory=$(pwd)/output \
+      -noP4 -unattended'
+```
+
+## Plugin System
+
+The CLI discovers functionality through plugins. Built-in plugins ship with the CLI; external plugins can be loaded from npm, local paths, or GitHub.
+
+### Built-in
+
+- **Unity** — engine detection, build commands, platform setup
+
+### External (loaded at runtime)
+
+```bash
+game-ci --plugin @game-ci/orchestrator-plugin remote build --providerStrategy aws
+```
+
+Plugins can register:
+- **Engine detectors** — detect project engines (Unity, UE5, Godot)
+- **Commands** — add CLI subcommands
+- **Options** — add CLI flags
+- **Providers** — remote build providers (AWS, K8s, local-docker)
+
+See `src/plugin/plugin-interface.ts` for the plugin API.
+
+## CI Coverage Notes
+
+The Unreal Engine CI coverage in this repo uses a lightweight AutomationTool-compatible stub for validation on GitHub runners.
+
+That stub is only for CI and workflow-shape verification. It is not presented as a production Unreal runtime. Real Unreal builds are expected to run either:
+- against a local UE installation
+- against a real UE-capable container image
+- through an orchestrator/provider backend that targets one of those environments
+
+## Development
+
+Requires [Bun](https://bun.sh) >= 1.0.
+
+```bash
+bun install           # install dependencies
+bun test              # run tests
+bun run start         # run CLI
+bun run build:binary  # compile standalone binary for current platform
+```
 
 ## Community
 
@@ -16,7 +242,7 @@ community.
 
 To help improve the documentation, please find the docs [repository](https://github.com/game-ci/documentation).
 
-To contribute to Unity Builder, kindly read the [contribution guide](./CONTRIBUTING.md).
+To contribute to the CLI, kindly read the [contribution guide](./CONTRIBUTING.md).
 
 ## Support us
 

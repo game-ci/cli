@@ -1,10 +1,10 @@
 import { CommandInterface } from '../command-interface.ts';
 import { CacheValidation, Docker, RunnerImageTag, Output } from '../../model/index.ts';
-import PlatformSetup from '../../model/platform-setup.ts';
-import MacBuilder from '../../model/mac-builder.ts';
+import { PlatformSetup } from '../../model/platform-setup.ts';
+import { MacBuilder } from '../../model/mac-builder.ts';
 import { CommandBase } from '../command-base.ts';
 import { UnityOptions } from '../../command-options/unity-options.ts';
-import { YargsInstance, Options } from '../../dependencies.ts';
+import type { YargsInstance, Options } from '../../dependencies.ts';
 import { VersioningOptions } from '../../command-options/versioning-options.ts';
 import { BuildOptions } from '../../command-options/build-options.ts';
 import { AndroidOptions } from '../../command-options/android-options.ts';

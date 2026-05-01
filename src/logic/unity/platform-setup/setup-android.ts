@@ -1,4 +1,6 @@
-import { Options, path } from '../../../dependencies.ts';
+import { path } from '../../../dependencies.ts';
+import type { Options } from '../../../dependencies.ts';
+import * as nodeFs from 'node:fs';
 
 class SetupAndroid {
   public static async setup(options: Options) {
@@ -11,9 +13,9 @@ class SetupAndroid {
 
   private static setupAndroidRun(androidKeystoreBase64: string, androidKeystoreName: string, projectPath: string) {
     const decodedKeystore = Uint8Array.from(atob(androidKeystoreBase64), c => c.charCodeAt(0));
-    const githubWorkspace = Deno.env.get('GITHUB_WORKSPACE') || '';
-    Deno.writeFileSync(path.join(githubWorkspace, projectPath, androidKeystoreName), decodedKeystore);
+    const githubWorkspace = process.env.GITHUB_WORKSPACE || '';
+    nodeFs.writeFileSync(path.join(githubWorkspace, projectPath, androidKeystoreName), decodedKeystore);
   }
 }
 
-export default SetupAndroid;
+export { SetupAndroid };

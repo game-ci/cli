@@ -1,41 +1,30 @@
-// These are the packages from Deno that replace the ones from Node.
-import * as assert from 'https://deno.land/std@0.144.0/testing/asserts.ts';
-import * as aws from 'https://deno.land/x/aws_api/client/mod.ts';
-import * as base64 from 'https://deno.land/std@0.145.0/encoding/base64.ts';
-import * as compress from 'https://deno.land/x/compress@v0.3.3/mod.ts';
-import * as fs from 'https://deno.land/std@0.152.0/node/fs/promises.ts';
-import * as fsSync from 'https://deno.land/std@0.182.0/fs/mod.ts';
-import * as k8s from 'https://deno.land/x/kubernetes_client/mod.ts';
-import * as k8sTypes from 'https://deno.land/x/kubernetes_apis/builtin/core@v1/mod.ts';
-import * as nanoid from 'https://deno.land/x/nanoid@v3.0.0/mod.ts';
-import * as path from 'https://deno.land/std@0.142.0/path/mod.ts';
-import * as process from 'https://deno.land/std@0.104.0/node/process.ts';
-import * as semver from 'https://deno.land/x/semver@v1.4.0/mod.ts';
-import * as yaml from 'https://deno.land/std@0.145.0/encoding/yaml.ts';
-import { crypto } from 'https://deno.land/std@0.142.0/crypto/mod.ts';
-import { v4 as uuid } from 'https://deno.land/std@0.142.0/uuid/mod.ts';
-import * as http from 'https://deno.land/std@0.145.0/node/http.ts';
-import * as string from 'https://deno.land/std@0.36.0/strings/mod.ts';
-import { Command } from 'https://deno.land/x/cmd@v1.2.0/commander/index.ts';
-import { getUnityChangeset } from 'https://deno.land/x/unity_changeset@2.0.0/src/index.ts';
-import { Buffer } from 'https://deno.land/std@0.151.0/io/buffer.ts';
-import { config, configSync } from 'https://deno.land/std@0.151.0/dotenv/mod.ts';
-import yargs from 'https://deno.land/x/yargs@v17.5.1-deno/deno.ts';
-import { YargsInstance } from "https://deno.land/x/yargs@v17.5.1-deno/build/lib/yargs-factory.js";
-import type { Arguments as YargsArgs } from 'https://deno.land/x/yargs@v17.5.1-deno/deno-types.ts';
-import { default as getHomeDir } from 'https://deno.land/x/dir@1.5.1/home_dir/mod.ts';
-import { FormatterFunction } from 'https://deno.land/std@0.151.0/log/handlers.ts';
-import { LogRecord } from 'https://deno.land/std@0.151.0/log/logger.ts';
-import { iterateReader } from "https://deno.land/std@0.182.0/streams/iterate_reader.ts";
+// npm packages (replaces Deno URL imports)
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as path from 'node:path';
+import * as process from 'node:process';
+import { Buffer } from 'node:buffer';
+import { fileURLToPath } from 'node:url';
 
-const platformEOL = Deno.build.os === "windows" ? fsSync.EOL.CRLF : fsSync.EOL.LF;
+import * as semver from 'semver';
+import * as yaml from 'yaml';
+import { config } from 'dotenv';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+
+// Type imports from yargs
+import type { Argv as YargsInstanceType, Arguments as YargsArgs } from 'yargs';
+type YargsInstance = YargsInstanceType;
+
+// Platform EOL
+const platformEOL = process.platform === 'win32' ? '\r\n' : '\n';
 
 // Internally managed packages
-import waitUntil from './module/wait-until.ts';
+import { waitUntil } from './module/wait-until.ts';
 import { core } from './module/actions/index.ts';
 import { dedent } from './module/dedent.ts';
 
-import "./global.d.ts";
+import './global.d.ts';
 
 // Polyfill for https://github.com/tc39/proposal-string-dedent
 String.dedent = dedent;
@@ -43,58 +32,74 @@ String.dedent = dedent;
 // Errors from yargs can be very verbose and not very descriptive
 Error.stackTraceLimit = 15;
 
-class Writable {
-  constructor() {
-    throw new Error('Writable is not implemented'); // stream
-  }
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const __filename = path.fromFileUrl(import.meta.url);
-const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
+// base64 compat (replaces Deno std base64)
+const base64 = {
+  encode: (data: Uint8Array): string => Buffer.from(data).toString('base64'),
+  decode: (str: string): Uint8Array => new Uint8Array(Buffer.from(str, 'base64')),
+};
 
-//const { V1EnvVar, V1EnvVarSource, V1SecretKeySelector } = k8s;
+// assert compat
+const assert = {
+  assertEquals: (actual: unknown, expected: unknown, msg?: string) => {
+    if (actual !== expected) throw new Error(msg || `Expected ${expected} but got ${actual}`);
+  },
+  assertThrows: (fn: () => void, msg?: string) => {
+    try { fn(); throw new Error(msg || 'Expected function to throw'); } catch { /* expected */ }
+  },
+};
+
+// fsSync compat (adds ensureDir, existsSync, EOL)
+const fsSyncCompat = {
+  ...fsSync,
+  existsSync: fsSync.existsSync,
+  ensureDir: (dir: string) => { fsSync.mkdirSync(dir, { recursive: true }); },
+  ensureDirSync: (dir: string) => { fsSync.mkdirSync(dir, { recursive: true }); },
+  EOL: { LF: '\n' as const, CRLF: '\r\n' as const },
+};
+
+// getHomeDir compat
+const getHomeDir = (): string | null => {
+  return process.env.HOME || process.env.USERPROFILE || null;
+};
 
 // These explicit type definitions are needed for auto-import to work
-//type YargsInstance = typeof yargs(Deno.args);
 type YargsArguments = YargsArgs;
 type Options = YargsArguments; // Use when you want to abstract away from the CLI logic
 
-export type { YargsArguments, Options, FormatterFunction, LogRecord }; //, YargsInstance
+// Logging formatter types (previously from Deno std/log)
+type LogRecord = {
+  level: number;
+  levelName: string;
+  msg: string;
+  args: unknown[];
+  loggerName: string;
+};
+
+type FormatterFunction = (record: LogRecord) => string;
+
+export type { YargsArguments, Options, FormatterFunction, LogRecord };
 export {
   __dirname,
   __filename,
-  k8s,
-  k8sTypes,
-  //V1EnvVar,
-  //V1EnvVarSource,
-  //V1SecretKeySelector,
   assert,
-  aws,
   base64,
   Buffer,
-  Command,
-  compress,
   config,
-  configSync,
   core,
-  crypto,
+  dedent,
   fs,
-  fsSync,
+  fsSyncCompat as fsSync,
   getHomeDir,
-  getUnityChangeset,
-  http,
-  nanoid,
   path,
+  platformEOL,
   process,
   semver,
-  string,
-  uuid,
   waitUntil,
-  Writable,
   yaml,
   yargs,
-  YargsInstance,
-  dedent,
-  iterateReader,
-  platformEOL,
+  hideBin,
 };
+export type { YargsInstance };

@@ -1,5 +1,5 @@
 import { CommandInterface } from './command-interface.ts';
-import { YargsArguments, YargsInstance } from '../dependencies.ts';
+import type { YargsArguments, YargsInstance } from '../dependencies.ts';
 
 export class CommandBase implements CommandInterface {
   public readonly name: string;

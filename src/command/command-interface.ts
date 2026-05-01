@@ -1,4 +1,4 @@
-import { YargsInstance, YargsArguments } from '../dependencies.ts';
+import type { YargsInstance, YargsArguments } from '../dependencies.ts';
 
 export interface CommandInterface {
   name: string;

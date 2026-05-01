@@ -1,4 +1,4 @@
-import { Options } from '../../../dependencies.ts';
+import type { Options } from '../../../dependencies.ts';
 
 export class PlatformValidation {
   private static get supportedPlatforms() {

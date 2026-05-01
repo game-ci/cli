@@ -1,5 +1,7 @@
 import { SetupMac, SetupWindows, SetupAndroid } from '../logic/unity/platform-setup/index.ts';
-import { fsSync as fs, Options } from '../dependencies.ts';
+import { fsSync as fs } from '../dependencies.ts';
+import type { Options } from '../dependencies.ts';
+import * as nodeFs from 'node:fs';
 
 class PlatformSetup {
   static async setup(options: Options) {
@@ -29,12 +31,12 @@ class PlatformSetup {
       return;
     }
 
-    let servicesConfig = Deno.readTextFileSync(servicesConfigPathTemplate);
+    let servicesConfig = nodeFs.readFileSync(servicesConfigPathTemplate, 'utf-8');
     servicesConfig = servicesConfig.replace('%URL%', unityLicensingServer);
-    Deno.writeTextFileSync(servicesConfigPath, servicesConfig);
+    nodeFs.writeFileSync(servicesConfigPath, servicesConfig);
 
     SetupAndroid.setup(options);
   }
 }
 
-export default PlatformSetup;
+export { PlatformSetup };

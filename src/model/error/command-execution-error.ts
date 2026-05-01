@@ -5,4 +5,4 @@ class CommandExecutionError extends Error {
   }
 }
 
-export default CommandExecutionError;
+export { CommandExecutionError };

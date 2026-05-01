@@ -1,6 +1,6 @@
-import { Options } from '../dependencies.ts';
-import System from './system/system.ts';
-import UnityBuildValidation from "./unity/build-validation/unity-build-validation.ts";
+import type { Options } from '../dependencies.ts';
+import { System } from './system/system.ts';
+import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
 
 class MacBuilder {
   public static async run(options: Options, silent = false) {
@@ -8,13 +8,12 @@ class MacBuilder {
     log.warning('running the process');
     const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, undefined, { silent });
 
-    switch (engine)
-      {
-        case 'unity':
-          UnityBuildValidation.validateBuild(macRun.output);
-          break;
-      }
+    switch (engine) {
+      case 'unity':
+        UnityBuildValidation.validateBuild(macRun.output);
+        break;
+    }
   }
 }
 
-export default MacBuilder;
+export { MacBuilder };

@@ -1,31 +1,45 @@
 import { CommandInterface } from '../command-interface.ts';
-import { RunnerImageTag, Output } from '../../model/index.ts';
-import { core, nanoid, YargsArguments, YargsInstance } from '../../dependencies.ts';
-// import Parameters from '../../model/parameters.ts';
-// import { GitRepoReader } from '../../model/input-readers/git-repo.ts';
-// import { Cli } from '../../model/cli/cli.ts';
-// import CloudRunnerConstants from '../../model/cloud-runner/services/cloud-runner-constants.ts';
-// import CloudRunnerBuildGuid from '../../model/cloud-runner/services/cloud-runner-guid.ts';
-// import { GithubCliReader } from '../../model/input-readers/github-cli.ts';
+import type { YargsArguments, YargsInstance } from '../../dependencies.ts';
 import { CommandBase } from '../command-base.ts';
 import { RemoteOptions } from '../../command-options/remote-options.ts';
 import { ProjectOptions } from '../../command-options/project-options.ts';
+import { PluginRegistry } from '../../plugin/plugin-registry.ts';
 
-// Todo - Verify this entire flow
+/**
+ * Remote build command.
+ *
+ * Delegates to the provider plugin selected by --providerStrategy.
+ * The actual build execution (setupWorkflow, runTaskInWorkflow, etc.)
+ * is handled entirely by the orchestrator plugin.
+ */
 export class UnityRemoteBuildCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
-    // Todo - reimplement this using options instead of parameters.
-    // const { buildParameters } = options;
-    // const baseImage = new ImageTag(buildParameters);
-    //
-    // const result = await CloudRunner.run(buildParameters, baseImage.toString());
-    // const { status, output } = result;
-    //
-    // await Output.setBuildVersion(buildParameters.buildVersion);
-    //
-    // return status.success;
+    const { providerStrategy } = options;
 
-    return false;
+    const provider = PluginRegistry.createProvider(providerStrategy as string, options);
+    if (!provider) {
+      throw new Error(
+        `No provider registered for strategy "${providerStrategy}". ` +
+        `Available: ${PluginRegistry.getAvailableProviders().join(', ') || 'none'}. ` +
+        `Install a provider plugin (e.g. @game-ci/orchestrator-plugin).`,
+      );
+    }
+
+    log.info(`Using provider strategy: ${providerStrategy}`);
+
+    // Provider handles the full remote build lifecycle
+    const result = await provider.runTaskInWorkflow(
+      '', // buildGuid — provided by provider
+      '', // image — provider determines this
+      '', // commands
+      '', // mountdir
+      '', // workingdir
+      [], // environment
+      [], // secrets
+    );
+
+    log.info('Remote build result:', result);
+    return true;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

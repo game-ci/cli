@@ -5,7 +5,7 @@ class GameCI {
   public static async run() {
     try {
       // Configure
-      const cli = new Cli(Deno.args, Deno.cwd());
+      const cli = new Cli(process.argv.slice(2), process.cwd());
       await cli.setup();
       await cli.registerCommands();
       await cli.registerSchemaForChosenCommand();
@@ -43,7 +43,7 @@ class GameCI {
     }
 
     // Ensure the process exits with a non-zero exit code
-    Deno.exit(1);
+    process.exit(1);
   }
 }
 
