@@ -46,6 +46,41 @@ game-ci build --engine unity --projectPath ./my-project
 game-ci remote build --providerStrategy local-docker
 ```
 
+## GitHub Action
+
+Use this repository directly as a GitHub Action to install the CLI on the runner and optionally run
+a command.
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: game-ci/cli@v0.1.0
+        with:
+          args: build . --target-platform StandaloneLinux64
+```
+
+Leave `args` empty to install `game-ci` for later workflow steps:
+
+```yaml
+- uses: game-ci/cli@v0.1.0
+
+- run: game-ci --help
+```
+
+By default the action installs the release that matches the action ref when the ref is a version tag
+such as `v0.1.0`; branch refs install the latest release. Pin a specific binary with `version`:
+
+```yaml
+- uses: game-ci/cli@main
+  with:
+    version: v0.1.0
+    args: --help
+```
+
 ## Quick Start: Godot
 
 ### Godot — Local
