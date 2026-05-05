@@ -22,10 +22,16 @@ export class BuildOptions implements IOptions {
       .default('buildPath', '')
       .default('buildFile', '')
       .middleware((argv: YargsArguments) => {
-        const { buildName, buildsPath, targetPlatform, androidAppBundle } = argv;
-        argv.buildName = buildName || targetPlatform;
+        const { buildName, buildsPath, targetPlatform, androidAppBundle, androidExportType } = argv;
+        const resolvedBuildName = buildName || targetPlatform;
+        const resolvedAndroidExportType = androidExportType || (androidAppBundle ? 'androidAppBundle' : 'androidPackage');
+        argv.buildName = resolvedBuildName;
         argv.buildPath = `${buildsPath}/${targetPlatform}`;
-        argv.buildFile = UnityTargetPlatform.determineBuildFileName(buildName, targetPlatform, androidAppBundle);
+        argv.buildFile = UnityTargetPlatform.determineBuildFileName(
+          resolvedBuildName,
+          targetPlatform,
+          resolvedAndroidExportType,
+        );
       })
       .option('buildMethod', {
         alias: 'm',

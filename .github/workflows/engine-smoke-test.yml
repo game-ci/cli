@@ -97,7 +97,7 @@ jobs:
 
           cat > /tmp/unity-stub-ctx/Dockerfile <<'DOCKERFILE'
           FROM alpine:3.19
-          RUN apk add --no-cache bash coreutils
+          RUN apk add --no-cache bash coreutils git
           COPY unity-editor /usr/local/bin/unity-editor
           RUN chmod +x /usr/local/bin/unity-editor
           WORKDIR /github/workspace
