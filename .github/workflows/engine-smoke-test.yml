@@ -117,8 +117,8 @@ jobs:
 
       - name: Verify build artifacts
         run: |
-          test -f test-project/build/StandaloneLinux64/StandaloneLinux64
-          grep -q "Unity CLI smoke artifact" test-project/build/StandaloneLinux64/StandaloneLinux64
+          test -f build/StandaloneLinux64/StandaloneLinux64
+          grep -q "Unity CLI smoke artifact" build/StandaloneLinux64/StandaloneLinux64
           echo "Unity CLI stub build verified"
 
   # ─── Godot — detect + build using third-party image ────────────
