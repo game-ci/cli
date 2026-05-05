@@ -78,7 +78,7 @@ class Docker {
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : '',
       sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
       image,
-      '/bin/bash -c /entrypoint.sh',
+      '/bin/bash /entrypoint.sh',
     ]
       .filter(Boolean)
       .join(' ');

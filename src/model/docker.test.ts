@@ -25,6 +25,7 @@ describe('Docker', () => {
     expect(command).toContain('--volume "/home/runner":"/root:z"');
     expect(command).toContain('--volume "/home/runner/work/cli/cli":"/github/workspace:z"');
     expect(command).toContain('game-ci/unity-editor-stub:latest');
+    expect(command).toContain('/bin/bash /entrypoint.sh');
     expect(command).not.toContain('\n');
   });
 
