@@ -58,31 +58,30 @@ class Docker {
     const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath } = options;
 
     const home = homeDir;
+    const envVarString = ImageEnvironmentFactory.getEnvVarString(options).replace(/ \\\n/g, ' ');
 
-    return (
-      String.dedent`
-      docker run \
-        --rm \
-        --workdir ${dockerWorkspacePath} \
-        ${ImageEnvironmentFactory.getEnvVarString(options)} \
-        --env UNITY_SERIAL \
-        --env GITHUB_WORKSPACE=${dockerWorkspacePath} \
-        ${gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : ''} \
-        ${sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : ''} \
-        --volume "${home}":"/root:z" \
-       ` +
-      `
-        --volume "${currentWorkDir}":"${dockerWorkspacePath}:z" \
-        --volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z" \
-        --volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z" \
-        --volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z" \
-        --volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z" \
-        ${sshAgent ? `--volume ${sshAgent}:/ssh-agent` : ''} \
-        ${sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : ''} \
-        ${image} \
-        /bin/bash -c /entrypoint.sh
-    `
-    );
+    return [
+      'docker run',
+      '--rm',
+      `--workdir ${dockerWorkspacePath}`,
+      envVarString,
+      '--env UNITY_SERIAL',
+      `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
+      gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : '',
+      sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : '',
+      `--volume "${home}":"/root:z"`,
+      `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
+      `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"`,
+      `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"`,
+      `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"`,
+      `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"`,
+      sshAgent ? `--volume ${sshAgent}:/ssh-agent` : '',
+      sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
+      image,
+      '/bin/bash -c /entrypoint.sh',
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   private static getWindowsCommand(image: string, options: Options): string {
