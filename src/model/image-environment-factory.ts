@@ -9,13 +9,14 @@ class ImageEnvironmentFactory {
   public static getEnvVarString(options: Options) {
     const { hostOS } = options;
     const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
-    let string = '';
+    const lineContinuation = hostOS === 'windows' ? '`' : '\\';
+    const lines: string[] = [];
     for (const p of environmentVariables) {
       if (p.value === '' || p.value === undefined) {
         continue;
       }
       if (p.name !== 'ANDROID_KEYSTORE_BASE64' && p.value.toString().includes(`\n`)) {
-        string += `--env ${p.name} `;
+        lines.push(`--env ${p.name}`);
         continue;
       }
 
@@ -23,19 +24,13 @@ class ImageEnvironmentFactory {
         // The ampersand (&) character is not allowed. The & operator is reserved for future use; wrap an ampersand in
         // double quotation marks ("&") to pass it as part of a string.
         const escapedValue = typeof p.value !== 'string' ? p.value : p.value?.replace(/&/, '\\"&\\"');
-        string += `--env ${p.name}='${escapedValue}' \`\n`;
+        lines.push(`--env ${p.name}='${escapedValue}'`);
       } else {
-        string += `--env ${p.name}="${p.value}"\n`;
+        lines.push(`--env ${p.name}="${p.value}"`);
       }
     }
 
-    if (hostOS === 'windows') {
-      string = string.replace(/`\n$/, '');
-    } else {
-      string = string.replace(/\n$/, '');
-    }
-
-    return string;
+    return lines.join(` ${lineContinuation}\n`);
   }
   public static getEnvironmentVariables(options: Options) {
     const environmentVariables: DockerParameter[] = [

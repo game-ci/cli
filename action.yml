@@ -1,0 +1,108 @@
+name: GameCI CLI
+description: Install and run the GameCI CLI from a GitHub Actions workflow.
+author: GameCI
+
+branding:
+  icon: terminal
+  color: green
+
+inputs:
+  args:
+    description: Arguments to pass to game-ci. Leave empty to install the CLI without running it.
+    required: false
+    default: ''
+  version:
+    description: >
+      CLI release version to install, for example v0.1.0. Defaults to the action ref when the ref
+      looks like a version tag, otherwise latest.
+    required: false
+    default: ''
+  working-directory:
+    description: Directory where the game-ci command should run.
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Install GameCI CLI
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        version="${{ inputs.version }}"
+        action_ref="${{ github.action_ref }}"
+
+        if [ -z "$version" ] && printf '%s' "$action_ref" | grep -Eq '^v[0-9]'; then
+          version="$action_ref"
+        fi
+
+        export GAME_CI_INSTALL="${RUNNER_TEMP}/game-ci/bin"
+        if [ -n "$version" ]; then
+          export GAME_CI_VERSION="$version"
+        fi
+
+        "${GITHUB_ACTION_PATH}/install.sh"
+        echo "$GAME_CI_INSTALL" >> "$GITHUB_PATH"
+
+    - name: Install GameCI CLI
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $repo = 'game-ci/cli'
+        $version = '${{ inputs.version }}'
+        $actionRef = '${{ github.action_ref }}'
+
+        if (-not $version -and $actionRef -match '^v[0-9]') {
+          $version = $actionRef
+        }
+
+        if (-not $version) {
+          $release = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest"
+          $version = $release.tag_name
+        }
+
+        $installDir = Join-Path $env:RUNNER_TEMP 'game-ci\bin'
+        $binaryPath = Join-Path $installDir 'game-ci.exe'
+        $assetName = 'game-ci-windows-x64.exe'
+        $downloadUrl = "https://github.com/$repo/releases/download/$version/$assetName"
+        $checksumUrl = "https://github.com/$repo/releases/download/$version/checksums.txt"
+
+        New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $binaryPath -UseBasicParsing
+
+        $expectedHash = ''
+        try {
+          $checksums = Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing | Select-Object -ExpandProperty Content
+          $expectedLine = $checksums -split "`n" | Where-Object { $_ -match $assetName } | Select-Object -First 1
+          if ($expectedLine) {
+            $expectedHash = ($expectedLine -split '\s+')[0].ToLower()
+          }
+        } catch {
+          Write-Warning "Checksum verification skipped because checksum metadata could not be fetched: $_"
+        }
+
+        if ($expectedHash) {
+          $actualHash = (Get-FileHash -Path $binaryPath -Algorithm SHA256).Hash.ToLower()
+          if ($expectedHash -ne $actualHash) {
+            throw "Checksum verification failed. Expected $expectedHash, got $actualHash"
+          }
+        }
+
+        & $binaryPath --help | Out-Null
+        $installDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Run GameCI CLI
+      if: inputs.args != '' && runner.os != 'Windows'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: game-ci ${{ inputs.args }}
+
+    - name: Run GameCI CLI
+      if: inputs.args != '' && runner.os == 'Windows'
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      run: game-ci ${{ inputs.args }}
