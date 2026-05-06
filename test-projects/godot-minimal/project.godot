@@ -5,7 +5,7 @@
 
 config/name="GameCI CLI Smoke Test"
 config/description="Minimal project for CLI validation"
-run/main_scene=""
+run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.3")
 
 [rendering]
