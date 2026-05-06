@@ -26,8 +26,8 @@ export class CommandFactory {
       return this.createConfigCommand(command, subCommands);
     }
 
-    // build-image doesn't require engine detection
-    if (command === 'build-image') {
+    // build-unity-image doesn't require engine detection
+    if (command === 'build-unity-image') {
       return new BuildImageCommand(command);
     }
 

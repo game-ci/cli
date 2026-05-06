@@ -55,7 +55,7 @@ export class CliCommands {
 
   private async buildImageCommand() {
     await this.yargs.command(
-      'build-image [baseOs] [modules]',
+      'build-unity-image [baseOs] [modules]',
       'Build a Unity editor Docker image with specified modules',
       async (yargs: YargsInstance) => {
         this.register(yargs);
