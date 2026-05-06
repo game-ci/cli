@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as process from 'node:process';
 import { Cli } from './cli.ts';
-import { UnityRemoteRunCommand } from './command/remote/unity-remote-run-command.ts';
+import { UnityOrchestrateCommand } from './command/orchestrate/unity-orchestrate-command.ts';
 import { CommandFactory } from './command/command-factory.ts';
 import { unityPlugin } from './plugin/builtin/unity-plugin.ts';
 import { PluginRegistry } from './plugin/plugin-registry.ts';
@@ -62,12 +62,20 @@ describe('Cli plugin loading', () => {
     expect(pluginNames.filter((name) => name === 'unreal')).toHaveLength(1);
   });
 
-  it('supports remote run as the preferred provider-backed command', async () => {
+  it('supports orchestrate as the preferred provider-backed command', async () => {
+    await PluginRegistry.register(unityPlugin);
+
+    const command = new CommandFactory().selectEngine('unity', '2022.3.20f1').createCommand(['orchestrate']);
+
+    expect(command).toBeInstanceOf(UnityOrchestrateCommand);
+  });
+
+  it('keeps remote run as a backwards-compatible alias', async () => {
     await PluginRegistry.register(unityPlugin);
 
     const command = new CommandFactory().selectEngine('unity', '2022.3.20f1').createCommand(['remote', 'run']);
 
-    expect(command).toBeInstanceOf(UnityRemoteRunCommand);
+    expect(command).toBeInstanceOf(UnityOrchestrateCommand);
   });
 
   it('keeps remote build as a backwards-compatible alias', async () => {
@@ -75,6 +83,6 @@ describe('Cli plugin loading', () => {
 
     const command = new CommandFactory().selectEngine('unity', '2022.3.20f1').createCommand(['remote', 'build']);
 
-    expect(command).toBeInstanceOf(UnityRemoteRunCommand);
+    expect(command).toBeInstanceOf(UnityOrchestrateCommand);
   });
 });

@@ -12,7 +12,7 @@ import { PluginRegistry } from '../plugin/plugin-registry.ts';
 export class RemoteOptions implements IOptions {
   public static async configure(yargs: YargsInstance): Promise<void> {
     yargs.option('providerStrategy', {
-      description: `Provider strategy for remote jobs (${PluginRegistry.getAvailableProviders().join(', ') || 'none registered'})`,
+      description: `Provider strategy for orchestrated jobs (${PluginRegistry.getAvailableProviders().join(', ') || 'none registered'})`,
       type: 'string',
       demandOption: false,
       default: 'local-docker',
