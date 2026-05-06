@@ -1,8 +1,8 @@
 # GameCI CLI
 
-Build automation for game engines — Unity, Unreal Engine, Godot, and more.
+Automation for game engines — Unity, Unreal Engine, Godot, and more.
 
-The CLI is a thin, plugin-based runtime. Engine support, provider integrations, and remote build orchestration are loaded as plugins. The orchestrator is the intended provider/backend layer for local, Docker, and remote execution flows.
+The CLI is a thin, plugin-based runtime. Engine support, provider integrations, and orchestrated job execution are loaded as plugins. Orchestrator is the intended provider/backend layer for local, Docker, and remote execution flows.
 
 ## Install
 
@@ -43,7 +43,7 @@ bun run start -- --help
 ```bash
 game-ci --help
 game-ci build --engine unity --projectPath ./my-project
-game-ci remote build --providerStrategy local-docker
+game-ci orchestrate --providerStrategy local-docker
 ```
 
 ## GitHub Action
@@ -107,7 +107,7 @@ docker run --rm \
 ### Godot via Orchestrator (Local Docker)
 
 ```bash
-game-ci orchestrate \
+game-ci --plugin @game-ci/orchestrator-plugin orchestrate \
   --engine godot \
   --provider-strategy local-docker \
   --target-platform linux \
@@ -120,7 +120,7 @@ game-ci orchestrate \
 ### Godot via Orchestrator (Local System)
 
 ```bash
-game-ci orchestrate \
+game-ci --plugin @game-ci/orchestrator-plugin orchestrate \
   --engine godot \
   --provider-strategy local-system \
   --target-platform linux \
@@ -186,7 +186,7 @@ docker run --rm \
 ### Unreal Engine via Orchestrator (Local Docker)
 
 ```bash
-game-ci orchestrate \
+game-ci --plugin @game-ci/orchestrator-plugin orchestrate \
   --engine unreal \
   --provider-strategy local-docker \
   --target-platform linux \
@@ -208,7 +208,7 @@ game-ci orchestrate \
 Runs directly on the host using your local UE installation:
 
 ```bash
-game-ci orchestrate \
+game-ci --plugin @game-ci/orchestrator-plugin orchestrate \
   --engine unreal \
   --provider-strategy local-system \
   --target-platform linux \
@@ -236,14 +236,14 @@ The CLI discovers functionality through plugins. Built-in plugins ship with the 
 ### External (loaded at runtime)
 
 ```bash
-game-ci --plugin @game-ci/orchestrator-plugin remote build --providerStrategy aws
+game-ci --plugin @game-ci/orchestrator-plugin orchestrate --providerStrategy aws
 ```
 
 Plugins can register:
 - **Engine detectors** — detect project engines (Unity, UE5, Godot)
 - **Commands** — add CLI subcommands
 - **Options** — add CLI flags
-- **Providers** — remote build providers (AWS, K8s, local-docker)
+- **Providers** — orchestrated job providers (AWS, K8s, local-docker)
 
 See `src/plugin/plugin-interface.ts` for the plugin API.
 

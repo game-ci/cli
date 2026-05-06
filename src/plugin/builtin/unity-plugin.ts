@@ -1,7 +1,7 @@
 import type { GameCIPlugin } from '../plugin-interface.ts';
 import { UnityVersionDetector } from '../../middleware/engine-detection/unity-version-detector.ts';
 import { UnityBuildCommand } from '../../command/build/unity-build-command.ts';
-import { UnityRemoteBuildCommand } from '../../command/remote/unity-remote-build-command.ts';
+import { UnityOrchestrateCommand } from '../../command/orchestrate/unity-orchestrate-command.ts';
 import { NonExistentCommand } from '../../command/null/non-existent-command.ts';
 import type { CommandInterface } from '../../command/command-interface.ts';
 
@@ -33,10 +33,13 @@ export const unityPlugin: GameCIPlugin = {
         switch (command) {
           case 'build':
             return new UnityBuildCommand(command);
+          case 'orchestrate':
+            return new UnityOrchestrateCommand(command);
           case 'remote':
             switch (subCommands[0]) {
+              case 'run':
               case 'build':
-                return new UnityRemoteBuildCommand(command);
+                return new UnityOrchestrateCommand(command);
               default:
                 return new NonExistentCommand([command, ...subCommands].join(' '));
             }

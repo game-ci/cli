@@ -48,7 +48,7 @@ export class CliProtocolPlugin implements ProviderPlugin {
     if (!executable || typeof executable !== 'string') {
       throw new Error(
         'CliProtocolPlugin requires --provider-executable (path to orchestrator binary). ' +
-        'Example: game-ci remote build --providerStrategy cli-protocol --provider-executable ./game-ci-orchestrator',
+          'Example: game-ci orchestrate --providerStrategy cli-protocol --provider-executable ./game-ci-orchestrator',
       );
     }
 

@@ -23,6 +23,7 @@ export class CliCommands {
     await this.configCommand();
     await this.testCommand();
     await this.buildCommand();
+    await this.orchestrateCommand();
     await this.remoteCommands();
 
     // This is needed to run the engine and vcs detection middleware.
@@ -51,10 +52,21 @@ export class CliCommands {
     });
   }
 
+  private async orchestrateCommand() {
+    await this.yargs.command('orchestrate [projectPath]', 'Run an engine job through a provider plugin', async (yargs: YargsInstance) => {
+      ProjectOptions.preConfigure(yargs);
+      this.register(yargs);
+    });
+  }
+
   private async remoteCommands() {
-    await this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs: YargsInstance) => {
+    await this.yargs.command('remote', false, async (yargs: YargsInstance) => {
       yargs
-        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs: YargsInstance) => {
+        .command('run [projectPath]', false, async (yargs: YargsInstance) => {
+          ProjectOptions.preConfigure(yargs);
+          this.register(yargs);
+        })
+        .command('build [projectPath]', false, async (yargs: YargsInstance) => {
           ProjectOptions.preConfigure(yargs);
           this.register(yargs);
         })

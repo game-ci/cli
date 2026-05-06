@@ -1,7 +1,7 @@
 {
   "name": "@game-ci/cli",
   "version": "0.1.0",
-  "description": "GameCI CLI - Build automation for game engines",
+  "description": "GameCI CLI - automation for game engines",
   "type": "module",
   "main": "src/index.ts",
   "bin": {

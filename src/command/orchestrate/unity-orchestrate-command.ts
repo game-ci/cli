@@ -6,13 +6,13 @@ import { ProjectOptions } from '../../command-options/project-options.ts';
 import { PluginRegistry } from '../../plugin/plugin-registry.ts';
 
 /**
- * Remote build command.
+ * Provider-backed orchestration command.
  *
- * Delegates to the provider plugin selected by --providerStrategy.
- * The actual build execution (setupWorkflow, runTaskInWorkflow, etc.)
- * is handled entirely by the orchestrator plugin.
+ * Delegates to the provider plugin selected by --providerStrategy. The actual
+ * job execution (setupWorkflow, runTaskInWorkflow, etc.) is handled by the
+ * provider implementation, usually the Orchestrator plugin.
  */
-export class UnityRemoteBuildCommand extends CommandBase implements CommandInterface {
+export class UnityOrchestrateCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
     const { providerStrategy } = options;
 
@@ -20,14 +20,13 @@ export class UnityRemoteBuildCommand extends CommandBase implements CommandInter
     if (!provider) {
       throw new Error(
         `No provider registered for strategy "${providerStrategy}". ` +
-        `Available: ${PluginRegistry.getAvailableProviders().join(', ') || 'none'}. ` +
-        `Install a provider plugin (e.g. @game-ci/orchestrator-plugin).`,
+          `Available: ${PluginRegistry.getAvailableProviders().join(', ') || 'none'}. ` +
+          `Install a provider plugin (e.g. @game-ci/orchestrator-plugin).`,
       );
     }
 
     log.info(`Using provider strategy: ${providerStrategy}`);
 
-    // Provider handles the full remote build lifecycle
     const result = await provider.runTaskInWorkflow(
       '', // buildGuid — provided by provider
       '', // image — provider determines this
@@ -38,7 +37,7 @@ export class UnityRemoteBuildCommand extends CommandBase implements CommandInter
       [], // secrets
     );
 
-    log.info('Remote build result:', result);
+    log.info('Orchestrated job result:', result);
     return true;
   }
 
