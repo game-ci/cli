@@ -11,7 +11,7 @@ export interface EngineDetectorPlugin {
 }
 
 /**
- * Command provider from a plugin — maps engine commands (build, test, remote build, etc.)
+ * Command provider from a plugin — maps engine commands (build, test, remote run, etc.)
  * to concrete implementations.
  */
 export interface CommandPlugin {

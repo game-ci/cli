@@ -6,13 +6,13 @@ import { ProjectOptions } from '../../command-options/project-options.ts';
 import { PluginRegistry } from '../../plugin/plugin-registry.ts';
 
 /**
- * Remote build command.
+ * Remote provider command.
  *
  * Delegates to the provider plugin selected by --providerStrategy.
- * The actual build execution (setupWorkflow, runTaskInWorkflow, etc.)
+ * The actual job execution (setupWorkflow, runTaskInWorkflow, etc.)
  * is handled entirely by the orchestrator plugin.
  */
-export class UnityRemoteBuildCommand extends CommandBase implements CommandInterface {
+export class UnityRemoteRunCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
     const { providerStrategy } = options;
 
@@ -27,7 +27,7 @@ export class UnityRemoteBuildCommand extends CommandBase implements CommandInter
 
     log.info(`Using provider strategy: ${providerStrategy}`);
 
-    // Provider handles the full remote build lifecycle
+    // Provider handles the full remote job lifecycle
     const result = await provider.runTaskInWorkflow(
       '', // buildGuid — provided by provider
       '', // image — provider determines this
@@ -38,7 +38,7 @@ export class UnityRemoteBuildCommand extends CommandBase implements CommandInter
       [], // secrets
     );
 
-    log.info('Remote build result:', result);
+    log.info('Remote job result:', result);
     return true;
   }
 

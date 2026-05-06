@@ -52,9 +52,13 @@ export class CliCommands {
   }
 
   private async remoteCommands() {
-    await this.yargs.command('remote', 'Schedule jobs to be run remotely, in the cloud', async (yargs: YargsInstance) => {
+    await this.yargs.command('remote', 'Run provider-backed jobs outside the local process', async (yargs: YargsInstance) => {
       yargs
-        .command('build [projectPath]', 'Schedule a build to be run remotely', async (yargs: YargsInstance) => {
+        .command('run [projectPath]', 'Run an engine job through a provider plugin', async (yargs: YargsInstance) => {
+          ProjectOptions.preConfigure(yargs);
+          this.register(yargs);
+        })
+        .command('build [projectPath]', 'Legacy alias for remote run', async (yargs: YargsInstance) => {
           ProjectOptions.preConfigure(yargs);
           this.register(yargs);
         })
