@@ -2,6 +2,7 @@ import { NonExistentCommand } from './null/non-existent-command.ts';
 import { CommandInterface } from './command-interface.ts';
 import { Engine } from '../model/engine/engine.ts';
 import { OpenConfigFolderCommand } from './config/open-config-folder-command.ts';
+import { BuildImageCommand } from './build-image/build-image-command.ts';
 import { PluginRegistry } from '../plugin/plugin-registry.ts';
 
 export class CommandFactory {
@@ -23,6 +24,11 @@ export class CommandFactory {
 
     if (command === 'config') {
       return this.createConfigCommand(command, subCommands);
+    }
+
+    // build-image doesn't require engine detection
+    if (command === 'build-image') {
+      return new BuildImageCommand(command);
     }
 
     if (this.engine === Engine.unknown) {

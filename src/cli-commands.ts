@@ -23,6 +23,7 @@ export class CliCommands {
     await this.configCommand();
     await this.testCommand();
     await this.buildCommand();
+    await this.buildImageCommand();
     await this.orchestrateCommand();
     await this.remoteCommands();
 
@@ -50,6 +51,16 @@ export class CliCommands {
       ProjectOptions.preConfigure(yargs);
       this.register(yargs);
     });
+  }
+
+  private async buildImageCommand() {
+    await this.yargs.command(
+      'build-image [baseOs] [modules]',
+      'Build a Unity editor Docker image with specified modules',
+      async (yargs: YargsInstance) => {
+        this.register(yargs);
+      },
+    );
   }
 
   private async orchestrateCommand() {
