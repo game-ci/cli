@@ -11,8 +11,10 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
     const changeset = options.changeset as string | undefined;
     const tag = options.tag as string | undefined;
     const push = options.push as boolean;
-    const hubImage = (options.hubImage as string) || 'unityci/hub';
-    const baseImage = (options.baseImage as string) || 'unityci/base';
+    const defaultHubImage = baseOs === 'windows' ? 'unityci/hub:windows-latest' : 'unityci/hub';
+    const defaultBaseImage = baseOs === 'windows' ? 'unityci/base:windows-latest' : 'unityci/base';
+    const hubImage = (options.hubImage as string) || defaultHubImage;
+    const baseImage = (options.baseImage as string) || defaultBaseImage;
 
     if (!unityVersion) {
       log.error('--unity-version is required');
@@ -133,12 +135,10 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
     yargs.option('hub-image', {
       describe: 'Hub base image',
       type: 'string',
-      default: 'unityci/hub',
     });
     yargs.option('base-image', {
       describe: 'Editor base image',
       type: 'string',
-      default: 'unityci/base',
     });
   }
 }
@@ -538,17 +538,19 @@ RUN "C:/Program\\\\ Files/Unity\\\\ Hub/Unity\\\\ Hub.exe -- --headless install 
                                                     | exit $(wc -l)"
 
 ARG module
-RUN "if [ $module = 'base' ]; then \\
-        echo 'running default modules for this base OS'; \\
-     else \\
-        C:/Program\\\\ Files/Unity\\\\ Hub/Unity\\\\ Hub.exe -- --headless install-modules \\
-                                                    --version $version \\
-                                                    --module $module \\
-                                                    --childModules \\
-                                                    | tee /var/log/install-module-\${module}.log \\
-                                                    && grep 'Missing module' /var/log/install-module-\${module}.log \\
-                                                    | exit $(wc -l); \\
-     fi"
+RUN "for mod in $module; do \\
+       if [ \"$mod\" = 'base' ]; then \\
+         echo 'running default modules for this base OS'; \\
+       else \\
+         C:/Program\\\\ Files/Unity\\\\ Hub/Unity\\\\ Hub.exe -- --headless install-modules \\
+                                                     --version $version \\
+                                                     --module \"$mod\" \\
+                                                     --childModules \\
+                                                     | tee /var/log/install-module-\${mod}.log \\
+                                                     && grep 'Missing module' /var/log/install-module-\${mod}.log \\
+                                                     | exit $(wc -l); \\
+       fi; \\
+     done"
 
 ############
 #  Editor  #
