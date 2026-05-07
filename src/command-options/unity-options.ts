@@ -50,6 +50,14 @@ export class UnityOptions implements IOptions {
           type: 'string',
           demandOption: false,
           default: '',
+        },
+        unityLicensingToolset: {
+          alias: 'lt',
+          description:
+            'Toolset identifier for floating-license servers that host multiple toolsets. Empty by default.',
+          type: 'string',
+          demandOption: false,
+          default: '',
         }
       })
       .coerce('unityLicense', async (arg: string) => {

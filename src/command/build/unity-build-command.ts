@@ -1,6 +1,6 @@
 import { CommandInterface } from '../command-interface.ts';
 import { CacheValidation, Docker, RunnerImageTag, Output } from '../../model/index.ts';
-import { PlatformSetup } from '../../model/platform-setup.ts';
+import { PlatformSetup } from '../../logic/unity/platform-setup/index.ts';
 import { MacBuilder } from '../../model/mac-builder.ts';
 import { UnityLogs } from '../../model/unity-logs.ts';
 import { path } from '../../dependencies.ts';
