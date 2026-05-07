@@ -16572,7 +16572,7 @@ class SetupAndroid {
   }
 }
 
-// src/model/platform-setup.ts
+// src/logic/unity/platform-setup/platform-setup.ts
 init_dependencies();
 import * as nodeFs4 from "node:fs";
 
