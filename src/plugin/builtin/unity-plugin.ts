@@ -2,6 +2,7 @@ import type { GameCIPlugin } from '../plugin-interface.ts';
 import { UnityVersionDetector } from '../../middleware/engine-detection/unity-version-detector.ts';
 import { UnityBuildCommand } from '../../command/build/unity-build-command.ts';
 import { UnityOrchestrateCommand } from '../../command/orchestrate/unity-orchestrate-command.ts';
+import { UnityLogsCommand } from '../../command/logs/unity-logs-command.ts';
 import { NonExistentCommand } from '../../command/null/non-existent-command.ts';
 import type { CommandInterface } from '../../command/command-interface.ts';
 
@@ -40,6 +41,18 @@ export const unityPlugin: GameCIPlugin = {
               case 'run':
               case 'build':
                 return new UnityOrchestrateCommand(command);
+              default:
+                return new NonExistentCommand([command, ...subCommands].join(' '));
+            }
+          case 'logs':
+            switch (subCommands[0]) {
+              case 'collect':
+              case 'tail':
+              case 'pull':
+              case 'fetch':
+              case undefined:
+              case '':
+                return new UnityLogsCommand(command, subCommands[0] || 'collect');
               default:
                 return new NonExistentCommand([command, ...subCommands].join(' '));
             }
