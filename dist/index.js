@@ -16592,7 +16592,7 @@ class PlatformSetup {
     }
   }
   static SetupShared(options) {
-    const { cliDistPath, unityLicensingServer } = options;
+    const { cliDistPath, unityLicensingServer, unityLicensingToolset } = options;
     const servicesConfigPath = `${cliDistPath}/unity-config/services-config.json`;
     const servicesConfigPathTemplate = `${servicesConfigPath}.template`;
     if (!fsSyncCompat.existsSync(servicesConfigPathTemplate)) {
@@ -16601,6 +16601,11 @@ class PlatformSetup {
     }
     let servicesConfig = nodeFs4.readFileSync(servicesConfigPathTemplate, "utf-8");
     servicesConfig = servicesConfig.replace("%URL%", unityLicensingServer);
+    if (unityLicensingToolset) {
+      const parsed = JSON.parse(servicesConfig);
+      parsed.toolset = unityLicensingToolset;
+      servicesConfig = JSON.stringify(parsed, undefined, 2);
+    }
     nodeFs4.writeFileSync(servicesConfigPath, servicesConfig);
     SetupAndroid.setup(options);
   }
@@ -16622,6 +16627,204 @@ class MacBuilder {
     }
   }
 }
+
+// src/model/unity-logs.ts
+init_dependencies();
+import os from "node:os";
+var PATHS = [
+  {
+    category: "editor-log",
+    description: "Unity Editor.log",
+    paths: {
+      linux: ["$HOME/.config/unity3d/Editor.log"],
+      darwin: ["$HOME/Library/Logs/Unity/Editor.log"],
+      win32: ["$LOCALAPPDATA/Unity/Editor/Editor.log"]
+    }
+  },
+  {
+    category: "licensing-client",
+    description: "Unity.Licensing.Client.log",
+    paths: {
+      linux: ["$HOME/.config/unity3d/Unity/Unity.Licensing.Client.log"],
+      darwin: ["$HOME/Library/Logs/Unity/Unity.Licensing.Client.log"],
+      win32: ["$LOCALAPPDATA/Unity/Unity.Licensing.Client.log"]
+    }
+  },
+  {
+    category: "entitlements-audit",
+    description: "Unity.Entitlements.Audit.log",
+    paths: {
+      linux: ["$HOME/.config/unity3d/Unity/Unity.Entitlements.Audit.log"],
+      darwin: ["$HOME/Library/Logs/Unity/Unity.Entitlements.Audit.log"],
+      win32: ["$LOCALAPPDATA/Unity/Unity.Entitlements.Audit.log"]
+    }
+  },
+  {
+    category: "services-config",
+    description: "services-config.json",
+    paths: {
+      linux: ["/usr/share/unity3d/config/services-config.json"],
+      darwin: ["/Library/Application Support/Unity/config/services-config.json"],
+      win32: ["$PROGRAMDATA/Unity/config/services-config.json"]
+    }
+  },
+  {
+    category: "build-report",
+    description: "LastBuild.buildreport",
+    workspaceRelative: true,
+    paths: {
+      linux: ["$PROJECT/Library/LastBuild.buildreport"],
+      darwin: ["$PROJECT/Library/LastBuild.buildreport"],
+      win32: ["$PROJECT/Library/LastBuild.buildreport"]
+    }
+  },
+  {
+    category: "bee-backend",
+    description: "bee_backend.log",
+    workspaceRelative: true,
+    paths: {
+      linux: ["$PROJECT/Library/Bee/bee_backend.log"],
+      darwin: ["$PROJECT/Library/Bee/bee_backend.log"],
+      win32: ["$PROJECT/Library/Bee/bee_backend.log"]
+    }
+  },
+  {
+    category: "project-version",
+    description: "ProjectVersion.txt",
+    workspaceRelative: true,
+    paths: {
+      linux: ["$PROJECT/ProjectSettings/ProjectVersion.txt"],
+      darwin: ["$PROJECT/ProjectSettings/ProjectVersion.txt"],
+      win32: ["$PROJECT/ProjectSettings/ProjectVersion.txt"]
+    }
+  },
+  {
+    category: "package-manifest",
+    description: "Packages/manifest.json + packages-lock.json",
+    workspaceRelative: true,
+    paths: {
+      linux: ["$PROJECT/Packages/manifest.json", "$PROJECT/Packages/packages-lock.json"],
+      darwin: ["$PROJECT/Packages/manifest.json", "$PROJECT/Packages/packages-lock.json"],
+      win32: ["$PROJECT/Packages/manifest.json", "$PROJECT/Packages/packages-lock.json"]
+    }
+  }
+];
+
+class UnityLogs {
+  static collect(options) {
+    const platform2 = options.platform || UnityLogs.detectPlatform();
+    const env3 = options.env || process.env;
+    const projectFullPath = path.isAbsolute(options.projectPath) ? options.projectPath : path.join(options.workspace, options.projectPath || "");
+    const outputDir = options.outputDir || path.join(options.workspace, "Logs", "UnityDiagnostics");
+    fsSyncCompat.mkdirSync(outputDir, { recursive: true });
+    const filtered = options.categories && options.categories.length > 0 ? PATHS.filter((definition) => options.categories.includes(definition.category)) : PATHS.filter((definition) => !definition.sensitive || options.includeSensitive);
+    const tokens = {
+      HOME: env3.HOME || os.homedir(),
+      USERPROFILE: env3.USERPROFILE || os.homedir(),
+      LOCALAPPDATA: env3.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+      APPDATA: env3.APPDATA || path.join(os.homedir(), "AppData", "Roaming"),
+      PROGRAMDATA: env3.PROGRAMDATA || "C:/ProgramData",
+      WORKSPACE: options.workspace,
+      PROJECT: projectFullPath
+    };
+    const collected = [];
+    const missing = [];
+    for (const definition of filtered) {
+      const templates = definition.paths[platform2] || [];
+      let foundOne = false;
+      for (const template of templates) {
+        const sourcePath = template.replace(/\$([A-Z_]+)/g, (full, name) => tokens[name] !== undefined ? tokens[name] : full);
+        if (!fsSyncCompat.existsSync(sourcePath))
+          continue;
+        try {
+          const targetBase = path.join(outputDir, definition.category);
+          fsSyncCompat.mkdirSync(targetBase, { recursive: true });
+          const targetFile = path.join(targetBase, path.basename(sourcePath));
+          fsSyncCompat.copyFileSync(sourcePath, targetFile);
+          collected.push(`${definition.category}: ${sourcePath}`);
+          foundOne = true;
+        } catch (error) {
+          log.warning(`[UnityLogs] copy failed for ${definition.category}: ${error.message}`);
+        }
+      }
+      if (!foundOne)
+        missing.push(definition.category);
+    }
+    const manifestPath = path.join(outputDir, "manifest.json");
+    fsSyncCompat.writeFileSync(manifestPath, JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      platform: platform2,
+      projectPath: projectFullPath,
+      collected,
+      missing
+    }, null, 2), "utf8");
+    log.info(`[UnityLogs] collected ${collected.length} item(s) → ${outputDir}`);
+    if (missing.length > 0) {
+      log.info(`[UnityLogs] missing categories: ${missing.join(", ")}`);
+    }
+    return { outputDir, collected, missing };
+  }
+  static streamFiles(files) {
+    const positions = new Map;
+    const buffers = new Map;
+    let stopped = false;
+    const tick = () => {
+      if (stopped)
+        return;
+      for (const file of files) {
+        if (!fsSyncCompat.existsSync(file))
+          continue;
+        const stat = fsSyncCompat.statSync(file);
+        const previous = positions.get(file) ?? 0;
+        if (stat.size <= previous) {
+          if (stat.size < previous)
+            positions.set(file, 0);
+          continue;
+        }
+        const buffer = Buffer.alloc(stat.size - previous);
+        const fd = fsSyncCompat.openSync(file, "r");
+        try {
+          fsSyncCompat.readSync(fd, buffer, 0, buffer.length, previous);
+        } finally {
+          fsSyncCompat.closeSync(fd);
+        }
+        positions.set(file, stat.size);
+        const text = (buffers.get(file) || "") + buffer.toString("utf8");
+        const lines = text.split(/\r?\n/);
+        const last = lines.pop();
+        buffers.set(file, last || "");
+        for (const line of lines) {
+          if (line)
+            log.info(`[UnityLogs] ${path.basename(file)}: ${line}`);
+        }
+      }
+    };
+    const interval = setInterval(tick, 1000);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      tick();
+    };
+  }
+  static detectPlatform() {
+    if (process.platform === "darwin")
+      return "darwin";
+    if (process.platform === "win32")
+      return "win32";
+    return "linux";
+  }
+  static parseCategories(input) {
+    if (!input)
+      return;
+    const trimmed = input.trim();
+    if (!trimmed || trimmed === "all")
+      return;
+    return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+}
+
+// src/command/build/unity-build-command.ts
+init_dependencies();
 
 // src/command-options/unity-options.ts
 init_unity_target_platform();
@@ -16724,6 +16927,13 @@ class UnityOptions {
       unityLicensingServer: {
         alias: "ls",
         description: "Licensing server to use for Unity activation",
+        type: "string",
+        demandOption: false,
+        default: ""
+      },
+      unityLicensingToolset: {
+        alias: "lt",
+        description: "Toolset identifier for floating-license servers that host multiple toolsets. Empty by default.",
         type: "string",
         demandOption: false,
         default: ""
@@ -16995,6 +17205,54 @@ class AndroidOptions {
   }
 }
 
+// src/command-options/unity-logs-options.ts
+class UnityLogsOptions {
+  static configure(yargs) {
+    yargs.option("collectUnityLogs", {
+      description: String.dedent`
+          Collect Unity-internal logs (Editor.log, Unity.Licensing.Client.log,
+          Unity.Entitlements.Audit.log, services-config.json, …) into the
+          workspace after the build so they can be uploaded as artifacts.
+          Useful when Unity support requests these files.`,
+      type: "boolean",
+      demandOption: false,
+      default: false
+    }).option("collectUnityLogsOnSuccess", {
+      description: "Also collect Unity logs on successful builds (default true).",
+      type: "boolean",
+      demandOption: false,
+      default: true
+    }).option("unityLogCategories", {
+      description: String.dedent`
+          Comma-separated subset of categories to collect. Default = all
+          non-sensitive categories. See orchestrator docs for the full list.`,
+      type: "string",
+      demandOption: false,
+      default: ""
+    }).option("unityLogsIncludeSensitive", {
+      description: "Include sensitive categories like license-file. Off by default.",
+      type: "boolean",
+      demandOption: false,
+      default: false
+    }).option("unityLogsOutputDir", {
+      description: "Override the directory for collected Unity logs. Default <workspace>/Logs/UnityDiagnostics.",
+      type: "string",
+      demandOption: false,
+      default: ""
+    }).option("streamUnityLogs", {
+      description: "Live-tail Unity log files during the build and forward each line to stdout.",
+      type: "boolean",
+      demandOption: false,
+      default: false
+    }).option("streamUnityLogPaths", {
+      description: "Comma-separated files to live-tail. Defaults to <project>/Builds/Logs/Editor.log.",
+      type: "string",
+      demandOption: false,
+      default: ""
+    });
+  }
+}
+
 // src/logic/unity/platform-validation/platform-validation.ts
 class PlatformValidation {
   static get supportedPlatforms() {
@@ -17018,11 +17276,49 @@ class UnityBuildCommand extends CommandBase {
     if (log.isVerbose)
       log.debug("Using image:", image);
     await PlatformSetup.setup(options);
-    if (hostPlatform === "darwin") {
-      await MacBuilder.run(options);
-    } else {
-      await Docker.run(image.toString(), options);
+    let stopTail;
+    if (options.streamUnityLogs) {
+      const projectDir = options.projectPath || options.workspace || process.cwd();
+      const explicit = String(options.streamUnityLogPaths || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const defaults = [path.join(projectDir, "Builds", "Logs", "Editor.log")];
+      stopTail = UnityLogs.streamFiles(explicit.length > 0 ? explicit : defaults);
+      log.info("[UnityLogs] Live log streaming started");
     }
+    let buildError;
+    let buildSucceeded = true;
+    try {
+      if (hostPlatform === "darwin") {
+        await MacBuilder.run(options);
+      } else {
+        await Docker.run(image.toString(), options);
+      }
+    } catch (error) {
+      buildError = error;
+      buildSucceeded = false;
+    } finally {
+      if (stopTail) {
+        try {
+          stopTail();
+        } catch {}
+      }
+    }
+    if (options.collectUnityLogs && (!buildSucceeded || options.collectUnityLogsOnSuccess !== false)) {
+      try {
+        const projectDir = options.projectPath || options.workspace || process.cwd();
+        const workspace = options.workspace || projectDir;
+        UnityLogs.collect({
+          workspace,
+          projectPath: projectDir,
+          outputDir: options.unityLogsOutputDir || undefined,
+          categories: UnityLogs.parseCategories(options.unityLogCategories),
+          includeSensitive: !!options.unityLogsIncludeSensitive
+        });
+      } catch (collectError) {
+        log.warning(`[UnityLogs] collection failed: ${collectError.message}`);
+      }
+    }
+    if (buildError)
+      throw buildError;
     await Output.setBuildVersion(options.buildVersion);
     await Output.setAndroidVersionCode(options.androidVersionCode);
     return false;
@@ -17033,6 +17329,7 @@ class UnityBuildCommand extends CommandBase {
     await VersioningOptions.configure(yargs);
     await BuildOptions.configure(yargs);
     await AndroidOptions.configure(yargs);
+    await UnityLogsOptions.configure(yargs);
   }
 }
 
@@ -17075,6 +17372,77 @@ class UnityOrchestrateCommand extends CommandBase {
   }
 }
 
+// src/command/logs/unity-logs-command.ts
+class UnityLogsCommand extends CommandBase {
+  subCommand;
+  constructor(commandName, subCommand) {
+    super(commandName);
+    this.subCommand = subCommand || "collect";
+  }
+  async execute(options) {
+    switch (this.subCommand) {
+      case "collect":
+        return this.runCollect(options);
+      case "tail":
+        return this.runTail(options);
+      case "pull":
+        log.warning("[logs pull] Remote provider pulls are not implemented yet. " + "For now, ssh into the runner and run `game-ci logs collect` directly. " + "Tracking: https://github.com/game-ci/orchestrator/issues");
+        return false;
+      case "fetch":
+        log.warning("[logs fetch] Retroactive fetch from past orchestrator builds is not implemented yet. " + "For now, the diagnostic bundle is uploaded as a build artifact when collectUnityLogs=true. " + "Tracking: https://github.com/game-ci/orchestrator/issues");
+        return false;
+      default:
+        log.error(`Unknown logs subcommand: ${this.subCommand}. ` + `Valid subcommands: collect, tail, pull, fetch.`);
+        return false;
+    }
+  }
+  async configureOptions(yargs) {
+    yargs.option("projectPath", {
+      description: "Path to the Unity project (defaults to cwd).",
+      type: "string",
+      demandOption: false,
+      default: ""
+    }).option("workspace", {
+      description: "Workspace root (defaults to projectPath or cwd).",
+      type: "string",
+      demandOption: false,
+      default: ""
+    });
+    await UnityLogsOptions.configure(yargs);
+  }
+  async runCollect(options) {
+    const workspace = options.workspace || options.projectPath || process.cwd();
+    const projectPath = options.projectPath || workspace;
+    const result = UnityLogs.collect({
+      workspace,
+      projectPath,
+      outputDir: options.unityLogsOutputDir || undefined,
+      categories: UnityLogs.parseCategories(options.unityLogCategories),
+      includeSensitive: !!options.unityLogsIncludeSensitive
+    });
+    log.info(`[logs collect] Collected ${result.collected.length} item(s) → ${result.outputDir}`);
+    if (result.missing.length > 0) {
+      log.info(`[logs collect] Missing categories on this host: ${result.missing.join(", ")}`);
+    }
+    return false;
+  }
+  async runTail(options) {
+    const projectPath = options.projectPath || options.workspace || process.cwd();
+    const explicit = String(options.streamUnityLogPaths || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const defaults = [`${projectPath}/Builds/Logs/Editor.log`];
+    const files = explicit.length > 0 ? explicit : defaults;
+    log.info(`[logs tail] Tailing ${files.length} file(s) — Ctrl+C to stop`);
+    const stop = UnityLogs.streamFiles(files);
+    const onSignal = () => {
+      stop();
+      process.exit(0);
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+    return new Promise(() => {});
+  }
+}
+
 // src/plugin/builtin/unity-plugin.ts
 var unityPlugin = {
   name: "unity",
@@ -17105,6 +17473,18 @@ var unityPlugin = {
               case "run":
               case "build":
                 return new UnityOrchestrateCommand(command2);
+              default:
+                return new NonExistentCommand([command2, ...subCommands].join(" "));
+            }
+          case "logs":
+            switch (subCommands[0]) {
+              case "collect":
+              case "tail":
+              case "pull":
+              case "fetch":
+              case undefined:
+              case "":
+                return new UnityLogsCommand(command2, subCommands[0] || "collect");
               default:
                 return new NonExistentCommand([command2, ...subCommands].join(" "));
             }

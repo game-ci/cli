@@ -22,7 +22,7 @@ class PlatformSetup {
   }
 
   private static SetupShared(options: Options) {
-    const { cliDistPath, unityLicensingServer } = options;
+    const { cliDistPath, unityLicensingServer, unityLicensingToolset } = options;
     const servicesConfigPath = `${cliDistPath}/unity-config/services-config.json`;
     const servicesConfigPathTemplate = `${servicesConfigPath}.template`;
     if (!fs.existsSync(servicesConfigPathTemplate)) {
@@ -33,6 +33,13 @@ class PlatformSetup {
 
     let servicesConfig = nodeFs.readFileSync(servicesConfigPathTemplate, 'utf-8');
     servicesConfig = servicesConfig.replace('%URL%', unityLicensingServer);
+
+    if (unityLicensingToolset) {
+      const parsed = JSON.parse(servicesConfig);
+      parsed.toolset = unityLicensingToolset;
+      servicesConfig = JSON.stringify(parsed, undefined, 2);
+    }
+
     nodeFs.writeFileSync(servicesConfigPath, servicesConfig);
 
     SetupAndroid.setup(options);
