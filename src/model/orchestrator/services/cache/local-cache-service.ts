@@ -4,30 +4,13 @@ import { execSync, spawn } from 'node:child_process';
 import { OrchestratorSystem } from '../core/orchestrator-system';
 import OrchestratorLogger from '../core/orchestrator-logger';
 import { getEngine } from '../../../engine';
-import { CanonicalCacheService, type CanonicalCacheClassifier } from './canonical-cache-service';
 
-export type LocalCacheMode = 'tar' | 'move-directory' | 'copy-directory' | 'canonical-overlay';
-
-export interface CanonicalOverlayOptions {
-  /** Root for the canonical cache store. Falls back to <cacheRoot>/canonical when unset. */
-  canonicalCacheRoot?: string;
-  /** Optional override for the per-subtree classifier (JSON-shaped). */
-  classifier?: CanonicalCacheClassifier;
-  /** How many canonical SHA versions to retain per cache key. */
-  versionRetention?: number;
-  /** Materialization timing — eager (always live) or prepared (atomic-rename a pre-built overlay). */
-  materialize?: 'eager' | 'prepared';
-  /** Optional sentinel canary content for defense-in-depth corruption detection. */
-  sentinelCanary?: string;
-}
+export type LocalCacheMode = 'tar' | 'move-directory' | 'copy-directory';
 
 export interface LocalCacheRestoreOptions {
   fallbackKeys?: string[];
   validateRestored?: boolean;
   restoreMode?: LocalCacheMode;
-  canonicalOverlay?: CanonicalOverlayOptions;
-  /** The cache key (used by canonical-overlay routing). When unset, the candidate key is used. */
-  cacheKey?: string;
 }
 
 export interface LocalCacheSaveOptions {
@@ -37,9 +20,6 @@ export interface LocalCacheSaveOptions {
   saveMode?: LocalCacheMode;
   maxCacheEntries?: number;
   backgroundSave?: boolean;
-  canonicalOverlay?: CanonicalOverlayOptions;
-  /** The cache key used when routing to the canonical store. */
-  cacheKey?: string;
 }
 
 /** Marker file written during background cache saves, contains the PID. */
@@ -224,195 +204,6 @@ export class LocalCacheService {
     return false;
   }
 
-  /**
-   * Restore an engine cache folder from the canonical store via a per-runner overlay.
-   *
-   * The canonical store contains the cache once; each runner gets its own overlay of
-   * hardlinks pointing at canonical bytes. Multi-runner safe with zero-copy reads.
-   *
-   * Falls back to move-directory when the underlying filesystem can't support
-   * hardlinks (cross-volume, container boundaries, unsupported FS). Build never
-   * fails because of strategy unavailability.
-   */
-  private static async restoreFromCanonicalOverlay(
-    projectPath: string,
-    cacheRoot: string,
-    cacheKey: string,
-    folder: string,
-    options: LocalCacheRestoreOptions,
-  ): Promise<boolean> {
-    const canonicalRoot = CanonicalCacheService.resolveCanonicalRoot(
-      options.canonicalOverlay?.canonicalCacheRoot ?? '',
-      cacheRoot,
-    );
-
-    fs.mkdirSync(canonicalRoot, { recursive: true });
-
-    if (!CanonicalCacheService.isCapable(canonicalRoot)) {
-      OrchestratorLogger.logWarning(
-        `[LocalCache] canonical-overlay unavailable on ${canonicalRoot} (no hardlink support); falling back to move-directory`,
-      );
-      const fallbackOptions: LocalCacheRestoreOptions = {
-        ...options,
-        restoreMode: 'move-directory',
-      };
-      return LocalCacheService.restoreCacheFolderCandidate(
-        projectPath,
-        cacheRoot,
-        cacheKey,
-        folder,
-        fallbackOptions,
-      );
-    }
-
-    const overlayPath = path.join(projectPath, folder);
-    const canonicalSha = CanonicalCacheService.readCanonicalSha(canonicalRoot, cacheKey, folder);
-    if (!canonicalSha) {
-      OrchestratorLogger.log(
-        `[LocalCache] canonical-overlay miss: no canonical version for ${cacheKey}/${folder}`,
-      );
-      return false;
-    }
-
-    // Materialize: prefer prepared overlay if SHA matches; otherwise live materialize.
-    if (options.canonicalOverlay?.materialize === 'prepared') {
-      const preparedSha = CanonicalCacheService.readOverlaySha(`${overlayPath}-prepared`);
-      if (preparedSha === canonicalSha) {
-        const swapped = CanonicalCacheService.swapPreparedOverlay(overlayPath);
-        if (swapped) {
-          OrchestratorLogger.log(
-            `[LocalCache] canonical-overlay restored via prepared overlay (sha ${canonicalSha})`,
-          );
-          return true;
-        }
-      }
-    }
-
-    const result = await CanonicalCacheService.materializeOverlay(
-      canonicalRoot,
-      cacheKey,
-      folder,
-      overlayPath,
-      {
-        classifier: options.canonicalOverlay?.classifier,
-        sentinelCanary: options.canonicalOverlay?.sentinelCanary,
-      },
-    );
-
-    if (!result) {
-      OrchestratorLogger.log(`[LocalCache] canonical-overlay materialize returned no result`);
-      return false;
-    }
-
-    if (
-      options.canonicalOverlay?.sentinelCanary !== undefined &&
-      !CanonicalCacheService.verifySentinel(overlayPath, options.canonicalOverlay.sentinelCanary)
-    ) {
-      OrchestratorLogger.logWarning(
-        `[LocalCache] canonical-overlay sentinel verification failed; discarding overlay`,
-      );
-      try {
-        fs.rmSync(overlayPath, { recursive: true, force: true });
-      } catch {
-        // Best-effort cleanup.
-      }
-      return false;
-    }
-
-    OrchestratorLogger.log(
-      `[LocalCache] canonical-overlay restored ${folder} from canonical sha ${result.sha}`,
-    );
-    return true;
-  }
-
-  /**
-   * Publish an engine cache folder to the canonical store. Atomic-rename publish;
-   * cancel-in-progress safe by construction.
-   *
-   * If `materialize: prepared` is set, also builds a prepared overlay off the
-   * critical path so the next PreUnityJob can consume it via atomic rename.
-   */
-  private static async saveToCanonicalOverlay(
-    projectPath: string,
-    cacheRoot: string,
-    cacheKey: string,
-    folder: string,
-    options: LocalCacheSaveOptions,
-  ): Promise<void> {
-    if (options.skipOnCrashEvidence && options.diagnostics?.crashEvidenceFound) {
-      OrchestratorLogger.logWarning(
-        `[LocalCache] canonical-overlay save skipped (crash evidence found)`,
-      );
-      return;
-    }
-
-    const folderPath = path.join(projectPath, folder);
-    if (!fs.existsSync(folderPath)) {
-      OrchestratorLogger.log(`[LocalCache] ${folder} folder does not exist, skipping save`);
-      return;
-    }
-    if (!LocalCacheService.isCacheFolderComplete(folderPath, folder)) {
-      OrchestratorLogger.logWarning(`[LocalCache] ${folder} folder is incomplete, skipping save`);
-      return;
-    }
-
-    if (options.skipOnLfsPointerPoisoning) {
-      const poisoned = LocalCacheService.detectLfsPointerPoisoning(projectPath);
-      if (poisoned.length > 0) {
-        OrchestratorLogger.logWarning(
-          `[LocalCache] canonical-overlay save SKIPPED: ${poisoned.length} LFS pointer file(s) detected`,
-        );
-        return;
-      }
-    }
-
-    const canonicalRoot = CanonicalCacheService.resolveCanonicalRoot(
-      options.canonicalOverlay?.canonicalCacheRoot ?? '',
-      cacheRoot,
-    );
-    fs.mkdirSync(canonicalRoot, { recursive: true });
-
-    if (!CanonicalCacheService.isCapable(canonicalRoot)) {
-      OrchestratorLogger.logWarning(
-        `[LocalCache] canonical-overlay unavailable on ${canonicalRoot} (no hardlink support); falling back to move-directory save`,
-      );
-      const fallbackOptions: LocalCacheSaveOptions = { ...options, saveMode: 'move-directory' };
-      await LocalCacheService.saveCacheFolder(
-        projectPath,
-        cacheRoot,
-        cacheKey,
-        folder,
-        fallbackOptions,
-      );
-      return;
-    }
-
-    const result = await CanonicalCacheService.publishCanonical(
-      folderPath,
-      canonicalRoot,
-      cacheKey,
-      folder,
-      {
-        classifier: options.canonicalOverlay?.classifier,
-        versionRetention: options.canonicalOverlay?.versionRetention,
-      },
-    );
-
-    if (!result) {
-      OrchestratorLogger.logWarning(`[LocalCache] canonical-overlay publish failed`);
-      return;
-    }
-
-    // Build a prepared overlay off the critical path when requested.
-    if (options.canonicalOverlay?.materialize === 'prepared') {
-      const overlayPath = folderPath; // overlay-prepared sits next to the working overlay path
-      await CanonicalCacheService.preparedOverlay(canonicalRoot, cacheKey, folder, overlayPath, {
-        classifier: options.canonicalOverlay.classifier,
-        sentinelCanary: options.canonicalOverlay.sentinelCanary,
-      });
-    }
-  }
-
   private static async restoreCacheFolderCandidate(
     projectPath: string,
     cacheRoot: string,
@@ -420,16 +211,6 @@ export class LocalCacheService {
     folder: string,
     options: LocalCacheRestoreOptions = {},
   ): Promise<boolean> {
-    if (options.restoreMode === 'canonical-overlay') {
-      return LocalCacheService.restoreFromCanonicalOverlay(
-        projectPath,
-        cacheRoot,
-        cacheKey,
-        folder,
-        options,
-      );
-    }
-
     const cachePath = path.join(cacheRoot, cacheKey, folder);
 
     try {
@@ -501,17 +282,6 @@ export class LocalCacheService {
     folder: string,
     options: LocalCacheSaveOptions = {},
   ): Promise<void> {
-    if (options.saveMode === 'canonical-overlay') {
-      await LocalCacheService.saveToCanonicalOverlay(
-        projectPath,
-        cacheRoot,
-        cacheKey,
-        folder,
-        options,
-      );
-      return;
-    }
-
     const folderPath = path.join(projectPath, folder);
 
     try {

@@ -81,29 +81,6 @@ function getNumber(name: string, defaultValue: number): number {
   return Number(value) || defaultValue;
 }
 
-/**
- * Parse a JSON string into a CanonicalCacheClassifier shape, returning undefined
- * on parse failure so the service falls back to its built-in default classifier.
- */
-function safeParseClassifier(jsonString: string): any | undefined {
-  if (!jsonString) return undefined;
-  try {
-    return JSON.parse(jsonString);
-  } catch (error: any) {
-    core.warning(`[plugin-lifecycle] canonicalCacheClassifier JSON parse failed: ${error.message}`);
-    return undefined;
-  }
-}
-
-/**
- * Build a deterministic sentinel canary value for the current cache key + git SHA.
- * The same overlay materialized from the same canonical version should always
- * verify with the same canary content.
- */
-function buildSentinelCanary(cacheKey: string, gitSha: string): string {
-  return `canary:${cacheKey}:${gitSha || 'unknown-sha'}`;
-}
-
 // ── Plugin config ────────────────────────────────────────────────────
 // Lazy getters — values are read from env/inputs at access time,
 // so they pick up whatever the composite action or user has set.
@@ -295,22 +272,16 @@ const config = {
     return getInput('localCacheFallbackKeys');
   },
   get localCacheMode() {
-    return getInput('localCacheMode') || 'tar';
-  },
-  get canonicalCacheRoot() {
-    return getInput('canonicalCacheRoot');
-  },
-  get canonicalCacheClassifier() {
-    return getInput('canonicalCacheClassifier');
-  },
-  get canonicalCacheVersionRetention() {
-    return Number(getInput('canonicalCacheVersionRetention')) || 2;
-  },
-  get cacheMaterialize() {
-    return (getInput('cacheMaterialize') || 'eager') as 'eager' | 'prepared';
-  },
-  get cacheSentinelCanary() {
-    return getBool('cacheSentinelCanary');
+    const mode = getInput('localCacheMode') || 'tar';
+    if (mode === 'canonical-overlay') {
+      throw new Error(
+        '[plugin-lifecycle] localCacheMode: canonical-overlay has been removed. ' +
+          "Use 'move-directory' (recommended for retained runners/build farms) or 'tar' " +
+          '(recommended for remote/ephemeral caches, or combine with rclone/S3 built-in ' +
+          'container hooks — see the caching docs for details).',
+      );
+    }
+    return mode;
   },
   get maxCacheEntries() {
     return Number(getInput('maxCacheEntries')) || 2;
@@ -641,18 +612,6 @@ export function createPlugin(): OrchestratorPlugin {
           await LocalCacheService.restoreEngineCache(projectFullPath, cacheRoot, cacheKey, {
             fallbackKeys,
             restoreMode: config.localCacheMode as any,
-            cacheKey,
-            canonicalOverlay: {
-              canonicalCacheRoot: config.canonicalCacheRoot,
-              classifier: config.canonicalCacheClassifier
-                ? safeParseClassifier(config.canonicalCacheClassifier)
-                : undefined,
-              versionRetention: config.canonicalCacheVersionRetention,
-              materialize: config.cacheMaterialize,
-              sentinelCanary: config.cacheSentinelCanary
-                ? buildSentinelCanary(cacheKey, coreParams.gitSha || '')
-                : undefined,
-            },
           });
         }
       }
@@ -842,18 +801,6 @@ export function createPlugin(): OrchestratorPlugin {
             skipOnLfsPointerPoisoning: true,
             backgroundSave: config.backgroundCacheSave,
             maxCacheEntries: config.maxCacheEntries,
-            cacheKey,
-            canonicalOverlay: {
-              canonicalCacheRoot: config.canonicalCacheRoot,
-              classifier: config.canonicalCacheClassifier
-                ? safeParseClassifier(config.canonicalCacheClassifier)
-                : undefined,
-              versionRetention: config.canonicalCacheVersionRetention,
-              materialize: config.cacheMaterialize,
-              sentinelCanary: config.cacheSentinelCanary
-                ? buildSentinelCanary(cacheKey, coreParams.gitSha || '')
-                : undefined,
-            },
           });
         }
         if (config.localCacheLfs) {

@@ -488,27 +488,7 @@ inputs:
   localCacheMode:
     required: false
     default: 'tar'
-    description: 'Local Library cache mode: tar, copy-directory, move-directory, or canonical-overlay. move-directory is intended for same-volume Windows self-hosted runners. canonical-overlay (opt-in, NTFS/ext4/xfs) writes the cache once to a canonical store and per-runner overlays consume it via OS-native hardlinks. Falls back to move-directory on filesystems without hardlink support.'
-  canonicalCacheRoot:
-    required: false
-    default: ''
-    description: 'Path for the canonical cache store when localCacheMode=canonical-overlay. Falls back to <localCacheRoot>/canonical when unset.'
-  canonicalCacheClassifier:
-    required: false
-    default: ''
-    description: 'JSON describing per-subdirectory hardlink/junction/copy/skip strategy. Default targets Unity Library structure (PackageCache=junction, ScriptAssemblies/Artifacts/etc.=hardlink, PackageManager+DAG companions=copy, editor session state=skip). Override for non-Unity engines or non-default Library layouts.'
-  canonicalCacheVersionRetention:
-    required: false
-    default: '2'
-    description: 'How many canonical SHA versions to keep per cache key. Older versions are pruned by mtime.'
-  cacheMaterialize:
-    required: false
-    default: 'eager'
-    description: 'Materialization timing for canonical-overlay: eager (always live materialize before build) or prepared (build a per-runner overlay during PostUnityJob, atomic-rename into place during next PreUnityJob for sub-second hydration).'
-  cacheSentinelCanary:
-    required: false
-    default: 'false'
-    description: 'Defense-in-depth corruption check. Writes a canary file with known content into the overlay at materialize; verifies on consume. Catches silent corruption on aging hardware. Off by default.'
+    description: 'Local Library cache mode: tar, copy-directory, or move-directory. move-directory is intended for same-volume Windows self-hosted runners. NOTE: canonical-overlay has been removed (see game-ci/roadmap#11) — setting it now throws a clear error instead of running.'
   upmOfflineEnabled:
     required: false
     default: 'false'
@@ -915,11 +895,6 @@ runs:
         INPUT_LOCALCACHEFALLBACK: ${{ inputs.localCacheFallback }}
         INPUT_LOCALCACHEFALLBACKKEYS: ${{ inputs.localCacheFallbackKeys }}
         INPUT_LOCALCACHEMODE: ${{ inputs.localCacheMode }}
-        INPUT_CANONICALCACHEROOT: ${{ inputs.canonicalCacheRoot }}
-        INPUT_CANONICALCACHECLASSIFIER: ${{ inputs.canonicalCacheClassifier }}
-        INPUT_CANONICALCACHEVERSIONRETENTION: ${{ inputs.canonicalCacheVersionRetention }}
-        INPUT_CACHEMATERIALIZE: ${{ inputs.cacheMaterialize }}
-        INPUT_CACHESENTINELCANARY: ${{ inputs.cacheSentinelCanary }}
         INPUT_UPMOFFLINEENABLED: ${{ inputs.upmOfflineEnabled }}
         INPUT_BACKGROUNDCACHESAVE: ${{ inputs.backgroundCacheSave }}
         INPUT_CHILDWORKSPACESENABLED: ${{ inputs.childWorkspacesEnabled }}
