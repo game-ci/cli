@@ -1,0 +1,23 @@
+{
+  "name": "@game-ci/unity-engine-core",
+  "version": "0.1.0",
+  "description": "Unity build/test/activation implementation logic, invoked by game-ci/cli and the thin-wrapper action repos (unity-builder, unity-test-runner, unity-activate).",
+  "main": "dist/index.js",
+  "repository": "git@github.com:game-ci/unity-engine-core.git",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^2"
+  }
+}
