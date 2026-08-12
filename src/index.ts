@@ -22,12 +22,20 @@ class GameCI {
   }
 
   private static handleResult(success: boolean, command: CommandInterface) {
-    if (log.isQuiet) return;
+    if (!log.isQuiet) {
+      if (success) {
+        log.info(`${command.name} done.`);
+      } else {
+        log.warning(`${command.constructor.name} failed.`);
+      }
+    }
 
-    if (success) {
-      log.info(`${command.name} done.`);
-    } else {
-      log.warning(`${command.constructor.name} failed.`);
+    // A command reporting failure via its return value (rather than throwing) must still
+    // fail the process — otherwise CI steps relying on exit status (&&, set -e, GitHub
+    // Actions step-failure detection) silently see success. Previously this was missing
+    // entirely: handleResult logged the failure but never exited non-zero.
+    if (!success) {
+      process.exit(1);
     }
   }
 

@@ -20,7 +20,7 @@ export class GodotBuildCommand extends CommandBase implements CommandInterface {
       commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
     });
 
-    return false;
+    return true;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

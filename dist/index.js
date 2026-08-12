@@ -210,6 +210,18 @@ var require_semver = __commonJS((exports, module) => {
   var { safeRe: re, t } = require_re();
   var parseOptions = require_parse_options();
   var { compareIdentifiers } = require_identifiers();
+  var isPrereleaseIdentifier = (prerelease, identifier) => {
+    const identifiers = identifier.split(".");
+    if (identifiers.length > prerelease.length) {
+      return false;
+    }
+    for (let i = 0;i < identifiers.length; i++) {
+      if (compareIdentifiers(prerelease[i], identifiers[i]) !== 0) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   class SemVer {
     constructor(version, options) {
@@ -449,8 +461,9 @@ var require_semver = __commonJS((exports, module) => {
             if (identifierBase === false) {
               prerelease = [identifier];
             }
-            if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
-              if (isNaN(this.prerelease[1])) {
+            if (isPrereleaseIdentifier(this.prerelease, identifier)) {
+              const prereleaseBase = this.prerelease[identifier.split(".").length];
+              if (isNaN(prereleaseBase)) {
                 this.prerelease = prerelease;
               }
             } else {
@@ -779,6 +792,44 @@ var require_coerce = __commonJS((exports, module) => {
   module.exports = coerce;
 });
 
+// node_modules/semver/functions/truncate.js
+var require_truncate = __commonJS((exports, module) => {
+  var parse = require_parse();
+  var constants = require_constants();
+  var SemVer = require_semver();
+  var truncate = (version, truncation, options) => {
+    if (!constants.RELEASE_TYPES.includes(truncation)) {
+      return null;
+    }
+    const clonedVersion = cloneInputVersion(version, options);
+    return clonedVersion && doTruncation(clonedVersion, truncation);
+  };
+  var cloneInputVersion = (version, options) => {
+    const versionStringToParse = version instanceof SemVer ? version.version : version;
+    return parse(versionStringToParse, options);
+  };
+  var doTruncation = (version, truncation) => {
+    if (isPrerelease(truncation)) {
+      return version.version;
+    }
+    version.prerelease = [];
+    switch (truncation) {
+      case "major":
+        version.minor = 0;
+        version.patch = 0;
+        break;
+      case "minor":
+        version.patch = 0;
+        break;
+    }
+    return version.format();
+  };
+  var isPrerelease = (type) => {
+    return type.startsWith("pre");
+  };
+  module.exports = truncate;
+});
+
 // node_modules/semver/internal/lrucache.js
 var require_lrucache = __commonJS((exports, module) => {
   class LRUCache {
@@ -883,6 +934,7 @@ var require_range = __commonJS((exports, module) => {
       return this.range;
     }
     parseRange(range) {
+      range = range.replace(BUILDSTRIPRE, "");
       const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
       const memoKey = memoOpts + ":" + range;
       const cached = cache.get(memoKey);
@@ -964,12 +1016,14 @@ var require_range = __commonJS((exports, module) => {
   var SemVer = require_semver();
   var {
     safeRe: re,
+    src,
     t,
     comparatorTrimReplace,
     tildeTrimReplace,
     caretTrimReplace
   } = require_re();
   var { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = require_constants();
+  var BUILDSTRIPRE = new RegExp(src[t.BUILD], "g");
   var isNullSet = (c) => c.value === "<0.0.0-0";
   var isAny = (c) => c.value === "";
   var isSatisfiable = (comparators, options) => {
@@ -998,20 +1052,22 @@ var require_range = __commonJS((exports, module) => {
     return comp;
   };
   var isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
+  var invalidXRangeOrder = (M, m, p) => isX(M) && !isX(m) || isX(m) && p && !isX(p);
   var replaceTildes = (comp, options) => {
     return comp.trim().split(/\s+/).map((c) => replaceTilde(c, options)).join(" ");
   };
   var replaceTilde = (comp, options) => {
     const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
+    const z = options.includePrerelease ? "-0" : "";
     return comp.replace(r, (_, M, m, p, pr) => {
       debug("tilde", comp, _, M, m, p, pr);
       let ret;
       if (isX(M)) {
         ret = "";
       } else if (isX(m)) {
-        ret = `>=${M}.0.0 <${+M + 1}.0.0-0`;
+        ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
       } else if (isX(p)) {
-        ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`;
+        ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
       } else if (pr) {
         debug("replaceTilde pr", pr);
         ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
@@ -1057,9 +1113,9 @@ var require_range = __commonJS((exports, module) => {
         debug("no pr");
         if (M === "0") {
           if (m === "0") {
-            ret = `>=${M}.${m}.${p}${z} <${M}.${m}.${+p + 1}-0`;
+            ret = `>=${M}.${m}.${p} <${M}.${m}.${+p + 1}-0`;
           } else {
-            ret = `>=${M}.${m}.${p}${z} <${M}.${+m + 1}.0-0`;
+            ret = `>=${M}.${m}.${p} <${M}.${+m + 1}.0-0`;
           }
         } else {
           ret = `>=${M}.${m}.${p} <${+M + 1}.0.0-0`;
@@ -1078,6 +1134,9 @@ var require_range = __commonJS((exports, module) => {
     const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
     return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
       debug("xRange", comp, ret, gtlt, M, m, p, pr);
+      if (invalidXRangeOrder(M, m, p)) {
+        return comp;
+      }
       const xM = isX(M);
       const xm = xM || isX(m);
       const xp = xm || isX(p);
@@ -1686,7 +1745,7 @@ var require_subset = __commonJS((exports, module) => {
           if (higher === c && higher !== gt) {
             return false;
           }
-        } else if (gt.operator === ">=" && !satisfies(gt.semver, String(c), options)) {
+        } else if (gt.operator === ">=" && !c.test(gt.semver)) {
           return false;
         }
       }
@@ -1701,7 +1760,7 @@ var require_subset = __commonJS((exports, module) => {
           if (lower === c && lower !== lt) {
             return false;
           }
-        } else if (lt.operator === "<=" && !satisfies(lt.semver, String(c), options)) {
+        } else if (lt.operator === "<=" && !c.test(lt.semver)) {
           return false;
         }
       }
@@ -1766,6 +1825,7 @@ var require_semver2 = __commonJS((exports, module) => {
   var lte = require_lte();
   var cmp = require_cmp();
   var coerce = require_coerce();
+  var truncate = require_truncate();
   var Comparator = require_comparator();
   var Range = require_range();
   var satisfies = require_satisfies();
@@ -1804,6 +1864,7 @@ var require_semver2 = __commonJS((exports, module) => {
     lte,
     cmp,
     coerce,
+    truncate,
     Comparator,
     Range,
     satisfies,
@@ -6682,8 +6743,10 @@ ${cb}` : comment;
         }
       }
       if (afterDoc) {
-        Array.prototype.push.apply(doc.errors, this.errors);
-        Array.prototype.push.apply(doc.warnings, this.warnings);
+        for (let i = 0;i < this.errors.length; ++i)
+          doc.errors.push(this.errors[i]);
+        for (let i = 0;i < this.warnings.length; ++i)
+          doc.warnings.push(this.warnings[i]);
       } else {
         doc.errors = this.errors;
         doc.warnings = this.warnings;
@@ -7395,7 +7458,7 @@ var require_lexer = __commonJS((exports) => {
         const n = (yield* this.pushCount(1)) + (yield* this.pushSpaces(true));
         this.indentNext = this.indentValue + 1;
         this.indentValue += n;
-        return yield* this.parseBlockStart();
+        return "block-start";
       }
       return "doc";
     }
@@ -7702,26 +7765,37 @@ var require_lexer = __commonJS((exports) => {
       return 0;
     }
     *pushIndicators() {
-      switch (this.charAt(0)) {
-        case "!":
-          return (yield* this.pushTag()) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
-        case "&":
-          return (yield* this.pushUntil(isNotAnchorChar)) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
-        case "-":
-        case "?":
-        case ":": {
-          const inFlow = this.flowLevel > 0;
-          const ch1 = this.charAt(1);
-          if (isEmpty(ch1) || inFlow && flowIndicatorChars.has(ch1)) {
-            if (!inFlow)
-              this.indentNext = this.indentValue + 1;
-            else if (this.flowKey)
-              this.flowKey = false;
-            return (yield* this.pushCount(1)) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
+      let n = 0;
+      loop:
+        while (true) {
+          switch (this.charAt(0)) {
+            case "!":
+              n += yield* this.pushTag();
+              n += yield* this.pushSpaces(true);
+              continue loop;
+            case "&":
+              n += yield* this.pushUntil(isNotAnchorChar);
+              n += yield* this.pushSpaces(true);
+              continue loop;
+            case "-":
+            case "?":
+            case ":": {
+              const inFlow = this.flowLevel > 0;
+              const ch1 = this.charAt(1);
+              if (isEmpty(ch1) || inFlow && flowIndicatorChars.has(ch1)) {
+                if (!inFlow)
+                  this.indentNext = this.indentValue + 1;
+                else if (this.flowKey)
+                  this.flowKey = false;
+                n += yield* this.pushCount(1);
+                n += yield* this.pushSpaces(true);
+                continue loop;
+              }
+            }
           }
+          break loop;
         }
-      }
-      return 0;
+      return n;
     }
     *pushTag() {
       if (this.charAt(1) === "<") {
@@ -7875,6 +7949,13 @@ var require_parser = __commonJS((exports) => {
     while (prev[++i]?.type === "space") {}
     return prev.splice(i, prev.length);
   }
+  function arrayPushArray(target, source) {
+    if (source.length < 1e5)
+      Array.prototype.push.apply(target, source);
+    else
+      for (let i = 0;i < source.length; ++i)
+        target.push(source[i]);
+  }
   function fixFlowSeqItems(fc) {
     if (fc.start.type === "flow-seq-start") {
       for (const it of fc.items) {
@@ -7884,11 +7965,11 @@ var require_parser = __commonJS((exports) => {
           delete it.key;
           if (isFlowToken(it.value)) {
             if (it.value.end)
-              Array.prototype.push.apply(it.value.end, it.sep);
+              arrayPushArray(it.value.end, it.sep);
             else
               it.value.end = it.sep;
           } else
-            Array.prototype.push.apply(it.start, it.sep);
+            arrayPushArray(it.start, it.sep);
           delete it.sep;
         }
       }
@@ -8228,7 +8309,7 @@ var require_parser = __commonJS((exports) => {
               const prev = map.items[map.items.length - 2];
               const end = prev?.value?.end;
               if (Array.isArray(end)) {
-                Array.prototype.push.apply(end, it.start);
+                arrayPushArray(end, it.start);
                 end.push(this.sourceToken);
                 map.items.pop();
                 return;
@@ -8416,7 +8497,7 @@ var require_parser = __commonJS((exports) => {
               const prev = seq.items[seq.items.length - 2];
               const end = prev?.value?.end;
               if (Array.isArray(end)) {
-                Array.prototype.push.apply(end, it.start);
+                arrayPushArray(end, it.start);
                 end.push(this.sourceToken);
                 seq.items.pop();
                 return;
@@ -15014,7 +15095,7 @@ var configureLogger = async (verbosity) => {
       return String(value);
     }
   };
-  process.on("SIGINT", () => process.exit(0));
+  process.on("SIGINT", () => process.exit(130));
   const logger = {
     verbosity,
     verbosityName: Verbosity[verbosity],
@@ -15139,7 +15220,7 @@ class BuildImageCommand extends CommandBase {
     const baseImage = options.baseImage || defaultBaseImage;
     if (!unityVersion) {
       log.error("--unity-version is required");
-      return true;
+      return false;
     }
     let resolvedChangeset = changeset;
     if (!resolvedChangeset) {
@@ -15152,7 +15233,7 @@ class BuildImageCommand extends CommandBase {
         log.info(`Changeset: ${resolvedChangeset}`);
       } catch {
         log.error(`Could not resolve changeset for ${unityVersion}. Use --changeset to provide it manually.`);
-        return true;
+        return false;
       }
     }
     const moduleSlug = modules.replace(/,/g, "-");
@@ -15181,7 +15262,7 @@ class BuildImageCommand extends CommandBase {
       const buildResult = await System.run(buildCmd);
       if (buildResult.exitCode !== 0) {
         log.error(`Docker build failed with exit code ${buildResult.exitCode}`);
-        return true;
+        return false;
       }
       log.info(`Successfully built: ${imageTag}`);
       if (push) {
@@ -15189,7 +15270,7 @@ class BuildImageCommand extends CommandBase {
         const pushResult = await System.run(`docker push "${imageTag}"`);
         if (pushResult.exitCode !== 0) {
           log.error(`Docker push failed`);
-          return true;
+          return false;
         }
         log.info(`Pushed: ${imageTag}`);
       }
@@ -15199,7 +15280,7 @@ class BuildImageCommand extends CommandBase {
         fs.unlinkSync(dockerfilePath);
       } catch {}
     }
-    return false;
+    return true;
   }
   async configureOptions(yargs) {
     yargs.positional("baseOs", {
@@ -17321,7 +17402,7 @@ class UnityBuildCommand extends CommandBase {
       throw buildError;
     await Output.setBuildVersion(options.buildVersion);
     await Output.setAndroidVersionCode(options.androidVersionCode);
-    return false;
+    return true;
   }
   async configureOptions(yargs) {
     await ProjectOptions.configure(yargs);
@@ -17424,7 +17505,7 @@ class UnityLogsCommand extends CommandBase {
     if (result.missing.length > 0) {
       log.info(`[logs collect] Missing categories on this host: ${result.missing.join(", ")}`);
     }
-    return false;
+    return true;
   }
   async runTail(options) {
     const projectPath = options.projectPath || options.workspace || process.cwd();
@@ -17433,9 +17514,9 @@ class UnityLogsCommand extends CommandBase {
     const files = explicit.length > 0 ? explicit : defaults;
     log.info(`[logs tail] Tailing ${files.length} file(s) — Ctrl+C to stop`);
     const stop = UnityLogs.streamFiles(files);
-    const onSignal = () => {
+    const onSignal = (signal) => {
       stop();
-      process.exit(0);
+      process.exit(signal === "SIGINT" ? 130 : 143);
     };
     process.on("SIGINT", onSignal);
     process.on("SIGTERM", onSignal);
@@ -17546,7 +17627,7 @@ class GodotBuildCommand extends CommandBase {
       ...options,
       commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`
     });
-    return false;
+    return true;
   }
   async configureOptions(yargs) {
     await ProjectOptions.configure(yargs);
@@ -17665,7 +17746,7 @@ class UnrealBuildCommand extends CommandBase {
         "-unattended"
       ].join(" ")
     });
-    return false;
+    return true;
   }
   async configureOptions(yargs) {
     await ProjectOptions.configure(yargs);
@@ -17935,12 +18016,15 @@ class GameCI {
     }
   }
   static handleResult(success, command2) {
-    if (log.isQuiet)
-      return;
-    if (success) {
-      log.info(`${command2.name} done.`);
-    } else {
-      log.warning(`${command2.constructor.name} failed.`);
+    if (!log.isQuiet) {
+      if (success) {
+        log.info(`${command2.name} done.`);
+      } else {
+        log.warning(`${command2.constructor.name} failed.`);
+      }
+    }
+    if (!success) {
+      process.exit(1);
     }
   }
   static handleError(error) {

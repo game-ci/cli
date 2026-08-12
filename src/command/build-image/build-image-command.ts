@@ -18,7 +18,7 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
 
     if (!unityVersion) {
       log.error('--unity-version is required');
-      return true;
+      return false;
     }
 
     // Resolve changeset if not provided
@@ -37,7 +37,7 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
         log.error(
           `Could not resolve changeset for ${unityVersion}. Use --changeset to provide it manually.`,
         );
-        return true;
+        return false;
       }
     }
 
@@ -77,7 +77,7 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       const buildResult = await System.run(buildCmd);
       if (buildResult.exitCode !== 0) {
         log.error(`Docker build failed with exit code ${buildResult.exitCode}`);
-        return true;
+        return false;
       }
 
       log.info(`Successfully built: ${imageTag}`);
@@ -88,7 +88,7 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
         const pushResult = await System.run(`docker push "${imageTag}"`);
         if (pushResult.exitCode !== 0) {
           log.error(`Docker push failed`);
-          return true;
+          return false;
         }
         log.info(`Pushed: ${imageTag}`);
       }
@@ -100,7 +100,7 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       } catch {}
     }
 
-    return false;
+    return true;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

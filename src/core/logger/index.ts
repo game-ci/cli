@@ -55,8 +55,11 @@ export const configureLogger = async (verbosity: Verbosity) => {
     }
   };
 
-  // Flush file on SIGINT
-  process.on('SIGINT', () => process.exit(0));
+  // Exit on SIGINT (log writes above are synchronous, so nothing to flush).
+  // 130 (128 + SIGINT's signal number) is the POSIX convention — this was
+  // previously exiting 0, making a user-cancelled run indistinguishable from
+  // success to any script checking $?.
+  process.on('SIGINT', () => process.exit(130));
 
   const logger = {
     verbosity,
