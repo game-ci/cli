@@ -27,4 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - name: Verify dist is up to date
+        run: |
+          npm run build
+          git diff --quiet dist || { echo "dist/ is out of date — run 'npm run build' and commit the result"; git diff dist; exit 1; }
