@@ -10,10 +10,15 @@ if ($env:UNITY_LICENSING_SERVER) {
   & 'C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe' --return-floating $global:FLOATING_LICENSE
 }
 else {
+  # -projectPath points at the scratch activation directory, not the built
+  # project, so Unity doesn't reopen the real project (and reimport its
+  # library against whatever the editor's default target is) just to
+  # return the license (game-ci/cli#33).
   & "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" -batchmode -quit -nographics `
                                                                             -username $Env:UNITY_EMAIL `
                                                                             -password $Env:UNITY_PASSWORD `
                                                                             -returnlicense `
+                                                                            -projectPath $ACTIVATE_LICENSE_PATH `
                                                                             -logfile | Out-Host
 }
 
