@@ -22,7 +22,7 @@ export class UnrealBuildCommand extends CommandBase implements CommandInterface 
     log.info(`Target platform: ${targetPlatform}, Config: ${buildConfig}`);
 
     const { Docker } = await import('../../model/index.ts');
-    await Docker.run(customImage, {
+    await log.group('Unreal build', () => Docker.run(customImage, {
       ...options,
       commands: [
         // RunUAT.sh is the standard Unreal Automation Tool entry point
@@ -40,7 +40,7 @@ export class UnrealBuildCommand extends CommandBase implements CommandInterface 
         '-noP4',
         '-unattended',
       ].join(' '),
-    });
+    }));
 
     return true;
   }

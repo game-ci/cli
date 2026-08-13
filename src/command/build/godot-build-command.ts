@@ -15,9 +15,11 @@ export class GodotBuildCommand extends CommandBase implements CommandInterface {
     log.info(`Export preset: ${exportPreset}`);
 
     const { Docker } = await import('../../model/index.ts');
-    await Docker.run(godotImage, {
-      ...options,
-      commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
+    await log.group('Godot export', async () => {
+      await Docker.run(godotImage, {
+        ...options,
+        commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
+      });
     });
 
     return true;

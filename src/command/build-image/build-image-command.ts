@@ -96,24 +96,32 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       ].join(' ');
 
       log.info(`Running: ${buildCmd}`);
-      try {
-        await System.run(buildCmd);
-      } catch (error: any) {
-        log.error(`Docker build failed: ${error.message}`);
-        return false;
-      }
+      let buildFailed = false;
+      await log.group(`docker build (${imageTag})`, async () => {
+        try {
+          await System.run(buildCmd);
+        } catch (error: any) {
+          log.error(`Docker build failed: ${error.message}`);
+          buildFailed = true;
+        }
+      });
+      if (buildFailed) return false;
 
       log.info(`Successfully built: ${imageTag}`);
 
       // Push if requested
       if (push) {
         log.info(`Pushing ${imageTag}...`);
-        try {
-          await System.run(`docker push "${imageTag}"`);
-        } catch (error: any) {
-          log.error(`Docker push failed: ${error.message}`);
-          return false;
-        }
+        let pushFailed = false;
+        await log.group(`docker push (${imageTag})`, async () => {
+          try {
+            await System.run(`docker push "${imageTag}"`);
+          } catch (error: any) {
+            log.error(`Docker push failed: ${error.message}`);
+            pushFailed = true;
+          }
+        });
+        if (pushFailed) return false;
         log.info(`Pushed: ${imageTag}`);
       }
     } finally {

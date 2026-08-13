@@ -19,6 +19,9 @@ declare global {
     info: (msg: any, ...args: any[]) => void;
     warning: (msg: any, ...args: any[]) => void;
     error: (msg: any, ...args: any[]) => void;
+    startGroup: (name: string) => void;
+    endGroup: () => void;
+    group: <T>(name: string, fn: () => Promise<T> | T) => Promise<T>;
   };
 
   var process: typeof import('node:process');
