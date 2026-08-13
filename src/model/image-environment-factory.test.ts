@@ -1,8 +1,9 @@
 import { ImageEnvironmentFactory } from './image-environment-factory.ts';
+import { UnityEnvironment } from '../logic/unity/environment.ts';
 
 describe('ImageEnvironmentFactory', () => {
   it('adds shell line continuations for Linux docker env flags', () => {
-    const envString = ImageEnvironmentFactory.getEnvVarString({
+    const options = {
       hostOS: 'linux',
       unityLicense: 'ci-stub-license',
       engineVersion: '2019.4.40f1',
@@ -11,7 +12,8 @@ describe('ImageEnvironmentFactory', () => {
       buildName: 'StandaloneLinux64',
       buildPath: 'build/StandaloneLinux64',
       buildFile: 'StandaloneLinux64',
-    } as any);
+    } as any;
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
 
     const lines = envString.split('\n');
 
@@ -23,15 +25,27 @@ describe('ImageEnvironmentFactory', () => {
   });
 
   it('keeps PowerShell line continuations for Windows docker env flags', () => {
-    const envString = ImageEnvironmentFactory.getEnvVarString({
+    const options = {
       hostOS: 'windows',
       unityLicense: 'ci-stub-license',
       engineVersion: '2019.4.40f1',
-    } as any);
+    } as any;
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
 
     const lines = envString.split('\n');
 
     expect(lines.slice(0, -1).every((line) => line.endsWith(' `'))).toBe(true);
     expect(lines.at(-1)!.endsWith(' `')).toBe(false);
+  });
+
+  it('omits engine-specific env vars when no extraVariables are given (Godot/Unreal path)', () => {
+    const envString = ImageEnvironmentFactory.getEnvVarString({
+      hostOS: 'linux',
+      projectPath: 'test-project',
+      targetPlatform: 'StandaloneLinux64',
+    } as any);
+
+    expect(envString).not.toContain('UNITY_LICENSE');
+    expect(envString).toContain('--env PROJECT_PATH="test-project"');
   });
 });

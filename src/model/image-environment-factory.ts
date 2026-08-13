@@ -6,9 +6,15 @@ class DockerParameter {
 }
 
 class ImageEnvironmentFactory {
-  public static getEnvVarString(options: Options) {
+  /**
+   * @param extraVariables Engine-supplied env vars (e.g. Unity's
+   * UNITY_LICENSE/ANDROID_* set — see src/logic/unity/environment.ts) to
+   * merge in alongside the generic/engine-agnostic ones below. Omit for
+   * engines (Godot, Unreal) that don't have their own env var set yet.
+   */
+  public static getEnvVarString(options: Options, extraVariables: DockerParameter[] = []) {
     const { hostOS } = options;
-    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
+    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
     const lineContinuation = hostOS === 'windows' ? '`' : '\\';
     const lines: string[] = [];
     for (const p of environmentVariables) {
@@ -32,16 +38,11 @@ class ImageEnvironmentFactory {
 
     return lines.join(` ${lineContinuation}\n`);
   }
-  public static getEnvironmentVariables(options: Options) {
+
+  /** Engine-agnostic env vars — apply to any engine's Docker build, not Unity-specific. */
+  public static getEnvironmentVariables(options: Options, extraVariables: DockerParameter[] = []) {
     const environmentVariables: DockerParameter[] = [
-      { name: 'UNITY_LICENSE', value: options.unityLicense },
-      { name: 'UNITY_LICENSE_FILE', value: options.unityLicenseFile },
-      { name: 'UNITY_EMAIL', value: options.unityEmail },
-      { name: 'UNITY_PASSWORD', value: options.unityPassword },
-      { name: 'UNITY_SERIAL', value: options.unitySerial },
-      { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
-      { name: 'UNITY_VERSION', value: options.engineVersion },
-      { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
+      ...extraVariables,
       { name: 'PROJECT_PATH', value: options.projectPath },
       { name: 'BUILD_TARGET', value: options.targetPlatform },
       { name: 'BUILD_NAME', value: options.buildName },
@@ -49,16 +50,6 @@ class ImageEnvironmentFactory {
       { name: 'BUILD_FILE', value: options.buildFile },
       { name: 'BUILD_METHOD', value: options.buildMethod },
       { name: 'VERSION', value: options.buildVersion },
-      { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },
-      { name: 'ANDROID_KEYSTORE_NAME', value: options.androidKeystoreName },
-      { name: 'ANDROID_KEYSTORE_BASE64', value: options.androidKeystoreBase64 },
-      { name: 'ANDROID_KEYSTORE_PASS', value: options.androidKeystorePass },
-      { name: 'ANDROID_KEYALIAS_NAME', value: options.androidKeyaliasName },
-      { name: 'ANDROID_KEYALIAS_PASS', value: options.androidKeyaliasPass },
-      { name: 'ANDROID_TARGET_SDK_VERSION', value: options.androidTargetSdkVersion },
-      { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: options.androidSdkManagerParameters },
-      { name: 'ANDROID_EXPORT_TYPE', value: options.androidExportType },
-      { name: 'ANDROID_SYMBOL_TYPE', value: options.androidSymbolType },
       { name: 'CUSTOM_PARAMETERS', value: options.customParameters },
       { name: 'CHOWN_FILES_TO', value: options.chownFilesTo },
       { name: 'GITHUB_REF', value: process.env.GITHUB_REF },
@@ -82,4 +73,4 @@ class ImageEnvironmentFactory {
   }
 }
 
-export { ImageEnvironmentFactory };
+export { ImageEnvironmentFactory, DockerParameter };
