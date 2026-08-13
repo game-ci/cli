@@ -14420,9 +14420,9 @@ var init_cache_validation = __esm(() => {
 
 // src/model/image-environment-factory.ts
 class ImageEnvironmentFactory {
-  static getEnvVarString(options) {
+  static getEnvVarString(options, extraVariables = []) {
     const { hostOS } = options;
-    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
+    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
     const lineContinuation = hostOS === "windows" ? "`" : "\\";
     const lines = [];
     for (const p of environmentVariables) {
@@ -14444,16 +14444,9 @@ class ImageEnvironmentFactory {
     return lines.join(` ${lineContinuation}
 `);
   }
-  static getEnvironmentVariables(options) {
+  static getEnvironmentVariables(options, extraVariables = []) {
     const environmentVariables = [
-      { name: "UNITY_LICENSE", value: options.unityLicense },
-      { name: "UNITY_LICENSE_FILE", value: options.unityLicenseFile },
-      { name: "UNITY_EMAIL", value: options.unityEmail },
-      { name: "UNITY_PASSWORD", value: options.unityPassword },
-      { name: "UNITY_SERIAL", value: options.unitySerial },
-      { name: "UNITY_LICENSING_SERVER", value: options.unityLicensingServer },
-      { name: "UNITY_VERSION", value: options.engineVersion },
-      { name: "USYM_UPLOAD_AUTH_TOKEN", value: options.uploadAuthToken },
+      ...extraVariables,
       { name: "PROJECT_PATH", value: options.projectPath },
       { name: "BUILD_TARGET", value: options.targetPlatform },
       { name: "BUILD_NAME", value: options.buildName },
@@ -14461,17 +14454,6 @@ class ImageEnvironmentFactory {
       { name: "BUILD_FILE", value: options.buildFile },
       { name: "BUILD_METHOD", value: options.buildMethod },
       { name: "VERSION", value: options.buildVersion },
-      { name: "ANDROID_VERSION_CODE", value: options.androidVersionCode },
-      { name: "ANDROID_KEYSTORE_NAME", value: options.androidKeystoreName },
-      { name: "ANDROID_KEYSTORE_BASE64", value: options.androidKeystoreBase64 },
-      { name: "ANDROID_KEYSTORE_PASS", value: options.androidKeystorePass },
-      { name: "ANDROID_KEYALIAS_NAME", value: options.androidKeyaliasName },
-      { name: "ANDROID_KEYALIAS_PASS", value: options.androidKeyaliasPass },
-      { name: "ANDROID_TARGET_SDK_VERSION", value: options.androidTargetSdkVersion },
-      { name: "ANDROID_SDK_MANAGER_PARAMETERS", value: options.androidSdkManagerParameters },
-      { name: "ANDROID_EXPORT_TYPE", value: options.androidExportType },
-      { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType },
-      { name: "MANUAL_EXIT", value: options.manualExit ? "true" : "" },
       { name: "CUSTOM_PARAMETERS", value: options.customParameters },
       { name: "CHOWN_FILES_TO", value: options.chownFilesTo },
       { name: "GITHUB_REF", value: process.env.GITHUB_REF },
@@ -14513,7 +14495,41 @@ class UnityBuildValidation {
 }
 var init_unity_build_validation = () => {};
 
+// src/logic/unity/environment.ts
+var UnityEnvironment;
+var init_environment = __esm(() => {
+  UnityEnvironment = {
+    getVariables(options) {
+      return [
+        { name: "UNITY_LICENSE", value: options.unityLicense },
+        { name: "UNITY_LICENSE_FILE", value: options.unityLicenseFile },
+        { name: "UNITY_EMAIL", value: options.unityEmail },
+        { name: "UNITY_PASSWORD", value: options.unityPassword },
+        { name: "UNITY_SERIAL", value: options.unitySerial },
+        { name: "UNITY_LICENSING_SERVER", value: options.unityLicensingServer },
+        { name: "UNITY_VERSION", value: options.engineVersion },
+        { name: "USYM_UPLOAD_AUTH_TOKEN", value: options.uploadAuthToken },
+        { name: "ANDROID_VERSION_CODE", value: options.androidVersionCode },
+        { name: "ANDROID_KEYSTORE_NAME", value: options.androidKeystoreName },
+        { name: "ANDROID_KEYSTORE_BASE64", value: options.androidKeystoreBase64 },
+        { name: "ANDROID_KEYSTORE_PASS", value: options.androidKeystorePass },
+        { name: "ANDROID_KEYALIAS_NAME", value: options.androidKeyaliasName },
+        { name: "ANDROID_KEYALIAS_PASS", value: options.androidKeyaliasPass },
+        { name: "ANDROID_TARGET_SDK_VERSION", value: options.androidTargetSdkVersion },
+        { name: "ANDROID_SDK_MANAGER_PARAMETERS", value: options.androidSdkManagerParameters },
+        { name: "ANDROID_EXPORT_TYPE", value: options.androidExportType },
+        { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType },
+        { name: "MANUAL_EXIT", value: options.manualExit ? "true" : "" }
+      ];
+    }
+  };
+});
+
 // src/model/docker.ts
+function engineEnvVars(options) {
+  return options.engine === "unity" ? UnityEnvironment.getVariables(options) : [];
+}
+
 class Docker {
   static async run(image, options) {
     const { hostPlatform, hostOS, engine } = options;
@@ -14558,58 +14574,62 @@ class Docker {
     }
   }
   static getLinuxCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath } = options;
+    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath, commands, engine } = options;
     const home = homeDir;
-    const envVarString = ImageEnvironmentFactory.getEnvVarString(options).replace(/ \\\n/g, " ");
+    const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(/ \\\n/g, " ");
+    const isUnityDefaultFlow = !commands || engine === "unity";
     return [
       "docker run",
       "--rm",
       `--workdir ${dockerWorkspacePath}`,
       envVarString,
-      "--env UNITY_SERIAL",
+      isUnityDefaultFlow ? "--env UNITY_SERIAL" : "",
       `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
       gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : "",
       sshAgent ? "--env SSH_AUTH_SOCK=/ssh-agent" : "",
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
-      `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"`,
-      `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"`,
-      `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"`,
-      `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"`,
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
       sshAgent ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
       image,
-      "/bin/bash /entrypoint.sh"
+      isUnityDefaultFlow ? "/bin/bash /entrypoint.sh" : commands
     ].filter(Boolean).join(" ");
   }
   static getWindowsCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath } = options;
-    return String.dedent`
-      docker run \`
-        --rm \`
-        --workdir="c:${dockerWorkspacePath}" \`
-        ${ImageEnvironmentFactory.getEnvVarString(options)} \`
-        --env UNITY_SERIAL="${unitySerial}" \`
-        --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \`
-        --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \`
-        --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \`
-        --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`
-        --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \`
-        --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \`
-        --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" \`
-        --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`
-        --volume="${cliDistPath}/platforms/windows":"c:/steps" \`
-        --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`
-        --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`
-        ${image} \`
-        powershell c:/steps/entrypoint.ps1
-    `;
+    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath, commands, engine } = options;
+    const isUnityDefaultFlow = !commands || engine === "unity";
+    return [
+      "docker run `",
+      "  --rm `",
+      `  --workdir="c:${dockerWorkspacePath}" \``,
+      `  ${ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options))} \``,
+      isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : "",
+      `  --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \``,
+      `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
+      `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
+      isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : "",
+      isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" `' : "",
+      isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" `' : "",
+      isUnityDefaultFlow ? '  --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" `' : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : "",
+      `  ${image} \``,
+      isUnityDefaultFlow ? "  powershell c:/steps/entrypoint.ps1" : `  ${commands}`
+    ].filter(Boolean).join(`
+`);
   }
 }
 var init_docker = __esm(() => {
   init_image_environment_factory();
   init_system();
   init_unity_build_validation();
+  init_environment();
 });
 
 // src/model/unity/target-platform/unity-target-platform.ts
@@ -15126,6 +15146,27 @@ var configureLogger = async (verbosity) => {
       const formatted = formatArgs(msg, args);
       writeToFile("ERROR", formatted);
       console.error(`[ERROR] ${formatted}`);
+    },
+    startGroup: (name) => {
+      writeToFile("GROUP", name);
+      if (process.env.GITHUB_ACTIONS === "true" && !isQuiet) {
+        console.log(`::group::${name}`);
+      } else if (!isQuiet) {
+        console.log(`--- ${name} ---`);
+      }
+    },
+    endGroup: () => {
+      if (process.env.GITHUB_ACTIONS === "true" && !isQuiet) {
+        console.log("::endgroup::");
+      }
+    },
+    group: async (name, fn) => {
+      logger.startGroup(name);
+      try {
+        return await fn();
+      } finally {
+        logger.endGroup();
+      }
     }
   };
   globalThis.log = logger;
@@ -15323,21 +15364,31 @@ class BuildImageCommand extends CommandBase {
         "."
       ].join(" ");
       log.info(`Running: ${buildCmd}`);
-      try {
-        await System.run(buildCmd);
-      } catch (error) {
-        log.error(`Docker build failed: ${error.message}`);
+      let buildFailed = false;
+      await log.group(`docker build (${imageTag})`, async () => {
+        try {
+          await System.run(buildCmd);
+        } catch (error) {
+          log.error(`Docker build failed: ${error.message}`);
+          buildFailed = true;
+        }
+      });
+      if (buildFailed)
         return false;
-      }
       log.info(`Successfully built: ${imageTag}`);
       if (push) {
         log.info(`Pushing ${imageTag}...`);
-        try {
-          await System.run(`docker push "${imageTag}"`);
-        } catch (error) {
-          log.error(`Docker push failed: ${error.message}`);
+        let pushFailed = false;
+        await log.group(`docker push (${imageTag})`, async () => {
+          try {
+            await System.run(`docker push "${imageTag}"`);
+          } catch (error) {
+            log.error(`Docker push failed: ${error.message}`);
+            pushFailed = true;
+          }
+        });
+        if (pushFailed)
           return false;
-        }
         log.info(`Pushed: ${imageTag}`);
       }
     } finally {
@@ -17445,11 +17496,13 @@ class UnityBuildCommand extends CommandBase {
     let buildError;
     let buildSucceeded = true;
     try {
-      if (hostPlatform === "darwin") {
-        await MacBuilder.run(options);
-      } else {
-        await Docker.run(image.toString(), options);
-      }
+      await log.group("Unity build", async () => {
+        if (hostPlatform === "darwin") {
+          await MacBuilder.run(options);
+        } else {
+          await Docker.run(image.toString(), options);
+        }
+      });
     } catch (error) {
       buildError = error;
       buildSucceeded = false;
@@ -17775,9 +17828,11 @@ class GodotBuildCommand extends CommandBase {
     log.info(`Using image: ${godotImage}`);
     log.info(`Export preset: ${exportPreset}`);
     const { Docker: Docker2 } = await Promise.resolve().then(() => (init_model(), exports_model));
-    await Docker2.run(godotImage, {
-      ...options,
-      commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`
+    await log.group("Godot export", async () => {
+      await Docker2.run(godotImage, {
+        ...options,
+        commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`
+      });
     });
     return true;
   }
@@ -17880,7 +17935,7 @@ class UnrealBuildCommand extends CommandBase {
     log.info(`Using image: ${customImage}`);
     log.info(`Target platform: ${targetPlatform}, Config: ${buildConfig}`);
     const { Docker: Docker2 } = await Promise.resolve().then(() => (init_model(), exports_model));
-    await Docker2.run(customImage, {
+    await log.group("Unreal build", () => Docker2.run(customImage, {
       ...options,
       commands: [
         "/home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh",
@@ -17897,7 +17952,7 @@ class UnrealBuildCommand extends CommandBase {
         "-noP4",
         "-unattended"
       ].join(" ")
-    });
+    }));
     return true;
   }
   async configureOptions(yargs) {
