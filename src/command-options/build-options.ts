@@ -55,6 +55,42 @@ export class BuildOptions implements IOptions {
         type: 'boolean',
         demandOption: false,
         default: false,
+      })
+      .option('buildProfile', {
+        description: String.dedent`Path to a Unity 6 Build Profile asset (relative to the project), used instead of
+        --targetPlatform to determine the build's target and settings.`,
+        type: 'string',
+        demandOption: false,
+        default: '',
+      })
+      .option('skipActivation', {
+        description: String.dedent`Skip the license activation and return-license steps entirely. Useful when a
+        license is already active in a long-lived container (e.g. some self-hosted runner setups).`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('runAsHostUser', {
+        description: String.dedent`Linux only. Run the build as a user matching the host system's UID/GID instead of
+        the container's default root user, so build artifacts aren't left root-owned on the host. Useful for
+        fixing permission errors on self-hosted runners.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('enableGpu', {
+        description: String.dedent`Windows only. Installs a Mesa llvmpipe software graphics driver before the build,
+        for GPU-less compute-shader/graphics testing.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('gitConfigExtensions', {
+        description: String.dedent`Linux only. Newline-separated list of extra git config entries to set before the
+        build, in "key=value" form (e.g. for LFS/submodule auth setups not covered by gitPrivateToken).`,
+        type: 'string',
+        demandOption: false,
+        default: '',
       });
   }
 }

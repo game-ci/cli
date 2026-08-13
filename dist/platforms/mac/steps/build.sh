@@ -20,6 +20,16 @@ echo "Using build name \"$BUILD_NAME\"."
 echo "Using build target \"$BUILD_TARGET\"."
 
 #
+# Display the build profile
+#
+
+if [ -z "$BUILD_PROFILE" ]; then
+  echo "Doing a default \"$BUILD_TARGET\" platform build."
+else
+  echo "Using build profile \"$BUILD_PROFILE\" relative to \"$UNITY_PROJECT_PATH\"."
+fi
+
+#
 # Display build path and file
 #
 
@@ -126,6 +136,17 @@ if [ "$MANUAL_EXIT" = "true" ]; then
   QUIT_FLAG=""
 fi
 
+# BUILD_PROFILE (Unity 6) determines the target itself, so -buildTarget is
+# omitted when one is set - matches real unity-builder's own handling.
+BUILD_TARGET_FLAG="-buildTarget $BUILD_TARGET"
+if [ -n "$BUILD_PROFILE" ]; then
+  BUILD_TARGET_FLAG=""
+fi
+BUILD_PROFILE_FLAGS=""
+if [ -n "$BUILD_PROFILE" ]; then
+  BUILD_PROFILE_FLAGS="-activeBuildProfile $BUILD_PROFILE"
+fi
+
 /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
   -logFile - \
   $QUIT_FLAG \
@@ -135,9 +156,11 @@ fi
   -password "$UNITY_PASSWORD" \
   -customBuildName "$BUILD_NAME" \
   -projectPath "$UNITY_PROJECT_PATH" \
-  -buildTarget "$BUILD_TARGET" \
+  $BUILD_TARGET_FLAG \
   -customBuildTarget "$BUILD_TARGET" \
   -customBuildPath "$CUSTOM_BUILD_PATH" \
+  -customBuildProfile "$BUILD_PROFILE" \
+  $BUILD_PROFILE_FLAGS \
   -executeMethod "$BUILD_METHOD" \
   -buildVersion "$VERSION" \
   -androidVersionCode "$ANDROID_VERSION_CODE" \

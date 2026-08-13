@@ -20,6 +20,16 @@ echo "Using build name \"$BUILD_NAME\"."
 echo "Using build target \"$BUILD_TARGET\"."
 
 #
+# Display the build profile
+#
+
+if [ -z "$BUILD_PROFILE" ]; then
+  echo "Doing a default \"$BUILD_TARGET\" platform build."
+else
+  echo "Using build profile \"$BUILD_PROFILE\" relative to \"$UNITY_PROJECT_PATH\"."
+fi
+
+#
 # Display build path and file
 #
 
@@ -60,19 +70,6 @@ else
   #
   echo "Using build method \"$BUILD_METHOD\"."
   #
-fi
-
-#
-# Prepare Android SDK, if needed
-#
-
-if [[ "$BUILD_TARGET" == "Android" && -n "$ANDROID_SDK_MANAGER_PARAMETERS" ]]; then
-  echo "Updating Android SDK with parameters: $ANDROID_SDK_MANAGER_PARAMETERS"
-  export JAVA_HOME="$(awk -F'=' '/JAVA_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
-  "$(awk -F'=' '/ANDROID_HOME=/{print $2}' /usr/bin/unity-editor.d/*)/tools/bin/sdkmanager" "$ANDROID_SDK_MANAGER_PARAMETERS"
-  echo "Updated Android SDK."
-else
-  echo "Not updating Android SDK."
 fi
 
 #
@@ -124,14 +121,27 @@ if [ "$MANUAL_EXIT" = "true" ]; then
   QUIT_FLAG=""
 fi
 
+# BUILD_PROFILE (Unity 6) determines the target itself, so -buildTarget is
+# omitted when one is set - matches real unity-builder's own handling.
+BUILD_TARGET_FLAG=""
+if [ -z "$BUILD_PROFILE" ]; then
+  BUILD_TARGET_FLAG="-buildTarget $BUILD_TARGET"
+fi
+BUILD_PROFILE_FLAGS=""
+if [ -n "$BUILD_PROFILE" ]; then
+  BUILD_PROFILE_FLAGS="-activeBuildProfile $BUILD_PROFILE"
+fi
+
 unity-editor \
   -logfile /dev/stdout \
   $QUIT_FLAG \
   -customBuildName "$BUILD_NAME" \
   -projectPath "$UNITY_PROJECT_PATH" \
-  -buildTarget "$BUILD_TARGET" \
+  $BUILD_TARGET_FLAG \
   -customBuildTarget "$BUILD_TARGET" \
   -customBuildPath "$CUSTOM_BUILD_PATH" \
+  -customBuildProfile "$BUILD_PROFILE" \
+  $BUILD_PROFILE_FLAGS \
   -executeMethod "$BUILD_METHOD" \
   -buildVersion "$VERSION" \
   -androidVersionCode "$ANDROID_VERSION_CODE" \
