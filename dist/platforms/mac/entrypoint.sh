@@ -4,8 +4,11 @@
 # Create directories for license activation
 #
 
-sudo mkdir /Library/Application\ Support/Unity
-sudo chmod -R 777 /Library/Application\ Support/Unity
+UNITY_LICENSE_PATH="/Library/Application Support/Unity"
+if [ ! -d "$UNITY_LICENSE_PATH" ]; then
+  sudo mkdir -p "$UNITY_LICENSE_PATH"
+  sudo chmod -R 777 "$UNITY_LICENSE_PATH"
+fi
 
 ACTIVATE_LICENSE_PATH="$ACTION_FOLDER/BlankProject"
 mkdir -p "$ACTIVATE_LICENSE_PATH"
@@ -20,8 +23,10 @@ source $ACTION_FOLDER/platforms/mac/steps/return_license.sh
 #
 # Remove license activation directory
 #
+# Note: $UNITY_LICENSE_PATH is intentionally left in place - it may be a
+# shared system directory pre-existing across runs (e.g. on a reused
+# self-hosted runner), not something this script necessarily created.
 
-sudo rm -r /Library/Application\ Support/Unity
 rm -r "$ACTIVATE_LICENSE_PATH"
 
 #
