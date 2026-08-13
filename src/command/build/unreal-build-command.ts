@@ -42,7 +42,7 @@ export class UnrealBuildCommand extends CommandBase implements CommandInterface 
       ].join(' '),
     });
 
-    return false;
+    return true;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

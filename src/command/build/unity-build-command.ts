@@ -85,7 +85,7 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
     await Output.setBuildVersion(options.buildVersion);
     await Output.setAndroidVersionCode(options.androidVersionCode);
 
-    return false;
+    return true;
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

@@ -82,7 +82,7 @@ export class UnityLogsCommand extends CommandBase implements CommandInterface {
     if (result.missing.length > 0) {
       log.info(`[logs collect] Missing categories on this host: ${result.missing.join(', ')}`);
     }
-    return false;
+    return true;
   }
 
   private async runTail(options: YargsArguments): Promise<boolean> {
@@ -98,9 +98,12 @@ export class UnityLogsCommand extends CommandBase implements CommandInterface {
     log.info(`[logs tail] Tailing ${files.length} file(s) — Ctrl+C to stop`);
     const stop = UnityLogs.streamFiles(files);
 
-    const onSignal = (): void => {
+    const onSignal = (signal: NodeJS.Signals): void => {
       stop();
-      process.exit(0);
+      // 128 + signal number is the POSIX convention (130 for SIGINT, 143 for SIGTERM) —
+      // this was previously exiting 0, making a user-cancelled tail indistinguishable
+      // from a normal exit to any script checking $?.
+      process.exit(signal === 'SIGINT' ? 130 : 143);
     };
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
