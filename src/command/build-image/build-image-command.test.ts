@@ -6,6 +6,7 @@ import { BuildImageCommand } from './build-image-command.ts';
 import { System } from '../../model/system/system.ts';
 
 const tempFiles: string[] = [];
+const originalSystemRun = System.run;
 
 function writeTempRecipe(contents: string): string {
   const filePath = path.join(os.tmpdir(), `recipe-${Date.now()}-${Math.random().toString(36).slice(2)}.yml`);
@@ -21,6 +22,9 @@ afterEach(() => {
       fs.unlinkSync(filePath);
     } catch {}
   }
+  // System.run is a shared static — restore it so other test files that
+  // exercise the real implementation aren't affected by this file's mocks.
+  System.run = originalSystemRun;
 });
 
 describe('BuildImageCommand recipe support', () => {
