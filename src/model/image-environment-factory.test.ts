@@ -48,4 +48,16 @@ describe('ImageEnvironmentFactory', () => {
     expect(envString).not.toContain('UNITY_LICENSE');
     expect(envString).toContain('--env PROJECT_PATH="test-project"');
   });
+
+  it('omits MANUAL_EXIT by default', () => {
+    const options = { hostOS: 'linux' } as any;
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
+    expect(envString).not.toContain('MANUAL_EXIT');
+  });
+
+  it('sets MANUAL_EXIT when options.manualExit is true', () => {
+    const options = { hostOS: 'linux', manualExit: true } as any;
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
+    expect(envString).toContain('--env MANUAL_EXIT="true"');
+  });
 });

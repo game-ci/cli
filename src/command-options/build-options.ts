@@ -46,6 +46,15 @@ export class BuildOptions implements IOptions {
         type: 'string',
         demandOption: false,
         default: '/github/workspace',
+      })
+      .option('manualExit', {
+        description: String.dedent`Skip passing -quit to the Unity editor, so it stays open after the build method returns.
+        Use this if your build method needs to run further code in play mode before exiting (see
+        https://github.com/game-ci/cli/issues/13). Your build method must call EditorApplication.Exit(0) itself,
+        otherwise the build will hang until it times out.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
       });
   }
 }

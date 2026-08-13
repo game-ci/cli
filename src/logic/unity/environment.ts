@@ -28,6 +28,7 @@ const UnityEnvironment = {
       { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: options.androidSdkManagerParameters },
       { name: 'ANDROID_EXPORT_TYPE', value: options.androidExportType },
       { name: 'ANDROID_SYMBOL_TYPE', value: options.androidSymbolType },
+      { name: 'MANUAL_EXIT', value: options.manualExit ? 'true' : '' },
     ] as DockerParameter[];
   },
 };
