@@ -14309,7 +14309,8 @@ class System {
     return new Promise((resolve5, reject) => {
       const proc = spawn(shell, shellArgs, {
         cwd: options.cwd,
-        stdio: ["inherit", "pipe", "pipe"]
+        stdio: ["inherit", "pipe", "pipe"],
+        env: options.env ? { ...process.env, ...options.env } : process.env
       });
       const runResult = { output: "", error: "" };
       proc.stdout.on("data", (chunk) => {
@@ -16815,12 +16816,33 @@ class PlatformSetup {
 // src/model/mac-builder.ts
 init_system();
 init_unity_build_validation();
+init_image_environment_factory();
+init_environment();
 
 class MacBuilder {
+  static buildEnv(options) {
+    const { currentWorkDir, cliDistPath } = options;
+    const extraVariables = options.engine === "unity" ? UnityEnvironment.getVariables(options) : [];
+    const variables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
+    const env3 = {};
+    for (const { name, value } of variables) {
+      if (value === "" || value === undefined)
+        continue;
+      env3[name] = value.toString();
+    }
+    if (currentWorkDir)
+      env3.GITHUB_WORKSPACE = currentWorkDir;
+    if (cliDistPath)
+      env3.ACTION_FOLDER = cliDistPath;
+    return env3;
+  }
   static async run(options, silent = false) {
     const { cliDistPath, engine } = options;
     log.warning("running the process");
-    const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, undefined, { silent });
+    const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, undefined, {
+      silent,
+      env: MacBuilder.buildEnv(options)
+    });
     switch (engine) {
       case "unity":
         UnityBuildValidation.validateBuild(macRun.output);
@@ -17683,6 +17705,11 @@ class UnityCliAdapter {
     const result = await System.run(cliCommand, undefined, { silent: true });
     return { success: result.status?.success ?? false, output: result.output };
   }
+  static async test(extraArgs = []) {
+    const cliCommand = ["unity", "test", ...extraArgs].join(" ");
+    const result = await System.run(cliCommand, undefined, { silent: true });
+    return { success: result.status?.success ?? false, output: result.output };
+  }
 }
 
 // src/command-options/unity-run-options.ts
@@ -17727,6 +17754,43 @@ class UnityRunCommand extends CommandBase {
   }
 }
 
+// src/command-options/unity-test-options.ts
+class UnityTestOptions {
+  static configure(yargs) {
+    yargs.option("unityCliArgs", {
+      description: String.dedent`
+        Raw arguments passed through to \`unity test\` verbatim, space-separated.
+        Unity's own CLI reference doesn't publish a flag table for this command;
+        run \`unity test --help\` on the installed binary for the authoritative
+        list (see docs.unity.com/en-us/unity-cli).`,
+      type: "string",
+      demandOption: false,
+      default: ""
+    });
+  }
+}
+
+// src/command/test/unity-test-command.ts
+class UnityTestCommand extends CommandBase {
+  async execute(options) {
+    const extraArgs = String(options.unityCliArgs || "").split(" ").map((arg) => arg.trim()).filter(Boolean);
+    const available = await UnityCliAdapter.isAvailable();
+    if (!available) {
+      throw new Error("test: requires Unity's official `unity` CLI binary on PATH " + "(https://docs.unity.com/en-us/unity-cli). Not found in this environment.");
+    }
+    try {
+      const result = await UnityCliAdapter.test(extraArgs);
+      log.info(result.output);
+      return result.success;
+    } catch (error) {
+      throw new Error(`test: 'unity test' failed: ${error.message}`);
+    }
+  }
+  async configureOptions(yargs) {
+    await UnityTestOptions.configure(yargs);
+  }
+}
+
 // src/plugin/builtin/unity-plugin.ts
 var unityPlugin = {
   name: "unity",
@@ -17754,6 +17818,8 @@ var unityPlugin = {
             return new UnityOrchestrateCommand(command2);
           case "run":
             return new UnityRunCommand(command2);
+          case "test":
+            return new UnityTestCommand(command2);
           case "remote":
             switch (subCommands[0]) {
               case "run":

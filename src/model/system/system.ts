@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 export interface RunOptions {
   cwd?: string;
   silent?: boolean;
+  /** Extra env vars merged on top of the current process's env for the spawned command. */
+  env?: Record<string, string | undefined>;
 }
 
 export interface RunResult {
@@ -52,6 +54,7 @@ class System {
       const proc = spawn(shell, shellArgs, {
         cwd: options.cwd,
         stdio: ['inherit', 'pipe', 'pipe'],
+        env: options.env ? { ...process.env, ...options.env } : process.env,
       });
 
       const runResult: RunResult = { output: '', error: '' };
