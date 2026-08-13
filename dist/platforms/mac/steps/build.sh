@@ -119,9 +119,16 @@ echo ""
 
 # Reference: https://docs.unity3d.com/2019.3/Documentation/Manual/CommandLineArguments.html
 
+# MANUAL_EXIT=true skips -quit so the build method can stay in play mode and
+# call EditorApplication.Exit(0) itself (see game-ci/cli#13).
+QUIT_FLAG="-quit"
+if [ "$MANUAL_EXIT" = "true" ]; then
+  QUIT_FLAG=""
+fi
+
 /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
   -logFile - \
-  -quit \
+  $QUIT_FLAG \
   -batchmode \
   -nographics \
   -username "$UNITY_EMAIL" \

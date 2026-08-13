@@ -113,7 +113,14 @@ Write-Output ""
 # in double quotes.  To avoid this, parse $Env:CUSTOM_PARAMETERS into an array, while respecting any quotations within the string.
 $_, $customParametersArray = Invoke-Expression('Write-Output -- "" ' + $Env:CUSTOM_PARAMETERS)
 
-& "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" -quit -batchmode -nographics `
+# MANUAL_EXIT=true skips -quit so the build method can stay in play mode and
+# call EditorApplication.Exit(0) itself (see game-ci/cli#13).
+$QuitArgs = @('-quit')
+if ($Env:MANUAL_EXIT -eq 'true') {
+  $QuitArgs = @()
+}
+
+& "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" @QuitArgs -batchmode -nographics `
                                                                           -projectPath $Env:UNITY_PROJECT_PATH `
                                                                           -executeMethod $Env:BUILD_METHOD `
                                                                           -buildTarget $Env:BUILD_TARGET `

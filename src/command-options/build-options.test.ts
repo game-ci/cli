@@ -38,4 +38,24 @@ describe('BuildOptions', () => {
 
     expect(argv.buildFile).toBe('GameCI.aab');
   });
+
+  it('defaults manualExit to false and accepts --manualExit', async () => {
+    const defaultParser = yargs(['--targetPlatform', 'StandaloneLinux64'])
+      .exitProcess(false)
+      .fail((message, error) => {
+        throw error || new Error(message);
+      });
+    BuildOptions.configure(defaultParser);
+    const defaultArgv = await defaultParser.parseAsync();
+    expect(defaultArgv.manualExit).toBe(false);
+
+    const enabledParser = yargs(['--targetPlatform', 'StandaloneLinux64', '--manualExit'])
+      .exitProcess(false)
+      .fail((message, error) => {
+        throw error || new Error(message);
+      });
+    BuildOptions.configure(enabledParser);
+    const enabledArgv = await enabledParser.parseAsync();
+    expect(enabledArgv.manualExit).toBe(true);
+  });
 });

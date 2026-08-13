@@ -14518,7 +14518,8 @@ var init_environment = __esm(() => {
         { name: "ANDROID_TARGET_SDK_VERSION", value: options.androidTargetSdkVersion },
         { name: "ANDROID_SDK_MANAGER_PARAMETERS", value: options.androidSdkManagerParameters },
         { name: "ANDROID_EXPORT_TYPE", value: options.androidExportType },
-        { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType }
+        { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType },
+        { name: "MANUAL_EXIT", value: options.manualExit ? "true" : "" }
       ];
     }
   };
@@ -15145,6 +15146,27 @@ var configureLogger = async (verbosity) => {
       const formatted = formatArgs(msg, args);
       writeToFile("ERROR", formatted);
       console.error(`[ERROR] ${formatted}`);
+    },
+    startGroup: (name) => {
+      writeToFile("GROUP", name);
+      if (process.env.GITHUB_ACTIONS === "true" && !isQuiet) {
+        console.log(`::group::${name}`);
+      } else if (!isQuiet) {
+        console.log(`--- ${name} ---`);
+      }
+    },
+    endGroup: () => {
+      if (process.env.GITHUB_ACTIONS === "true" && !isQuiet) {
+        console.log("::endgroup::");
+      }
+    },
+    group: async (name, fn) => {
+      logger.startGroup(name);
+      try {
+        return await fn();
+      } finally {
+        logger.endGroup();
+      }
     }
   };
   globalThis.log = logger;
@@ -15342,21 +15364,31 @@ class BuildImageCommand extends CommandBase {
         "."
       ].join(" ");
       log.info(`Running: ${buildCmd}`);
-      try {
-        await System.run(buildCmd);
-      } catch (error) {
-        log.error(`Docker build failed: ${error.message}`);
+      let buildFailed = false;
+      await log.group(`docker build (${imageTag})`, async () => {
+        try {
+          await System.run(buildCmd);
+        } catch (error) {
+          log.error(`Docker build failed: ${error.message}`);
+          buildFailed = true;
+        }
+      });
+      if (buildFailed)
         return false;
-      }
       log.info(`Successfully built: ${imageTag}`);
       if (push) {
         log.info(`Pushing ${imageTag}...`);
-        try {
-          await System.run(`docker push "${imageTag}"`);
-        } catch (error) {
-          log.error(`Docker push failed: ${error.message}`);
+        let pushFailed = false;
+        await log.group(`docker push (${imageTag})`, async () => {
+          try {
+            await System.run(`docker push "${imageTag}"`);
+          } catch (error) {
+            log.error(`Docker push failed: ${error.message}`);
+            pushFailed = true;
+          }
+        });
+        if (pushFailed)
           return false;
-        }
         log.info(`Pushed: ${imageTag}`);
       }
     } finally {
@@ -17272,6 +17304,14 @@ class BuildOptions {
       type: "string",
       demandOption: false,
       default: "/github/workspace"
+    }).option("manualExit", {
+      description: String.dedent`Skip passing -quit to the Unity editor, so it stays open after the build method returns.
+        Use this if your build method needs to run further code in play mode before exiting (see
+        https://github.com/game-ci/cli/issues/13). Your build method must call EditorApplication.Exit(0) itself,
+        otherwise the build will hang until it times out.`,
+      type: "boolean",
+      demandOption: false,
+      default: false
     });
   }
 }
@@ -17456,11 +17496,13 @@ class UnityBuildCommand extends CommandBase {
     let buildError;
     let buildSucceeded = true;
     try {
-      if (hostPlatform === "darwin") {
-        await MacBuilder.run(options);
-      } else {
-        await Docker.run(image.toString(), options);
-      }
+      await log.group("Unity build", async () => {
+        if (hostPlatform === "darwin") {
+          await MacBuilder.run(options);
+        } else {
+          await Docker.run(image.toString(), options);
+        }
+      });
     } catch (error) {
       buildError = error;
       buildSucceeded = false;
@@ -17786,9 +17828,11 @@ class GodotBuildCommand extends CommandBase {
     log.info(`Using image: ${godotImage}`);
     log.info(`Export preset: ${exportPreset}`);
     const { Docker: Docker2 } = await Promise.resolve().then(() => (init_model(), exports_model));
-    await Docker2.run(godotImage, {
-      ...options,
-      commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`
+    await log.group("Godot export", async () => {
+      await Docker2.run(godotImage, {
+        ...options,
+        commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`
+      });
     });
     return true;
   }
@@ -17891,7 +17935,7 @@ class UnrealBuildCommand extends CommandBase {
     log.info(`Using image: ${customImage}`);
     log.info(`Target platform: ${targetPlatform}, Config: ${buildConfig}`);
     const { Docker: Docker2 } = await Promise.resolve().then(() => (init_model(), exports_model));
-    await Docker2.run(customImage, {
+    await log.group("Unreal build", () => Docker2.run(customImage, {
       ...options,
       commands: [
         "/home/ue4/UnrealEngine/Engine/Build/BatchFiles/RunUAT.sh",
@@ -17908,7 +17952,7 @@ class UnrealBuildCommand extends CommandBase {
         "-noP4",
         "-unattended"
       ].join(" ")
-    });
+    }));
     return true;
   }
   async configureOptions(yargs) {
