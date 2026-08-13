@@ -30,4 +30,4 @@ jobs:
       - name: Verify dist is up to date
         run: |
           npm run build
-          git diff --quiet dist || { echo "dist/ is out of date — run 'npm run build' and commit the result"; git diff dist; exit 1; }
+          [ -z "$(git status --porcelain dist)" ] || { echo "dist/ is out of date (modified or untracked files) — run 'npm run build' and commit the result"; git status --porcelain dist; git diff dist; exit 1; }

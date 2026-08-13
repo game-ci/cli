@@ -9,8 +9,8 @@
   "repository": "git@github.com:game-ci/unity-engine-core.git",
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
-    "prepare": "tsc",
+    "build": "tsc && node scripts/copy-static-assets.mjs",
+    "prepare": "tsc && node scripts/copy-static-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
