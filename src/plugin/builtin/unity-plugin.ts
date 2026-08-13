@@ -4,6 +4,7 @@ import { UnityBuildCommand } from '../../command/build/unity-build-command.ts';
 import { UnityOrchestrateCommand } from '../../command/orchestrate/unity-orchestrate-command.ts';
 import { UnityLogsCommand } from '../../command/logs/unity-logs-command.ts';
 import { UnityRunCommand } from '../../command/run/unity-run-command.ts';
+import { UnityTestCommand } from '../../command/test/unity-test-command.ts';
 import { NonExistentCommand } from '../../command/null/non-existent-command.ts';
 import type { CommandInterface } from '../../command/command-interface.ts';
 
@@ -39,6 +40,8 @@ export const unityPlugin: GameCIPlugin = {
             return new UnityOrchestrateCommand(command);
           case 'run':
             return new UnityRunCommand(command);
+          case 'test':
+            return new UnityTestCommand(command);
           case 'remote':
             switch (subCommands[0]) {
               case 'run':

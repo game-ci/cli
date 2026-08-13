@@ -86,11 +86,34 @@ export class UnityCliAdapter {
     return { success: result.status?.success ?? false, output: result.output };
   }
 
-  // `build`/`test`/`license` are intentionally NOT stubbed here yet — Unity's
-  // own CLI reference doesn't publish their full flag sets beyond one-line
-  // descriptions ("CI-friendly flags, including Android signing and export
-  // options" for `build`), so wiring them accurately needs testing against
-  // the real binary rather than guessing at flags from docs alone. See
+  /**
+   * Run a project's tests via Unity CLI's `test` command (Unity's own
+   * official test runner — Edit Mode and Play Mode tests through the Editor
+   * test runner, writing an NUnit report).
+   *
+   * Unity's own CLI reference documents `test` with only a one-line
+   * description and no published flag table — unlike `install`/`install-modules`,
+   * which are fully documented and are what installEditor()/installModules()
+   * above implement against. Unity's docs explicitly say the authoritative
+   * flag list is `unity test --help` on the installed binary, not anything
+   * published in their web docs, so this deliberately does NOT hardcode or
+   * guess at flag names (that would risk shipping wrong assumptions as if
+   * verified). Instead, extraArgs is passed straight through to `unity test`
+   * verbatim — same pass-through shape as runCommand()'s extraArgs, and the
+   * same "don't invent Unity CLI surface GameCI can't verify" principle as
+   * run --command.
+   */
+  static async test(extraArgs: string[] = []): Promise<UnityCliInstallResult> {
+    const cliCommand = ['unity', 'test', ...extraArgs].join(' ');
+    const result = await System.run(cliCommand, undefined, { silent: true });
+
+    return { success: result.status?.success ?? false, output: result.output };
+  }
+
+  // `build`/`license` are intentionally NOT stubbed here yet — same reasoning
+  // as `test` above (no published flag table, Unity's own docs point to
+  // `--help` on the real binary as authoritative) — but unlike `test`, there's
+  // no existing raw-passthrough command shape for them yet. See
   // game-ci/roadmap#11 workstream 3 for the compatibility-check this needs
-  // before those methods can be added responsibly.
+  // before those get their own commands.
 }
