@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unityTestRunner = exports.unityActivate = void 0;
+exports.unityBuilder = exports.unityTestRunner = exports.unityActivate = void 0;
 exports.unityActivate = __importStar(require("./unity-activate"));
 exports.unityTestRunner = __importStar(require("./unity-test-runner"));
+exports.unityBuilder = __importStar(require("./unity-builder"));
