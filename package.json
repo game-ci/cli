@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "description": "Unity build/test/activation implementation logic, invoked by game-ci/cli and the thin-wrapper action repos (unity-builder, unity-test-runner, unity-activate).",
   "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
   "repository": "git@github.com:game-ci/unity-engine-core.git",
   "license": "MIT",
   "scripts": {
     "build": "tsc",
+    "prepare": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
