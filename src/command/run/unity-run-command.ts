@@ -30,10 +30,17 @@ export class UnityRunCommand extends CommandBase implements CommandInterface {
       );
     }
 
-    const result = await UnityCliAdapter.runCommand(command, extraArgs);
-    log.info(result.output);
+    try {
+      const result = await UnityCliAdapter.runCommand(command, extraArgs);
+      log.info(result.output);
 
-    return result.success;
+      return result.success;
+    } catch (error: any) {
+      // UnityCliAdapter.runCommand rejects (rather than resolving with
+      // success: false) whenever the underlying process writes to stderr,
+      // which is common even for otherwise-successful Unity CLI invocations.
+      throw new Error(`run: 'unity run --command ${command}' failed — ${error.message}`);
+    }
   }
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {

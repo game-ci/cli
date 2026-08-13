@@ -28,4 +28,15 @@ describe('UnityRunCommand', () => {
     expect(result).toBe(true);
     expect(runCommand).toHaveBeenCalledWith('MyNamespace.MyClass.MyMethod', ['--flag', 'value']);
   });
+
+  it('throws a clear error when UnityCliAdapter.runCommand rejects', async () => {
+    UnityCliAdapter.isAvailable = mock(() => Promise.resolve(true));
+    UnityCliAdapter.runCommand = mock(() => Promise.reject(new Error('unity wrote to stderr')));
+
+    const command = new UnityRunCommand('run');
+
+    await expect(
+      command.execute({ command: 'MyNamespace.MyClass.MyMethod' } as any),
+    ).rejects.toThrow(/run:.*MyNamespace\.MyClass\.MyMethod.*failed.*unity wrote to stderr/);
+  });
 });
