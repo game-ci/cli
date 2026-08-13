@@ -42,11 +42,13 @@ export class UnityBuildCommand extends CommandBase implements CommandInterface {
     let buildError: unknown;
     let buildSucceeded = true;
     try {
-      if (hostPlatform === 'darwin') {
-        await MacBuilder.run(options);
-      } else {
-        await Docker.run(image.toString(), options);
-      }
+      await log.group('Unity build', async () => {
+        if (hostPlatform === 'darwin') {
+          await MacBuilder.run(options);
+        } else {
+          await Docker.run(image.toString(), options);
+        }
+      });
     } catch (error) {
       buildError = error;
       buildSucceeded = false;

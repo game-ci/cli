@@ -92,6 +92,37 @@ export const configureLogger = async (verbosity: Verbosity) => {
       writeToFile('ERROR', formatted);
       console.error(`[ERROR] ${formatted}`);
     },
+
+    // GitHub Actions log line grouping (::group::/::endgroup::) — collapses
+    // a section of output into a foldable block in the Actions UI instead of
+    // one long unbroken stream. No-op outside GitHub Actions (GITHUB_ACTIONS
+    // unset), since ::group:: markers would just show up as literal text in
+    // a plain terminal or local log file.
+    startGroup: (name: string) => {
+      writeToFile('GROUP', name);
+      if (process.env.GITHUB_ACTIONS === 'true' && !isQuiet) {
+        console.log(`::group::${name}`);
+      } else if (!isQuiet) {
+        console.log(`--- ${name} ---`);
+      }
+    },
+
+    endGroup: () => {
+      if (process.env.GITHUB_ACTIONS === 'true' && !isQuiet) {
+        console.log('::endgroup::');
+      }
+    },
+
+    // Convenience wrapper: runs fn() inside a named group, closing the group
+    // even if fn() throws.
+    group: async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
+      logger.startGroup(name);
+      try {
+        return await fn();
+      } finally {
+        logger.endGroup();
+      }
+    },
   };
 
   (globalThis as any).log = logger;

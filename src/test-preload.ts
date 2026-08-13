@@ -16,4 +16,7 @@ const noop = () => {};
   info: noop,
   warning: noop,
   error: noop,
+  startGroup: noop,
+  endGroup: noop,
+  group: async (_name: string, fn: () => any) => fn(),
 };
