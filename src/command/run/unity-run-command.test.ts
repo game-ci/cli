@@ -1,6 +1,16 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { UnityRunCommand } from './unity-run-command.ts';
 import { UnityCliAdapter } from '../../model/unity-cli-adapter.ts';
+
+const originalIsAvailable = UnityCliAdapter.isAvailable;
+const originalRunCommand = UnityCliAdapter.runCommand;
+
+afterEach(() => {
+  // Both are shared statics — restore them so other test files that exercise
+  // the real UnityCliAdapter aren't affected by this file's mocks.
+  UnityCliAdapter.isAvailable = originalIsAvailable;
+  UnityCliAdapter.runCommand = originalRunCommand;
+});
 
 describe('UnityRunCommand', () => {
   it('throws a clear error when the unity CLI binary is unavailable', async () => {
