@@ -17,6 +17,16 @@ Write-Output "$('Using build name "')$($Env:BUILD_NAME)$('".')"
 Write-Output "$('Using build target "')$($Env:BUILD_TARGET)$('".')"
 
 #
+# Display the build profile
+#
+
+if (-not $Env:BUILD_PROFILE) {
+    Write-Output "$('Doing a default "')$($Env:BUILD_TARGET)$('" platform build.')"
+} else {
+    Write-Output "$('Using build profile "')$($Env:BUILD_PROFILE)$('" relative to "')$($Env:UNITY_PROJECT_PATH)$('".')"
+}
+
+#
 # Display build path and file
 #
 
@@ -120,12 +130,23 @@ if ($Env:MANUAL_EXIT -eq 'true') {
   $QuitArgs = @()
 }
 
+# BUILD_PROFILE (Unity 6) determines the target itself, so -buildTarget is
+# omitted when one is set - matches real unity-builder's own handling.
+$BuildTargetArgs = @('-buildTarget', $Env:BUILD_TARGET)
+$BuildProfileArgs = @()
+if ($Env:BUILD_PROFILE) {
+  $BuildTargetArgs = @()
+  $BuildProfileArgs = @('-activeBuildProfile', $Env:BUILD_PROFILE)
+}
+
 & "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" @QuitArgs -batchmode -nographics `
                                                                           -projectPath $Env:UNITY_PROJECT_PATH `
                                                                           -executeMethod $Env:BUILD_METHOD `
-                                                                          -buildTarget $Env:BUILD_TARGET `
+                                                                          @BuildTargetArgs `
                                                                           -customBuildTarget $Env:BUILD_TARGET `
                                                                           -customBuildPath $Env:CUSTOM_BUILD_PATH `
+                                                                          -customBuildProfile $Env:BUILD_PROFILE `
+                                                                          @BuildProfileArgs `
                                                                           -buildVersion $Env:VERSION `
                                                                           -androidVersionCode $Env:ANDROID_VERSION_CODE `
                                                                           -androidKeystoreName $Env:ANDROID_KEYSTORE_NAME `

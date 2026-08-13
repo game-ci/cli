@@ -29,6 +29,11 @@ const UnityEnvironment = {
       { name: 'ANDROID_EXPORT_TYPE', value: options.androidExportType },
       { name: 'ANDROID_SYMBOL_TYPE', value: options.androidSymbolType },
       { name: 'MANUAL_EXIT', value: options.manualExit ? 'true' : '' },
+      { name: 'BUILD_PROFILE', value: options.buildProfile },
+      { name: 'SKIP_ACTIVATION', value: options.skipActivation ? 'true' : '' },
+      { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
+      { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
+      { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },
     ] as DockerParameter[];
   },
 };

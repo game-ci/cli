@@ -58,4 +58,42 @@ describe('BuildOptions', () => {
     const enabledArgv = await enabledParser.parseAsync();
     expect(enabledArgv.manualExit).toBe(true);
   });
+
+  it('defaults the new game-ci/cli#65 audit options and accepts them when set', async () => {
+    const defaultParser = yargs(['--targetPlatform', 'StandaloneLinux64'])
+      .exitProcess(false)
+      .fail((message, error) => {
+        throw error || new Error(message);
+      });
+    BuildOptions.configure(defaultParser);
+    const defaultArgv = await defaultParser.parseAsync();
+    expect(defaultArgv.buildProfile).toBe('');
+    expect(defaultArgv.skipActivation).toBe(false);
+    expect(defaultArgv.runAsHostUser).toBe(false);
+    expect(defaultArgv.enableGpu).toBe(false);
+    expect(defaultArgv.gitConfigExtensions).toBe('');
+
+    const setParser = yargs([
+      '--targetPlatform',
+      'StandaloneLinux64',
+      '--buildProfile',
+      'Assets/Settings/Linux.asset',
+      '--skipActivation',
+      '--runAsHostUser',
+      '--enableGpu',
+      '--gitConfigExtensions',
+      'http.sslVerify=false',
+    ])
+      .exitProcess(false)
+      .fail((message, error) => {
+        throw error || new Error(message);
+      });
+    BuildOptions.configure(setParser);
+    const setArgv = await setParser.parseAsync();
+    expect(setArgv.buildProfile).toBe('Assets/Settings/Linux.asset');
+    expect(setArgv.skipActivation).toBe(true);
+    expect(setArgv.runAsHostUser).toBe(true);
+    expect(setArgv.enableGpu).toBe(true);
+    expect(setArgv.gitConfigExtensions).toBe('http.sslVerify=false');
+  });
 });
