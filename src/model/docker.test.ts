@@ -12,6 +12,7 @@ describe('Docker', () => {
       sshAgent: '',
       gitPrivateToken: '',
       dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
       unityLicense: 'ci-stub-license',
       engineVersion: '2019.4.40f1',
       projectPath: 'test-project',
@@ -27,6 +28,45 @@ describe('Docker', () => {
     expect(command).toContain('game-ci/unity-editor-stub:latest');
     expect(command).toContain('/bin/bash /entrypoint.sh');
     expect(command).not.toContain('\n');
+  });
+
+  it('uses the engine-supplied commands instead of the Unity entrypoint for non-Unity engines', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/godot:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      runnerTempPath: '/home/runner/work/_temp',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'godot',
+      projectPath: 'test-project',
+      commands: 'godot --headless --export-release "Linux" build/output',
+    });
+
+    expect(command).toContain('godot --headless --export-release "Linux" build/output');
+    expect(command).not.toContain('/bin/bash /entrypoint.sh');
+    expect(command).not.toContain('--env UNITY_SERIAL');
+    expect(command).not.toContain('entrypoint.sh:/entrypoint.sh');
+  });
+
+  it('still uses the Unity entrypoint when engine is unity even if commands happens to be set', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      runnerTempPath: '/home/runner/work/_temp',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+      commands: 'should-not-be-used',
+    });
+
+    expect(command).toContain('/bin/bash /entrypoint.sh');
+    expect(command).not.toContain('should-not-be-used');
   });
 
   it.skip('runs', async () => {

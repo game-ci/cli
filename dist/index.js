@@ -14420,9 +14420,9 @@ var init_cache_validation = __esm(() => {
 
 // src/model/image-environment-factory.ts
 class ImageEnvironmentFactory {
-  static getEnvVarString(options) {
+  static getEnvVarString(options, extraVariables = []) {
     const { hostOS } = options;
-    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options);
+    const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
     const lineContinuation = hostOS === "windows" ? "`" : "\\";
     const lines = [];
     for (const p of environmentVariables) {
@@ -14444,16 +14444,9 @@ class ImageEnvironmentFactory {
     return lines.join(` ${lineContinuation}
 `);
   }
-  static getEnvironmentVariables(options) {
+  static getEnvironmentVariables(options, extraVariables = []) {
     const environmentVariables = [
-      { name: "UNITY_LICENSE", value: options.unityLicense },
-      { name: "UNITY_LICENSE_FILE", value: options.unityLicenseFile },
-      { name: "UNITY_EMAIL", value: options.unityEmail },
-      { name: "UNITY_PASSWORD", value: options.unityPassword },
-      { name: "UNITY_SERIAL", value: options.unitySerial },
-      { name: "UNITY_LICENSING_SERVER", value: options.unityLicensingServer },
-      { name: "UNITY_VERSION", value: options.engineVersion },
-      { name: "USYM_UPLOAD_AUTH_TOKEN", value: options.uploadAuthToken },
+      ...extraVariables,
       { name: "PROJECT_PATH", value: options.projectPath },
       { name: "BUILD_TARGET", value: options.targetPlatform },
       { name: "BUILD_NAME", value: options.buildName },
@@ -14461,16 +14454,6 @@ class ImageEnvironmentFactory {
       { name: "BUILD_FILE", value: options.buildFile },
       { name: "BUILD_METHOD", value: options.buildMethod },
       { name: "VERSION", value: options.buildVersion },
-      { name: "ANDROID_VERSION_CODE", value: options.androidVersionCode },
-      { name: "ANDROID_KEYSTORE_NAME", value: options.androidKeystoreName },
-      { name: "ANDROID_KEYSTORE_BASE64", value: options.androidKeystoreBase64 },
-      { name: "ANDROID_KEYSTORE_PASS", value: options.androidKeystorePass },
-      { name: "ANDROID_KEYALIAS_NAME", value: options.androidKeyaliasName },
-      { name: "ANDROID_KEYALIAS_PASS", value: options.androidKeyaliasPass },
-      { name: "ANDROID_TARGET_SDK_VERSION", value: options.androidTargetSdkVersion },
-      { name: "ANDROID_SDK_MANAGER_PARAMETERS", value: options.androidSdkManagerParameters },
-      { name: "ANDROID_EXPORT_TYPE", value: options.androidExportType },
-      { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType },
       { name: "CUSTOM_PARAMETERS", value: options.customParameters },
       { name: "CHOWN_FILES_TO", value: options.chownFilesTo },
       { name: "GITHUB_REF", value: process.env.GITHUB_REF },
@@ -14512,7 +14495,40 @@ class UnityBuildValidation {
 }
 var init_unity_build_validation = () => {};
 
+// src/logic/unity/environment.ts
+var UnityEnvironment;
+var init_environment = __esm(() => {
+  UnityEnvironment = {
+    getVariables(options) {
+      return [
+        { name: "UNITY_LICENSE", value: options.unityLicense },
+        { name: "UNITY_LICENSE_FILE", value: options.unityLicenseFile },
+        { name: "UNITY_EMAIL", value: options.unityEmail },
+        { name: "UNITY_PASSWORD", value: options.unityPassword },
+        { name: "UNITY_SERIAL", value: options.unitySerial },
+        { name: "UNITY_LICENSING_SERVER", value: options.unityLicensingServer },
+        { name: "UNITY_VERSION", value: options.engineVersion },
+        { name: "USYM_UPLOAD_AUTH_TOKEN", value: options.uploadAuthToken },
+        { name: "ANDROID_VERSION_CODE", value: options.androidVersionCode },
+        { name: "ANDROID_KEYSTORE_NAME", value: options.androidKeystoreName },
+        { name: "ANDROID_KEYSTORE_BASE64", value: options.androidKeystoreBase64 },
+        { name: "ANDROID_KEYSTORE_PASS", value: options.androidKeystorePass },
+        { name: "ANDROID_KEYALIAS_NAME", value: options.androidKeyaliasName },
+        { name: "ANDROID_KEYALIAS_PASS", value: options.androidKeyaliasPass },
+        { name: "ANDROID_TARGET_SDK_VERSION", value: options.androidTargetSdkVersion },
+        { name: "ANDROID_SDK_MANAGER_PARAMETERS", value: options.androidSdkManagerParameters },
+        { name: "ANDROID_EXPORT_TYPE", value: options.androidExportType },
+        { name: "ANDROID_SYMBOL_TYPE", value: options.androidSymbolType }
+      ];
+    }
+  };
+});
+
 // src/model/docker.ts
+function engineEnvVars(options) {
+  return options.engine === "unity" ? UnityEnvironment.getVariables(options) : [];
+}
+
 class Docker {
   static async run(image, options) {
     const { hostPlatform, hostOS, engine } = options;
@@ -14557,58 +14573,62 @@ class Docker {
     }
   }
   static getLinuxCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath } = options;
+    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath, commands, engine } = options;
     const home = homeDir;
-    const envVarString = ImageEnvironmentFactory.getEnvVarString(options).replace(/ \\\n/g, " ");
+    const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(/ \\\n/g, " ");
+    const isUnityDefaultFlow = !commands || engine === "unity";
     return [
       "docker run",
       "--rm",
       `--workdir ${dockerWorkspacePath}`,
       envVarString,
-      "--env UNITY_SERIAL",
+      isUnityDefaultFlow ? "--env UNITY_SERIAL" : "",
       `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
       gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : "",
       sshAgent ? "--env SSH_AUTH_SOCK=/ssh-agent" : "",
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
-      `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"`,
-      `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"`,
-      `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"`,
-      `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"`,
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
       sshAgent ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
       image,
-      "/bin/bash /entrypoint.sh"
+      isUnityDefaultFlow ? "/bin/bash /entrypoint.sh" : commands
     ].filter(Boolean).join(" ");
   }
   static getWindowsCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath } = options;
-    return String.dedent`
-      docker run \`
-        --rm \`
-        --workdir="c:${dockerWorkspacePath}" \`
-        ${ImageEnvironmentFactory.getEnvVarString(options)} \`
-        --env UNITY_SERIAL="${unitySerial}" \`
-        --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \`
-        --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \`
-        --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \`
-        --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`
-        --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" \`
-        --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" \`
-        --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" \`
-        --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`
-        --volume="${cliDistPath}/platforms/windows":"c:/steps" \`
-        --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`
-        --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`
-        ${image} \`
-        powershell c:/steps/entrypoint.ps1
-    `;
+    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath, commands, engine } = options;
+    const isUnityDefaultFlow = !commands || engine === "unity";
+    return [
+      "docker run `",
+      "  --rm `",
+      `  --workdir="c:${dockerWorkspacePath}" \``,
+      `  ${ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options))} \``,
+      isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : "",
+      `  --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \``,
+      `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
+      `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
+      isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : "",
+      isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" `' : "",
+      isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" `' : "",
+      isUnityDefaultFlow ? '  --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" `' : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : "",
+      `  ${image} \``,
+      isUnityDefaultFlow ? "  powershell c:/steps/entrypoint.ps1" : `  ${commands}`
+    ].filter(Boolean).join(`
+`);
   }
 }
 var init_docker = __esm(() => {
   init_image_environment_factory();
   init_system();
   init_unity_build_validation();
+  init_environment();
 });
 
 // src/model/unity/target-platform/unity-target-platform.ts
@@ -15206,28 +15226,91 @@ class OpenConfigFolderCommand extends CommandBase {
 // src/command/build-image/build-image-command.ts
 init_system();
 
+// src/model/build-image/recipe-file.ts
+init_dependencies();
+
+class RecipeFileError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "RecipeFileError";
+  }
+}
+var RecipeFileReader = {
+  read(recipePath) {
+    if (!fsSyncCompat.existsSync(recipePath)) {
+      throw new RecipeFileError(`Recipe file not found: ${recipePath}`);
+    }
+    let parsed;
+    try {
+      parsed = exports_dist.parse(fsSyncCompat.readFileSync(recipePath, "utf8"));
+    } catch (error) {
+      throw new RecipeFileError(`Could not parse recipe file "${recipePath}": ${error.message}`);
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new RecipeFileError(`Recipe file "${recipePath}" must contain a YAML mapping.`);
+    }
+    const recipe = parsed;
+    if (recipe.engine !== undefined && recipe.engine !== "unity") {
+      throw new RecipeFileError(`Recipe file "${recipePath}" declares engine "${recipe.engine}", but build-unity-image only supports "unity".`);
+    }
+    if (typeof recipe.unityVersion !== "string" || recipe.unityVersion === "") {
+      throw new RecipeFileError(`Recipe file "${recipePath}" is missing required field "unityVersion".`);
+    }
+    if (recipe.modules !== undefined && !Array.isArray(recipe.modules)) {
+      throw new RecipeFileError(`Recipe file "${recipePath}": "modules" must be a list.`);
+    }
+    return {
+      version: typeof recipe.version === "number" ? recipe.version : undefined,
+      engine: typeof recipe.engine === "string" ? recipe.engine : undefined,
+      unityVersion: recipe.unityVersion,
+      baseOs: typeof recipe.baseOs === "string" ? recipe.baseOs : undefined,
+      modules: Array.isArray(recipe.modules) ? recipe.modules.map(String) : undefined,
+      changeset: typeof recipe.changeset === "string" ? recipe.changeset : undefined,
+      hubImage: typeof recipe.hubImage === "string" ? recipe.hubImage : undefined,
+      baseImage: typeof recipe.baseImage === "string" ? recipe.baseImage : undefined,
+      tag: typeof recipe.tag === "string" ? recipe.tag : undefined
+    };
+  }
+};
+
+// src/command/build-image/build-image-command.ts
 class BuildImageCommand extends CommandBase {
   async execute(options) {
-    const baseOs = options.baseOs || "ubuntu";
-    const modules = options.modules || "base";
-    const unityVersion = options.unityVersion;
-    const changeset = options.changeset;
-    const tag = options.tag;
+    const recipePath = options.recipe;
+    let recipe;
+    if (recipePath) {
+      try {
+        recipe = RecipeFileReader.read(recipePath);
+      } catch (error) {
+        if (error instanceof RecipeFileError) {
+          log.error(error.message);
+          return false;
+        }
+        throw error;
+      }
+    }
+    const baseOs = recipe?.baseOs || options.baseOs || "ubuntu";
+    const modules = recipe?.modules ? recipe.modules.join(",") : options.modules || "base";
+    const unityVersion = recipe?.unityVersion || options.unityVersion;
+    const changeset = recipe?.changeset || options.changeset;
+    const tag = recipe?.tag || options.tag;
     const push = options.push;
     const defaultHubImage = baseOs === "windows" ? "unityci/hub:windows-latest" : "unityci/hub";
     const defaultBaseImage = baseOs === "windows" ? "unityci/base:windows-latest" : "unityci/base";
-    const hubImage = options.hubImage || defaultHubImage;
-    const baseImage = options.baseImage || defaultBaseImage;
+    const hubImage = recipe?.hubImage || options.hubImage || defaultHubImage;
+    const baseImage = recipe?.baseImage || options.baseImage || defaultBaseImage;
     if (!unityVersion) {
-      log.error("--unity-version is required");
+      log.error(recipe ? `Recipe file "${recipePath}" is missing required field "unityVersion".` : "--unity-version is required");
       return false;
     }
     let resolvedChangeset = changeset;
     if (!resolvedChangeset) {
       log.info(`Resolving changeset for Unity ${unityVersion}...`);
       try {
-        const result = await System.run(`npx unity-changeset ${unityVersion}`, { silent: true });
-        resolvedChangeset = result.stdout.trim();
+        const result = await System.run(`npx unity-changeset ${unityVersion}`, undefined, {
+          silent: true
+        });
+        resolvedChangeset = result.output.trim();
         if (!resolvedChangeset)
           throw new Error("empty changeset");
         log.info(`Changeset: ${resolvedChangeset}`);
@@ -15259,17 +15342,19 @@ class BuildImageCommand extends CommandBase {
         "."
       ].join(" ");
       log.info(`Running: ${buildCmd}`);
-      const buildResult = await System.run(buildCmd);
-      if (buildResult.exitCode !== 0) {
-        log.error(`Docker build failed with exit code ${buildResult.exitCode}`);
+      try {
+        await System.run(buildCmd);
+      } catch (error) {
+        log.error(`Docker build failed: ${error.message}`);
         return false;
       }
       log.info(`Successfully built: ${imageTag}`);
       if (push) {
         log.info(`Pushing ${imageTag}...`);
-        const pushResult = await System.run(`docker push "${imageTag}"`);
-        if (pushResult.exitCode !== 0) {
-          log.error(`Docker push failed`);
+        try {
+          await System.run(`docker push "${imageTag}"`);
+        } catch (error) {
+          log.error(`Docker push failed: ${error.message}`);
           return false;
         }
         log.info(`Pushed: ${imageTag}`);
@@ -15294,9 +15379,12 @@ class BuildImageCommand extends CommandBase {
       default: "base"
     });
     yargs.option("unity-version", {
-      describe: "Unity editor version (e.g. 2022.3.20f1)",
-      type: "string",
-      demandOption: true
+      describe: "Unity editor version (e.g. 2022.3.20f1). Required unless provided via --recipe.",
+      type: "string"
+    });
+    yargs.option("recipe", {
+      describe: "Path to a declarative recipe YAML file (see docs/proposals/recipe-file-format.md). Fields in the recipe take priority over the corresponding CLI flags.",
+      type: "string"
     });
     yargs.option("changeset", {
       describe: "Unity changeset hash (auto-resolved if omitted)",
@@ -17524,6 +17612,79 @@ class UnityLogsCommand extends CommandBase {
   }
 }
 
+// src/model/unity-cli-adapter.ts
+init_system();
+
+class UnityCliAdapter {
+  static async isAvailable() {
+    try {
+      const result = await System.run("unity --version", undefined, { silent: true });
+      return result.status?.success ?? false;
+    } catch {
+      return false;
+    }
+  }
+  static async installEditor(version, modules = []) {
+    const moduleArgs = modules.flatMap((m) => ["-m", m]);
+    const command2 = ["unity", "install", version, ...moduleArgs].join(" ");
+    const result = await System.run(command2, undefined, { silent: true });
+    return { success: result.status?.success ?? false, output: result.output };
+  }
+  static async installModules(editorVersion, modules) {
+    const moduleArgs = modules.flatMap((m) => ["-m", m]);
+    const command2 = ["unity", "install-modules", "-e", editorVersion, ...moduleArgs].join(" ");
+    const result = await System.run(command2, undefined, { silent: true });
+    return { success: result.status?.success ?? false, output: result.output };
+  }
+  static async runCommand(command2, extraArgs = []) {
+    const cliCommand = ["unity", "run", "--command", command2, ...extraArgs].join(" ");
+    const result = await System.run(cliCommand, undefined, { silent: true });
+    return { success: result.status?.success ?? false, output: result.output };
+  }
+}
+
+// src/command-options/unity-run-options.ts
+class UnityRunOptions {
+  static configure(yargs) {
+    yargs.option("command", {
+      alias: "c",
+      description: String.dedent`
+          Fully-qualified static method to invoke, e.g. MyNamespace.MyClass.MyMethod.
+          Passed through to Unity CLI's \`run --command\` — see
+          docs.unity.com/en-us/unity-cli for the current syntax.`,
+      type: "string",
+      demandOption: true
+    }).option("unityCliArgs", {
+      description: "Additional raw arguments appended to the underlying `unity run` invocation, space-separated.",
+      type: "string",
+      demandOption: false,
+      default: ""
+    });
+  }
+}
+
+// src/command/run/unity-run-command.ts
+class UnityRunCommand extends CommandBase {
+  async execute(options) {
+    const command2 = options.command;
+    const extraArgs = String(options.unityCliArgs || "").split(" ").map((arg) => arg.trim()).filter(Boolean);
+    const available = await UnityCliAdapter.isAvailable();
+    if (!available) {
+      throw new Error("run: requires Unity's official `unity` CLI binary on PATH " + "(https://docs.unity.com/en-us/unity-cli). Not found in this environment.");
+    }
+    try {
+      const result = await UnityCliAdapter.runCommand(command2, extraArgs);
+      log.info(result.output);
+      return result.success;
+    } catch (error) {
+      throw new Error(`run: 'unity run --command ${command2}' failed — ${error.message}`);
+    }
+  }
+  async configureOptions(yargs) {
+    UnityRunOptions.configure(yargs);
+  }
+}
+
 // src/plugin/builtin/unity-plugin.ts
 var unityPlugin = {
   name: "unity",
@@ -17549,6 +17710,8 @@ var unityPlugin = {
             return new UnityBuildCommand(command2);
           case "orchestrate":
             return new UnityOrchestrateCommand(command2);
+          case "run":
+            return new UnityRunCommand(command2);
           case "remote":
             switch (subCommands[0]) {
               case "run":
