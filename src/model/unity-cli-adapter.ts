@@ -71,6 +71,21 @@ export class UnityCliAdapter {
     return { success: result.status?.success ?? false, output: result.output };
   }
 
+  /**
+   * Invoke a static method via Unity CLI's `run --command` — a documented,
+   * standardized alternative to bespoke `-executeMethod` batch entry points.
+   * Matches documented syntax: `unity run --command <Namespace.Class.Method> [extraArgs...]`.
+   */
+  static async runCommand(
+    command: string,
+    extraArgs: string[] = [],
+  ): Promise<UnityCliInstallResult> {
+    const cliCommand = ['unity', 'run', '--command', command, ...extraArgs].join(' ');
+    const result = await System.run(cliCommand, undefined, { silent: true });
+
+    return { success: result.status?.success ?? false, output: result.output };
+  }
+
   // `build`/`test`/`license` are intentionally NOT stubbed here yet — Unity's
   // own CLI reference doesn't publish their full flag sets beyond one-line
   // descriptions ("CI-friendly flags, including Android signing and export
