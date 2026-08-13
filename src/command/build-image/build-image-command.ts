@@ -2,22 +2,45 @@ import { CommandInterface } from '../command-interface.ts';
 import { CommandBase } from '../command-base.ts';
 import type { YargsInstance, Options } from '../../dependencies.ts';
 import { System } from '../../model/system/system.ts';
+import { RecipeFileError, RecipeFileReader } from '../../model/build-image/recipe-file.ts';
 
 export class BuildImageCommand extends CommandBase implements CommandInterface {
   public async execute(options: Options): Promise<boolean> {
-    const baseOs = (options.baseOs as string) || 'ubuntu';
-    const modules = (options.modules as string) || 'base';
-    const unityVersion = options.unityVersion as string;
-    const changeset = options.changeset as string | undefined;
-    const tag = options.tag as string | undefined;
+    const recipePath = options.recipe as string | undefined;
+
+    // A recipe file is the "commit it to the repo, code-review it, diff it"
+    // source of truth (see docs/proposals/recipe-file-format.md) — when one
+    // is given, its fields take priority over the CLI flags/positionals
+    // (which otherwise carry their own hardcoded defaults, e.g. baseOs
+    // defaulting to "ubuntu" whether or not the user typed it). --push is
+    // a per-invocation action, not a recipe property, so it always comes
+    // from the flag.
+    let recipe: ReturnType<typeof RecipeFileReader.read> | undefined;
+    if (recipePath) {
+      try {
+        recipe = RecipeFileReader.read(recipePath);
+      } catch (error: any) {
+        if (error instanceof RecipeFileError) {
+          log.error(error.message);
+          return false;
+        }
+        throw error;
+      }
+    }
+
+    const baseOs = recipe?.baseOs || (options.baseOs as string) || 'ubuntu';
+    const modules = recipe?.modules ? recipe.modules.join(',') : (options.modules as string) || 'base';
+    const unityVersion = recipe?.unityVersion || (options.unityVersion as string);
+    const changeset = recipe?.changeset || (options.changeset as string | undefined);
+    const tag = recipe?.tag || (options.tag as string | undefined);
     const push = options.push as boolean;
     const defaultHubImage = baseOs === 'windows' ? 'unityci/hub:windows-latest' : 'unityci/hub';
     const defaultBaseImage = baseOs === 'windows' ? 'unityci/base:windows-latest' : 'unityci/base';
-    const hubImage = (options.hubImage as string) || defaultHubImage;
-    const baseImage = (options.baseImage as string) || defaultBaseImage;
+    const hubImage = recipe?.hubImage || (options.hubImage as string) || defaultHubImage;
+    const baseImage = recipe?.baseImage || (options.baseImage as string) || defaultBaseImage;
 
     if (!unityVersion) {
-      log.error('--unity-version is required');
+      log.error(recipe ? `Recipe file "${recipePath}" is missing required field "unityVersion".` : '--unity-version is required');
       return false;
     }
 
@@ -26,11 +49,10 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
     if (!resolvedChangeset) {
       log.info(`Resolving changeset for Unity ${unityVersion}...`);
       try {
-        const result = await System.run(
-          `npx unity-changeset ${unityVersion}`,
-          { silent: true },
-        );
-        resolvedChangeset = result.stdout.trim();
+        const result = await System.run(`npx unity-changeset ${unityVersion}`, undefined, {
+          silent: true,
+        });
+        resolvedChangeset = result.output.trim();
         if (!resolvedChangeset) throw new Error('empty changeset');
         log.info(`Changeset: ${resolvedChangeset}`);
       } catch {
@@ -74,9 +96,10 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       ].join(' ');
 
       log.info(`Running: ${buildCmd}`);
-      const buildResult = await System.run(buildCmd);
-      if (buildResult.exitCode !== 0) {
-        log.error(`Docker build failed with exit code ${buildResult.exitCode}`);
+      try {
+        await System.run(buildCmd);
+      } catch (error: any) {
+        log.error(`Docker build failed: ${error.message}`);
         return false;
       }
 
@@ -85,9 +108,10 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       // Push if requested
       if (push) {
         log.info(`Pushing ${imageTag}...`);
-        const pushResult = await System.run(`docker push "${imageTag}"`);
-        if (pushResult.exitCode !== 0) {
-          log.error(`Docker push failed`);
+        try {
+          await System.run(`docker push "${imageTag}"`);
+        } catch (error: any) {
+          log.error(`Docker push failed: ${error.message}`);
           return false;
         }
         log.info(`Pushed: ${imageTag}`);
@@ -115,9 +139,14 @@ export class BuildImageCommand extends CommandBase implements CommandInterface {
       default: 'base',
     });
     yargs.option('unity-version', {
-      describe: 'Unity editor version (e.g. 2022.3.20f1)',
+      describe: 'Unity editor version (e.g. 2022.3.20f1). Required unless provided via --recipe.',
       type: 'string',
-      demandOption: true,
+    });
+    yargs.option('recipe', {
+      describe:
+        'Path to a declarative recipe YAML file (see docs/proposals/recipe-file-format.md). ' +
+        'Fields in the recipe take priority over the corresponding CLI flags.',
+      type: 'string',
     });
     yargs.option('changeset', {
       describe: 'Unity changeset hash (auto-resolved if omitted)',
