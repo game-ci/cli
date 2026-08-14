@@ -1,6 +1,7 @@
 import type { GameCIPlugin } from '../plugin-interface.ts';
 import { UnityVersionDetector } from '../../middleware/engine-detection/unity-version-detector.ts';
 import { UnityBuildCommand } from '../../command/build/unity-build-command.ts';
+import { ActivateCommand } from '../../command/activate/activate-command.ts';
 import { UnityOrchestrateCommand } from '../../command/orchestrate/unity-orchestrate-command.ts';
 import { UnityLogsCommand } from '../../command/logs/unity-logs-command.ts';
 import { UnityRunCommand } from '../../command/run/unity-run-command.ts';
@@ -36,6 +37,8 @@ export const unityPlugin: GameCIPlugin = {
         switch (command) {
           case 'build':
             return new UnityBuildCommand(command);
+          case 'activate':
+            return new ActivateCommand(command);
           case 'orchestrate':
             return new UnityOrchestrateCommand(command);
           case 'run':
