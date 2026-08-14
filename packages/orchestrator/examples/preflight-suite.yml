@@ -1,0 +1,44 @@
+# Example preflight suite -- fast no-engine validation gates that run BEFORE
+# build dispatch and fail-fast on the first failure.
+#
+# Drop a copy into your repo at .game-ci/preflight-suite.yml or pass a custom
+# path via:
+#   - game-ci preflight --suite path/to/suite.yml   (CLI)
+#   - preflightSuite: path/to/suite.yml             (action input)
+#
+# Two ways to add a check:
+#   - String reference: a built-in check ID, e.g. "runner-health"
+#   - Inline object:    full custom check definition
+#
+# Run `game-ci preflight --list` to see all built-in check IDs.
+name: Default Preflight Suite
+description: Fast validation gates before the build
+
+checks:
+  # Built-in checks -- reference by ID
+  - runner-health
+  - build-profiles
+  - lfs-health
+  - config-validation
+  - script-integrity
+
+  # Scoped built-in (only runs when matching files changed)
+  - csharp-heuristics-changed
+
+  # Custom inline check
+  - id: custom-asset-check
+    name: Verify Critical Assets
+    description: Ensures required asset bundles exist before build dispatch.
+    category: integrity
+    command: 'test -f Assets/critical-bundle.asset'
+    timeout: 30
+
+  # Custom inline check with platform restriction
+  - id: windows-only-tool-probe
+    name: Windows Toolchain Probe
+    description: Verifies Windows-specific build tooling is available.
+    category: environment
+    command: 'where msbuild'
+    timeout: 15
+    platforms:
+      - win32

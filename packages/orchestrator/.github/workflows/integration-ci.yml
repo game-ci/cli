@@ -1,0 +1,301 @@
+name: Integration CI
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+  statuses: write
+
+env:
+  AWS_STACK_NAME: game-ci-team-pipelines
+  DEBUG: true
+  PROJECT_PATH: test-project
+
+jobs:
+  # ============================================================================
+  # AWS + MINISTACK SMOKE TEST
+  # ============================================================================
+  # Validates:
+  #   - CloudFormation template generation (aws-local mode)
+  #   - S3 integration via MiniStack
+  #   - aws-local fallback (Fargate → local-docker with template validation)
+  # ============================================================================
+  aws-ministack-smoke:
+    name: AWS + MiniStack Smoke
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT: http://localhost:4566
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_FORCE_PROVIDER: aws-local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-node-20-
+
+      - name: Start MiniStack
+        run: |
+          docker run -d \
+            --name localstack-main \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -p 4566:4566 \
+            -e SERVICES=s3,cloudformation,ecs,kinesis,cloudwatch,logs,iam,secretsmanager \
+            -e DEBUG=0 \
+            ministackorg/ministack
+          echo "Waiting for MiniStack to be ready..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4566 > /dev/null 2>&1; then
+              echo "MiniStack is ready (attempt $i/60)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: MiniStack did not become ready"
+              docker logs localstack-main --tail 100 || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Create S3 bucket
+        run: |
+          for i in $(seq 1 5); do
+            if aws --endpoint-url=http://localhost:4566 s3 mb s3://"$AWS_STACK_NAME" 2>&1; then
+              echo "Bucket created successfully"
+              break
+            fi
+            if [ "$i" -eq 5 ]; then echo "ERROR: Failed to create S3 bucket"; exit 1; fi
+            sleep 2
+          done
+
+      - run: yarn install --immutable
+      - run: yarn build
+
+      # Test 1: AWS provider with aws-local mode (validates CloudFormation templates, executes via local-docker)
+      - name: 'Test: orchestrator-image (aws-local mode)'
+        timeout-minutes: 10
+        run: yarn vitest run "orchestrator-image" --no-file-parallelism
+        env:
+          PROVIDER_STRATEGY: aws
+          orchestratorTests: true
+          TARGET_PLATFORM: StandaloneWindows64
+          versioning: None
+          GIT_PRIVATE_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+
+      - name: Light cleanup
+        if: always()
+        run: |
+          rm -rf ./orchestrator-cache/* || true
+          docker system prune -f || true
+
+      # Test 2: S3 integration via MiniStack (local-docker provider + S3 hooks)
+      - name: 'Test: orchestrator-s3-steps (local-docker + MiniStack S3)'
+        timeout-minutes: 15
+        run: yarn vitest run "orchestrator-s3-steps" --no-file-parallelism
+        env:
+          PROVIDER_STRATEGY: local-docker
+          orchestratorTests: true
+          TARGET_PLATFORM: StandaloneLinux64
+          versioning: None
+          AWS_S3_ENDPOINT: http://localhost:4566
+          INPUT_AWSS3ENDPOINT: http://localhost:4566
+          INPUT_AWSENDPOINT: http://localhost:4566
+          AWS_S3_FORCE_PATH_STYLE: 'true'
+          AWS_EC2_METADATA_DISABLED: 'true'
+          GIT_PRIVATE_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+
+      - name: Final cleanup
+        if: always()
+        run: |
+          rm -rf ./orchestrator-cache/* || true
+          docker stop localstack-main 2>/dev/null || true
+          docker rm localstack-main 2>/dev/null || true
+          docker system prune -af --volumes || true
+
+  # ============================================================================
+  # K8S + K3D SMOKE TEST
+  # ============================================================================
+  # Validates:
+  #   - K8s Job creation and pod scheduling via k3d
+  #   - PVC creation and binding
+  #   - MiniStack S3 connectivity from k3d pods
+  # ============================================================================
+  k8s-smoke:
+    name: K8s + k3d Smoke
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_FORCE_PROVIDER: aws-local
+      K8S_MINISTACK_HOST: localstack-main
+      RESOURCE_TRACKING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-node-20-
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.34.1'
+
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          k3d version | cat
+
+      - name: Initial cleanup and network setup
+        run: |
+          docker system prune -af --volumes || true
+          docker network rm orchestrator-net 2>/dev/null || true
+          docker network create orchestrator-net
+
+      - name: Start MiniStack
+        run: |
+          docker run -d \
+            --name localstack-main \
+            --network orchestrator-net \
+            --add-host=host.docker.internal:host-gateway \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -p 4566:4566 \
+            -e SERVICES=s3,cloudformation,ecs,kinesis,cloudwatch,logs,iam,secretsmanager \
+            -e DEBUG=0 \
+            -e HOSTNAME_EXTERNAL=localstack-main \
+            ministackorg/ministack
+          echo "Waiting for MiniStack to be ready..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4566 > /dev/null 2>&1; then
+              echo "MiniStack is ready (attempt $i/60)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: MiniStack did not become ready"
+              docker logs localstack-main --tail 100 || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Create S3 bucket
+        run: |
+          for i in $(seq 1 5); do
+            if aws --endpoint-url=http://localhost:4566 s3 mb s3://"$AWS_STACK_NAME" 2>&1; then
+              echo "Bucket created successfully"
+              break
+            fi
+            if [ "$i" -eq 5 ]; then echo "ERROR: Failed to create S3 bucket"; exit 1; fi
+            sleep 2
+          done
+
+      - name: Create k3d cluster
+        timeout-minutes: 5
+        run: |
+          k3d cluster create unity-builder \
+            --agents 1 \
+            --network orchestrator-net \
+            --wait
+          kubectl config current-context | cat
+
+      - name: Verify cluster and MiniStack connectivity
+        timeout-minutes: 2
+        run: |
+          for i in $(seq 1 60); do
+            if kubectl get nodes 2>/dev/null | grep -q Ready; then
+              echo "Cluster is ready"
+              break
+            fi
+            echo "Waiting for cluster... ($i/60)"
+            sleep 5
+          done
+          kubectl get nodes
+          kubectl get storageclass
+          MINISTACK_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' localstack-main 2>/dev/null || echo "")
+          echo "MiniStack container IP: $MINISTACK_IP"
+          echo "MINISTACK_IP=$MINISTACK_IP" >> "$GITHUB_ENV"
+
+      - run: yarn install --immutable
+      - run: yarn build
+
+      # Test: K8s provider with k3d cluster
+      - name: 'Test: orchestrator-image (k8s)'
+        timeout-minutes: 10
+        run: yarn vitest run "orchestrator-image" --no-file-parallelism
+        env:
+          PROVIDER_STRATEGY: k8s
+          orchestratorTests: true
+          TARGET_PLATFORM: StandaloneWindows64
+          versioning: None
+          KUBE_STORAGE_CLASS: local-path
+          KUBE_VOLUME_SIZE: 2Gi
+          containerCpu: '512'
+          containerMemory: '512'
+          AWS_S3_ENDPOINT: http://localhost:4566
+          AWS_ENDPOINT: http://localhost:4566
+          INPUT_AWSS3ENDPOINT: http://localhost:4566
+          INPUT_AWSENDPOINT: http://localhost:4566
+          AWS_S3_FORCE_PATH_STYLE: 'true'
+          AWS_EC2_METADATA_DISABLED: 'true'
+          GIT_PRIVATE_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+
+      - name: Final cleanup
+        if: always()
+        run: |
+          kubectl delete jobs --all --ignore-not-found=true -n default || true
+          kubectl get pods -n default -o name 2>/dev/null | grep -E "(unity-builder-job-|helper-pod-)" | while IFS= read -r pod; do
+            kubectl delete "$pod" --ignore-not-found=true || true
+          done || true
+          kubectl get pvc -n default -o name 2>/dev/null | grep "unity-builder-pvc-" | while IFS= read -r pvc; do
+            kubectl delete "$pvc" --ignore-not-found=true || true
+          done || true
+          k3d cluster delete unity-builder || true
+          docker stop localstack-main 2>/dev/null || true
+          docker rm localstack-main 2>/dev/null || true
+          docker system prune -af --volumes || true

@@ -1,0 +1,14 @@
+; Minimal Godot project for CI smoke testing
+; This project exists solely to verify orchestrator can dispatch builds
+; to a Godot container image.
+
+[application]
+
+config/name="GameCI Smoke Test"
+config/description="Minimal project for orchestrator CI validation"
+run/main_scene=""
+config/features=PackedStringArray("4.3")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

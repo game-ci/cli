@@ -1,0 +1,116 @@
+{
+  "name": "@game-ci/orchestrator",
+  "version": "1.0.0",
+  "description": "Orchestrator for game-ci — remote build orchestration, provider management, and enterprise services.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./cli-plugin": {
+      "types": "./dist/cli-plugin/index.d.ts",
+      "default": "./dist/cli-plugin/index.js"
+    }
+  },
+  "bin": {
+    "game-ci": "./dist/cli.js"
+  },
+  "repository": "git@github.com:game-ci/orchestrator.git",
+  "author": "game-ci",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "test": "node scripts/ensure-husky.mjs && vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run",
+    "coverage": "vitest run --coverage",
+    "lint": "yarn oxlint --report-unused-disable-directives",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "setup:hooks": "node scripts/ensure-husky.mjs",
+    "prepare": "husky",
+    "game-ci": "ts-node src/cli.ts"
+  },
+  "lint-staged": {
+    "*.@(ts|tsx|mts|js|jsx|mjs|cjs)": [
+      "oxlint --fix --quiet",
+      "oxfmt --write"
+    ],
+    "*.@(json|jsonc|json5|md|mdx|yaml|yml|css|scss|sass|html|toml)": "oxfmt --write",
+    ".github/workflows/*.@(yml|yaml)": "actionlint"
+  },
+  "engines": {
+    "node": ">=20.x"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.0",
+    "@aws-sdk/client-cloudformation": "~3.777.0",
+    "@aws-sdk/client-cloudwatch-logs": "~3.777.0",
+    "@aws-sdk/client-ecs": "~3.778.0",
+    "@aws-sdk/client-kinesis": "~3.777.0",
+    "@aws-sdk/client-s3": "~3.779.0",
+    "@kubernetes/client-node": "^0.16.3",
+    "@octokit/core": "^5.1.0",
+    "async-wait-until": "^2.0.12",
+    "aws-sdk": "^2.1081.0",
+    "base-64": "^1.0.0",
+    "commander": "^9.0.0",
+    "nanoid": "^3.3.1",
+    "reflect-metadata": "^0.1.13",
+    "semver": "^7.5.2",
+    "shell-quote": "^1.8.3",
+    "uuid": "^9.0.0",
+    "yaml": "^2.2.2",
+    "yargs": "^17.7.2"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "dist/**/*.json",
+      "package.json"
+    ],
+    "targets": [
+      "node20-linux-x64",
+      "node20-linux-arm64",
+      "node20-macos-x64",
+      "node20-macos-arm64",
+      "node20-win-x64"
+    ],
+    "outputPath": "dist-binaries"
+  },
+  "devDependencies": {
+    "@types/base-64": "^1.0.2",
+    "@types/node": "^17.0.23",
+    "@types/semver": "^7.3.9",
+    "@types/uuid": "^9.0.0",
+    "@types/yargs": "^17.0.35",
+    "@typescript/native-preview": "^7.0.0-dev.20260505.1",
+    "@vitest/coverage-istanbul": "^4.1.5",
+    "@yao-pkg/pkg": "^6.14.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-unicorn": "^64.0.0",
+    "husky": "9",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "ts-node": "10.8.1",
+    "typescript": "4.7.4",
+    "vite": "^7",
+    "vitest": "^4"
+  },
+  "packageManager": "yarn@4.14.1",
+  "dependenciesMeta": {
+    "aws-sdk": {
+      "built": true
+    },
+    "esbuild": {
+      "built": true
+    }
+  }
+}

@@ -1,0 +1,958 @@
+name: 'Unity - Orchestrator'
+author: Game CI
+description: >
+  Build Unity projects with orchestrator features: remote providers (AWS, K8s, GCP, Azure),
+  hot runner, test workflows, local caching, child workspaces, artifact management, and more.
+  Wraps game-ci/unity-builder and adds orchestrator-specific configuration.
+
+inputs:
+  # ─── Core inputs (passed through to unity-builder) ──────────────────
+  targetPlatform:
+    required: true
+    default: ''
+    description: 'Platform that the build should target.'
+  unityVersion:
+    required: false
+    default: 'auto'
+    description: 'Unity version. Use "auto" to detect from ProjectSettings/ProjectVersion.txt'
+  customImage:
+    required: false
+    default: ''
+    description: 'Specific docker image for building the project'
+  projectPath:
+    required: false
+    default: ''
+    description: 'Path to the project, relative to repo root.'
+  buildProfile:
+    required: false
+    default: ''
+    description: 'Path to the build profile to activate, relative to the project root.'
+  buildName:
+    required: false
+    default: ''
+    description: 'Name of the build (no file extension).'
+  buildsPath:
+    required: false
+    default: ''
+    description: 'Path where builds should be stored.'
+  buildMethod:
+    required: false
+    default: ''
+    description: 'Namespace.Class.StaticMethod to perform the build.'
+  manualExit:
+    required: false
+    default: ''
+    description: 'Suppress -quit flag.'
+  enableGpu:
+    required: false
+    default: ''
+    description: 'Launch unity without -nographics.'
+  customParameters:
+    required: false
+    default: ''
+    description: 'Custom parameters to configure the build.'
+  versioning:
+    required: false
+    default: 'Semantic'
+    description: 'Versioning scheme.'
+  version:
+    required: false
+    default: ''
+    description: 'Version for "Custom" versioning scheme.'
+  androidVersionCode:
+    required: false
+    default: ''
+  androidExportType:
+    required: false
+    default: 'androidPackage'
+  androidKeystoreName:
+    required: false
+    default: ''
+  androidKeystoreBase64:
+    required: false
+    default: ''
+  androidKeystorePass:
+    required: false
+    default: ''
+  androidKeyaliasName:
+    required: false
+    default: ''
+  androidKeyaliasPass:
+    required: false
+    default: ''
+  androidTargetSdkVersion:
+    required: false
+    default: ''
+  androidSymbolType:
+    required: false
+    default: 'none'
+  sshAgent:
+    required: false
+    default: ''
+  sshPublicKeysDirectoryPath:
+    required: false
+    default: ''
+  gitPrivateToken:
+    required: false
+    default: ''
+    description: 'GitHub private token for git operations'
+  runAsHostUser:
+    required: false
+    default: 'false'
+  chownFilesTo:
+    required: false
+    default: ''
+  dockerCpuLimit:
+    required: false
+    default: ''
+  dockerMemoryLimit:
+    required: false
+    default: ''
+  dockerIsolationMode:
+    required: false
+    default: 'default'
+  containerRegistryRepository:
+    required: false
+    default: 'unityci/editor'
+  containerRegistryImageVersion:
+    required: false
+    default: '3'
+  allowDirtyBuild:
+    required: false
+    default: ''
+  cacheUnityInstallationOnMac:
+    required: false
+    default: 'false'
+  unityHubVersionOnMac:
+    required: false
+    default: ''
+  unityLicensingServer:
+    required: false
+    default: ''
+  dockerWorkspacePath:
+    required: false
+    default: '/github/workspace'
+  skipActivation:
+    required: false
+    default: 'false'
+
+  # ─── Provider strategy ──────────────────────────────────────────────
+  providerStrategy:
+    default: 'local'
+    required: false
+    description: 'Build provider: local, aws, k8s, gcp-cloud-run, azure-aci, github-actions, gitlab-ci, ansible, remote-powershell, or a custom provider path/URL.'
+  fallbackProviderStrategy:
+    default: ''
+    required: false
+    description: 'Fallback provider when the primary is unavailable.'
+  runnerCheckEnabled:
+    default: 'false'
+    required: false
+    description: 'Check runner availability before starting a build.'
+  runnerCheckLabels:
+    default: ''
+    required: false
+    description: 'Comma-separated runner labels to filter when checking availability.'
+  runnerCheckMinAvailable:
+    default: '1'
+    required: false
+    description: 'Minimum idle runners required for primary provider.'
+  retryOnFallback:
+    default: 'false'
+    required: false
+    description: 'Retry on fallback provider if primary fails.'
+  providerInitTimeout:
+    default: '0'
+    required: false
+    description: 'Max seconds to wait for provider initialization. 0 = no timeout.'
+  providerExecutable:
+    required: false
+    default: ''
+    description: 'Path to an external CLI executable that implements the provider protocol.'
+
+  # ─── Remote container settings ──────────────────────────────────────
+  containerCpu:
+    default: '1024'
+    required: false
+    description: 'CPU units for the remote build container.'
+  containerMemory:
+    default: '3072'
+    required: false
+    description: 'Memory (MB) for the remote build container.'
+  containerNamespace:
+    default: 'default'
+    required: false
+
+  # ─── AWS ────────────────────────────────────────────────────────────
+  awsStackName:
+    default: 'game-ci'
+    required: false
+    description: 'CloudFormation stack name for AWS provider.'
+
+  # ─── Kubernetes ─────────────────────────────────────────────────────
+  kubeConfig:
+    default: ''
+    required: false
+    description: 'Base64-encoded kubeconfig for K8s provider.'
+  kubeVolume:
+    default: ''
+    required: false
+  kubeVolumeSize:
+    default: '25Gi'
+    required: false
+  kubeStorageClass:
+    default: ''
+    required: false
+
+  # ─── GCP Cloud Run (Experimental) ──────────────────────────────────
+  gcpProject:
+    required: false
+    default: ''
+    description: 'Google Cloud project ID.'
+  gcpRegion:
+    required: false
+    default: ''
+  gcpStorageType:
+    required: false
+    default: 'gcs-fuse'
+    description: 'Storage type: gcs-fuse, gcs-copy, nfs, in-memory.'
+  gcpBucket:
+    required: false
+    default: ''
+  gcpFilestoreIp:
+    required: false
+    default: ''
+  gcpFilestoreShare:
+    required: false
+    default: '/share1'
+  gcpMachineType:
+    required: false
+    default: 'e2-standard-4'
+  gcpDiskSizeGb:
+    required: false
+    default: '100'
+  gcpServiceAccount:
+    required: false
+    default: ''
+  gcpVpcConnector:
+    required: false
+    default: ''
+
+  # ─── Azure Container Instances (Experimental) ──────────────────────
+  azureResourceGroup:
+    required: false
+    default: ''
+  azureLocation:
+    required: false
+    default: ''
+  azureStorageType:
+    required: false
+    default: 'azure-files'
+  azureStorageAccount:
+    required: false
+    default: ''
+  azureBlobContainer:
+    required: false
+    default: 'unity-builds'
+  azureFileShareName:
+    required: false
+    default: 'unity-builds'
+  azureSubscriptionId:
+    required: false
+    default: ''
+  azureCpu:
+    required: false
+    default: '4'
+  azureMemoryGb:
+    required: false
+    default: '16'
+  azureDiskSizeGb:
+    required: false
+    default: '100'
+  azureSubnetId:
+    required: false
+    default: ''
+
+  # ─── Remote PowerShell ─────────────────────────────────────────────
+  remotePowershellHost:
+    default: ''
+    required: false
+  remotePowershellCredential:
+    default: ''
+    required: false
+  remotePowershellTransport:
+    default: 'wsman'
+    required: false
+
+  # ─── GitHub Actions provider ────────────────────────────────────────
+  githubActionsRepo:
+    default: ''
+    required: false
+  githubActionsWorkflow:
+    default: ''
+    required: false
+  githubActionsToken:
+    default: ''
+    required: false
+  githubActionsRef:
+    default: 'main'
+    required: false
+
+  # ─── GitLab CI provider ────────────────────────────────────────────
+  gitlabProjectId:
+    default: ''
+    required: false
+  gitlabTriggerToken:
+    default: ''
+    required: false
+  gitlabApiUrl:
+    default: 'https://gitlab.com'
+    required: false
+  gitlabRef:
+    default: 'main'
+    required: false
+
+  # ─── Ansible provider ──────────────────────────────────────────────
+  ansibleInventory:
+    default: ''
+    required: false
+  ansiblePlaybook:
+    default: ''
+    required: false
+  ansibleExtraVars:
+    default: ''
+    required: false
+  ansibleVaultPassword:
+    default: ''
+    required: false
+
+  # ─── Git & Reliability ─────────────────────────────────────────────
+  gitAuthMode:
+    required: false
+    default: 'header'
+    description: 'Git auth mode: header (default) or url.'
+  gitIntegrityCheck:
+    required: false
+    default: 'false'
+    description: 'Run git fsck, lock cleanup, and submodule validation before build.'
+  gitAutoRecover:
+    required: false
+    default: 'false'
+  cleanReservedFilenames:
+    required: false
+    default: 'false'
+  unityProcessCleanup:
+    required: false
+    default: 'false'
+    description: 'On Windows self-hosted runners, clean stale Unity processes scoped to the project path before launch.'
+  enableBuildDiagnostics:
+    required: false
+    default: 'true'
+    description: 'Analyze Unity Editor log after build/test and emit categorized failure summary to console and GitHub Step Summary.'
+  enableUnityRetry:
+    required: false
+    default: 'false'
+    description: 'Enable multi-phase Unity retry with automatic recovery actions based on failure category.'
+  unityRetryMaxAttempts:
+    required: false
+    default: '3'
+    description: 'Maximum number of Unity retry attempts (including the initial run).'
+  licensingStaggerDelay:
+    required: false
+    default: 'true'
+    description: 'Apply hash-based stagger delay before Unity launch to avoid licensing IPC mutex contention on self-hosted runners.'
+  profileFingerprintEnabled:
+    required: false
+    default: 'false'
+    description: 'Detect submodule profile changes and clear stale ScriptAssemblies/Bee when the profile fingerprint differs from cache.'
+  workerCount:
+    required: false
+    default: '0'
+    description: 'Set -job-worker-count for Unity launch. 0 means use Unity default. Controls import parallelism.'
+  ilppCleanupEnabled:
+    required: false
+    default: 'true'
+    description: 'Clean up crashed ILPP processes scoped to the workspace before Unity launch (Windows only).'
+  acceleratorMode:
+    required: false
+    default: 'enabled'
+    description: 'Unity Accelerator mode: enabled (full), disabled (off), or download-only (pull but no upload).'
+  testResultCleanup:
+    required: false
+    default: 'true'
+    description: 'Delete stale test result XML files before test runner launch to prevent false positives.'
+  disableAssemblyUpdater:
+    required: false
+    default: 'true'
+    description: 'Add -disable-assembly-updater to batchmode launches to prevent ApiUpdater from destabilizing CI sessions.'
+
+  # ─── Unity diagnostic log collection ──────────────────────────────
+  collectUnityLogs:
+    required: false
+    default: 'false'
+    description: >
+      Collect Unity-internal logs (Editor.log, Unity.Licensing.Client.log,
+      Unity.Entitlements.Audit.log, services-config.json, Unity Hub logs,
+      crash dumps, build report, bee_backend.log, IL2CPP output, project
+      version, package manifest, etc.) into <workspace>/Logs/UnityDiagnostics/
+      after the build so they can be uploaded as artifacts and shared with
+      Unity support. See also: collectUnityLogsOnSuccess, unityLogCategories.
+  collectUnityLogsOnSuccess:
+    required: false
+    default: 'true'
+    description: >
+      When false, only collect Unity logs on non-zero exit codes. Default
+      true so successful builds also publish diagnostic artifacts (useful
+      for licensing audits and Unity support tickets).
+  unityLogCategories:
+    required: false
+    default: ''
+    description: >
+      Comma-separated subset of categories to collect (default = all
+      non-sensitive). Categories: editor-log, editor-prev-log,
+      licensing-client, entitlements-audit, services-config, unity-hub-info,
+      unity-hub-error, editor-crash, build-report, bee-backend, player-log,
+      test-results, il2cpp-output, project-version, package-manifest,
+      macos-crash-report, windows-event-log.
+  unityLogsIncludeSensitive:
+    required: false
+    default: 'false'
+    description: >
+      Include sensitive categories (e.g. license-file). NEVER enable in
+      public CI artifacts. Off by default.
+  unityLogsOutputDir:
+    required: false
+    default: ''
+    description: >
+      Override the output directory for collected Unity logs. Default is
+      <workspace>/Logs/UnityDiagnostics/.
+  streamUnityLogs:
+    required: false
+    default: 'false'
+    description: >
+      Live-tail Unity log files during the build and forward each new line
+      to the GitHub Actions log. Useful for long builds where you want to
+      see compile/import progress without waiting for the build to finish.
+  streamUnityLogPaths:
+    required: false
+    default: ''
+    description: >
+      Comma-separated list of files to live-tail. Defaults to the standard
+      <project>/Builds/Logs/Editor.log path that unity-builder configures.
+
+  # ─── Build archive ─────────────────────────────────────────────────
+  buildArchiveEnabled:
+    required: false
+    default: 'false'
+  buildArchivePath:
+    required: false
+    default: './build-archives'
+  buildArchiveRetention:
+    required: false
+    default: '30'
+
+  # ─── Submodule profiles ────────────────────────────────────────────
+  submoduleProfilePath:
+    required: false
+    default: ''
+    description: 'Path to YAML submodule profile file.'
+  submoduleVariantPath:
+    required: false
+    default: ''
+  submoduleToken:
+    required: false
+    default: ''
+
+  # ─── Local cache ───────────────────────────────────────────────────
+  localCacheEnabled:
+    required: false
+    default: 'false'
+    description: 'Enable filesystem-based caching for local builds.'
+  localCacheRoot:
+    required: false
+    default: ''
+  localCacheLibrary:
+    required: false
+    default: 'true'
+  localCacheLfs:
+    required: false
+    default: 'false'
+  localCacheFallback:
+    required: false
+    default: 'false'
+    description: 'When the exact local cache key misses, try compatible cache keys from the same platform/version.'
+  localCacheFallbackKeys:
+    required: false
+    default: ''
+    description: 'Comma-separated explicit local cache fallback keys to try after the exact key.'
+  localCacheMode:
+    required: false
+    default: 'tar'
+    description: 'Local Library cache mode: tar, copy-directory, or move-directory. move-directory is intended for same-volume Windows self-hosted runners. NOTE: canonical-overlay has been removed (see game-ci/roadmap#11) — setting it now throws a clear error instead of running.'
+  upmOfflineEnabled:
+    required: false
+    default: 'false'
+    description: 'When UPM fingerprint matches cached state, set UPM_OFFLINE=1 to skip network package resolution.'
+  backgroundCacheSave:
+    required: false
+    default: 'false'
+    description: 'Save cache directory copies in a detached background process to avoid blocking the pipeline.'
+
+  # ─── Child workspaces ──────────────────────────────────────────────
+  childWorkspacesEnabled:
+    required: false
+    default: 'false'
+    description: 'Enable child workspace isolation for multi-product builds.'
+  childWorkspaceName:
+    required: false
+    default: ''
+  childWorkspaceCacheRoot:
+    required: false
+    default: ''
+  childWorkspacePreserveGit:
+    required: false
+    default: 'true'
+  childWorkspaceSeparateLibrary:
+    required: false
+    default: 'true'
+
+  # ─── LFS ───────────────────────────────────────────────────────────
+  lfsTransferAgent:
+    required: false
+    default: ''
+    description: 'Custom Git LFS transfer agent.'
+  lfsTransferAgentArgs:
+    required: false
+    default: ''
+  lfsStoragePaths:
+    required: false
+    default: ''
+
+  # ─── Git hooks ─────────────────────────────────────────────────────
+  gitHooksEnabled:
+    required: false
+    default: 'false'
+  gitHooksSkipList:
+    required: false
+    default: ''
+  gitHooksRunBeforeBuild:
+    required: false
+    default: ''
+
+  # ─── Hot runner ────────────────────────────────────────────────────
+  hotRunnerEnabled:
+    required: false
+    default: 'false'
+    description: 'Use persistent hot runner for builds.'
+  hotRunnerTransport:
+    required: false
+    default: 'websocket'
+  hotRunnerHost:
+    required: false
+    default: 'localhost'
+  hotRunnerPort:
+    required: false
+    default: '9090'
+  hotRunnerHealthInterval:
+    required: false
+    default: '30'
+  hotRunnerMaxIdle:
+    required: false
+    default: '3600'
+  hotRunnerFallbackToCold:
+    required: false
+    default: 'true'
+
+  # ─── Artifacts ─────────────────────────────────────────────────────
+  artifactOutputTypes:
+    required: false
+    default: 'build,logs,test-results'
+    description: 'Comma-separated output types to collect.'
+  artifactUploadTarget:
+    required: false
+    default: 'github-artifacts'
+    description: 'Upload destination: github-artifacts, storage, local, none.'
+  artifactUploadPath:
+    required: false
+    default: ''
+  artifactCompression:
+    required: false
+    default: 'gzip'
+  artifactRetentionDays:
+    required: false
+    default: '30'
+  artifactCustomTypes:
+    required: false
+    default: ''
+
+  # ─── Preflight ─────────────────────────────────────────────────────
+  preflightSuite:
+    required: false
+    default: ''
+    description: >
+      Path to YAML preflight suite definition file. Preflight runs fast,
+      no-engine validation checks before the build dispatch and fails fast
+      on the first failure. Set to "default" to run the built-in fallback
+      suite when no .game-ci/preflight-suite.yml exists. Empty disables
+      preflight entirely.
+
+  # ─── Test workflow ─────────────────────────────────────────────────
+  testSuitePath:
+    required: false
+    default: ''
+    description: 'Path to YAML test suite definition file.'
+  testSuiteEvent:
+    required: false
+    default: ''
+  testFilterRefs:
+    required: false
+    default: ''
+    description: 'Comma-separated suite filter preset names to inject into every test run.'
+  testFilterInjection:
+    required: false
+    default: ''
+    description: 'Inline YAML or JSON filter overlay injected into every test run. Supports refs, filters, and filterSets.'
+  testFilterInjectionPath:
+    required: false
+    default: ''
+    description: 'Path to a YAML or JSON test filter overlay file injected into every test run.'
+  testTaxonomyPath:
+    required: false
+    default: ''
+  testResultFormat:
+    required: false
+    default: 'junit'
+  testResultPath:
+    required: false
+    default: './test-results'
+
+  # ─── Sync strategy ────────────────────────────────────────────────
+  syncStrategy:
+    required: false
+    default: 'full'
+    description: 'Workspace sync strategy: full, git-delta, direct-input, storage-pull.'
+  syncInputRef:
+    required: false
+    default: ''
+  syncStorageRemote:
+    required: false
+    default: ''
+  syncRevertAfter:
+    required: false
+    default: 'true'
+  syncStatePath:
+    required: false
+    default: '.game-ci/sync-state.json'
+
+  # ─── Orchestrator metadata ─────────────────────────────────────────
+  orchestratorRepoName:
+    default: 'game-ci/unity-builder'
+    required: false
+  cloneDepth:
+    default: '50'
+    required: false
+  secretSource:
+    default: ''
+    required: false
+    description: 'Secret source for pulling build secrets.'
+  storageProvider:
+    default: 's3'
+    required: false
+  rcloneRemote:
+    default: ''
+    required: false
+  cacheKey:
+    default: ''
+    required: false
+  skipLfs:
+    default: 'false'
+    required: false
+  skipCache:
+    default: 'false'
+    required: false
+  skipInContainerClone:
+    description: >-
+      When true, skip the in-container git clone and reuse a pre-hydrated workspace
+      bind-mounted by the caller. The caller must ensure the repository (with .git/,
+      submodules, and LFS objects hydrated as needed) is present at the orchestrator
+      workspace path before the container starts. Intended for self-hosted runners
+      that use private LFS backends or other host-side credentials/config that cannot
+      be replicated inside the container.
+    default: 'false'
+    required: false
+  repoPathOverride:
+    description: >-
+      Override the in-container repository path used by the orchestrator. When set,
+      OrchestratorFolders.repoPathAbsolute returns this value instead of the default
+      ${uniqueOrchestratorJobFolderAbsolute}/${repositoryFolder} layout. Intended to
+      be paired with skipInContainerClone so the caller can point the orchestrator at
+      a pre-hydrated workspace already bind-mounted at a fixed container path (for
+      example /data, which is the default local-docker bind-mount target). Empty
+      string preserves the default path. Setting this without skipInContainerClone is
+      rejected at bootstrap because it would only affect the repo path and not the
+      surrounding cache/builder paths, producing a divergent layout.
+    default: ''
+    required: false
+  maxCacheEntries:
+    description: 'Max cache tar entries to retain per folder'
+    default: '2'
+    required: false
+  minCacheEntries:
+    description: 'Minimum cache entries to keep during age-based GC (floor)'
+    default: '0'
+    required: false
+  gcTimeoutMinutes:
+    description: 'Force garbage collection after this many minutes (0 = disabled)'
+    default: '0'
+    required: false
+  configFiles:
+    description: 'JSON map of filename to content to inject into container workspace'
+    default: '{}'
+    required: false
+
+  # ─── Hooks ─────────────────────────────────────────────────────────
+  postBuildSteps:
+    required: false
+    default: ''
+  preBuildSteps:
+    required: false
+    default: ''
+  containerHookFiles:
+    required: false
+    default: ''
+  customHookFiles:
+    required: false
+    default: ''
+  customCommandHooks:
+    required: false
+    default: ''
+  customJob:
+    required: false
+    default: ''
+  commandHooks:
+    required: false
+    default: ''
+
+outputs:
+  volume:
+    description: 'The Persistent Volume where build artifacts are stored (K8s)'
+    value: ${{ steps.build.outputs.volume }}
+  buildVersion:
+    description: 'The generated version used for the Unity build'
+    value: ${{ steps.build.outputs.buildVersion }}
+  androidVersionCode:
+    description: 'The generated versionCode for Android builds'
+    value: ${{ steps.build.outputs.androidVersionCode }}
+  engineExitCode:
+    description: 'Exit code from the build (0 = success)'
+    value: ${{ steps.build.outputs.engineExitCode }}
+  artifactManifestPath:
+    description: 'Path to the generated artifact manifest JSON'
+    value: ${{ steps.build.outputs.artifactManifestPath }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install orchestrator
+      shell: bash
+      run: |
+        if ! node -e "require.resolve('@game-ci/orchestrator')" 2>/dev/null; then
+          echo "Installing @game-ci/orchestrator..."
+          npm install --no-save @game-ci/orchestrator@latest
+        else
+          echo "@game-ci/orchestrator already available"
+        fi
+
+    - name: Build
+      id: build
+      uses: game-ci/unity-builder@main
+      with:
+        targetPlatform: ${{ inputs.targetPlatform }}
+        unityVersion: ${{ inputs.unityVersion }}
+        customImage: ${{ inputs.customImage }}
+        projectPath: ${{ inputs.projectPath }}
+        buildProfile: ${{ inputs.buildProfile }}
+        buildName: ${{ inputs.buildName }}
+        buildsPath: ${{ inputs.buildsPath }}
+        buildMethod: ${{ inputs.buildMethod }}
+        manualExit: ${{ inputs.manualExit }}
+        enableGpu: ${{ inputs.enableGpu }}
+        customParameters: ${{ inputs.customParameters }}
+        versioning: ${{ inputs.versioning }}
+        version: ${{ inputs.version }}
+        androidVersionCode: ${{ inputs.androidVersionCode }}
+        androidExportType: ${{ inputs.androidExportType }}
+        androidKeystoreName: ${{ inputs.androidKeystoreName }}
+        androidKeystoreBase64: ${{ inputs.androidKeystoreBase64 }}
+        androidKeystorePass: ${{ inputs.androidKeystorePass }}
+        androidKeyaliasName: ${{ inputs.androidKeyaliasName }}
+        androidKeyaliasPass: ${{ inputs.androidKeyaliasPass }}
+        androidTargetSdkVersion: ${{ inputs.androidTargetSdkVersion }}
+        androidSymbolType: ${{ inputs.androidSymbolType }}
+        sshAgent: ${{ inputs.sshAgent }}
+        sshPublicKeysDirectoryPath: ${{ inputs.sshPublicKeysDirectoryPath }}
+        gitPrivateToken: ${{ inputs.gitPrivateToken }}
+        providerStrategy: ${{ inputs.providerStrategy }}
+        runAsHostUser: ${{ inputs.runAsHostUser }}
+        chownFilesTo: ${{ inputs.chownFilesTo }}
+        dockerCpuLimit: ${{ inputs.dockerCpuLimit }}
+        dockerMemoryLimit: ${{ inputs.dockerMemoryLimit }}
+        dockerIsolationMode: ${{ inputs.dockerIsolationMode }}
+        containerRegistryRepository: ${{ inputs.containerRegistryRepository }}
+        containerRegistryImageVersion: ${{ inputs.containerRegistryImageVersion }}
+        allowDirtyBuild: ${{ inputs.allowDirtyBuild }}
+        cacheUnityInstallationOnMac: ${{ inputs.cacheUnityInstallationOnMac }}
+        unityHubVersionOnMac: ${{ inputs.unityHubVersionOnMac }}
+        unityLicensingServer: ${{ inputs.unityLicensingServer }}
+        dockerWorkspacePath: ${{ inputs.dockerWorkspacePath }}
+        skipActivation: ${{ inputs.skipActivation }}
+      env:
+        # ── Orchestrator inputs exposed as INPUT_* env vars ──────
+        # The orchestrator plugin reads these via core.getInput()
+        INPUT_FALLBACKPROVIDERSTRATEGY: ${{ inputs.fallbackProviderStrategy }}
+        INPUT_RUNNERCHECKENABLED: ${{ inputs.runnerCheckEnabled }}
+        INPUT_RUNNERCHECKLABELS: ${{ inputs.runnerCheckLabels }}
+        INPUT_RUNNERCHECKMINAVAILABLE: ${{ inputs.runnerCheckMinAvailable }}
+        INPUT_RETRYONFALLBACK: ${{ inputs.retryOnFallback }}
+        INPUT_PROVIDERINITTIMEOUT: ${{ inputs.providerInitTimeout }}
+        INPUT_PROVIDEREXECUTABLE: ${{ inputs.providerExecutable }}
+        INPUT_CONTAINERCPU: ${{ inputs.containerCpu }}
+        INPUT_CONTAINERMEMORY: ${{ inputs.containerMemory }}
+        INPUT_CONTAINERNAMESPACE: ${{ inputs.containerNamespace }}
+        INPUT_AWSSTACKNAME: ${{ inputs.awsStackName }}
+        INPUT_KUBECONFIG: ${{ inputs.kubeConfig }}
+        INPUT_KUBEVOLUME: ${{ inputs.kubeVolume }}
+        INPUT_KUBEVOLUMESIZE: ${{ inputs.kubeVolumeSize }}
+        INPUT_KUBESTORAGECLASS: ${{ inputs.kubeStorageClass }}
+        INPUT_GCPPROJECT: ${{ inputs.gcpProject }}
+        INPUT_GCPREGION: ${{ inputs.gcpRegion }}
+        INPUT_GCPSTORAGETYPE: ${{ inputs.gcpStorageType }}
+        INPUT_GCPBUCKET: ${{ inputs.gcpBucket }}
+        INPUT_GCPFILESTOREIP: ${{ inputs.gcpFilestoreIp }}
+        INPUT_GCPFILESTORESHARE: ${{ inputs.gcpFilestoreShare }}
+        INPUT_GCPMACHINETYPE: ${{ inputs.gcpMachineType }}
+        INPUT_GCPDISKSIZEGB: ${{ inputs.gcpDiskSizeGb }}
+        INPUT_GCPSERVICEACCOUNT: ${{ inputs.gcpServiceAccount }}
+        INPUT_GCPVPCCONNECTOR: ${{ inputs.gcpVpcConnector }}
+        INPUT_AZURERESOURCEGROUP: ${{ inputs.azureResourceGroup }}
+        INPUT_AZURELOCATION: ${{ inputs.azureLocation }}
+        INPUT_AZURESTORAGETYPE: ${{ inputs.azureStorageType }}
+        INPUT_AZURESTORAGEACCOUNT: ${{ inputs.azureStorageAccount }}
+        INPUT_AZUREBLOBCONTAINER: ${{ inputs.azureBlobContainer }}
+        INPUT_AZUREFILESHARENAME: ${{ inputs.azureFileShareName }}
+        INPUT_AZURESUBSCRIPTIONID: ${{ inputs.azureSubscriptionId }}
+        INPUT_AZURECPU: ${{ inputs.azureCpu }}
+        INPUT_AZUREMEMORYGB: ${{ inputs.azureMemoryGb }}
+        INPUT_AZUREDISKSIZEGB: ${{ inputs.azureDiskSizeGb }}
+        INPUT_AZURESUBNETID: ${{ inputs.azureSubnetId }}
+        INPUT_REMOTEPOWERSHELLHOST: ${{ inputs.remotePowershellHost }}
+        INPUT_REMOTEPOWERSHELLCREDENTIAL: ${{ inputs.remotePowershellCredential }}
+        INPUT_REMOTEPOWERSHELLTRANSPORT: ${{ inputs.remotePowershellTransport }}
+        INPUT_GITHUBACTIONSREPO: ${{ inputs.githubActionsRepo }}
+        INPUT_GITHUBACTIONSWORKFLOW: ${{ inputs.githubActionsWorkflow }}
+        INPUT_GITHUBACTIONSTOKEN: ${{ inputs.githubActionsToken }}
+        INPUT_GITHUBACTIONSREF: ${{ inputs.githubActionsRef }}
+        INPUT_GITLABPROJECTID: ${{ inputs.gitlabProjectId }}
+        INPUT_GITLABTRIGGERTOKEN: ${{ inputs.gitlabTriggerToken }}
+        INPUT_GITLABAPIURL: ${{ inputs.gitlabApiUrl }}
+        INPUT_GITLABREF: ${{ inputs.gitlabRef }}
+        INPUT_ANSIBLEINVENTORY: ${{ inputs.ansibleInventory }}
+        INPUT_ANSIBLEPLAYBOOK: ${{ inputs.ansiblePlaybook }}
+        INPUT_ANSIBLEEXTRAVARS: ${{ inputs.ansibleExtraVars }}
+        INPUT_ANSIBLEVAULTPASSWORD: ${{ inputs.ansibleVaultPassword }}
+        INPUT_GITAUTHMODE: ${{ inputs.gitAuthMode }}
+        INPUT_GITINTEGRITYCHECK: ${{ inputs.gitIntegrityCheck }}
+        INPUT_GITAUTORECOVER: ${{ inputs.gitAutoRecover }}
+        INPUT_CLEANRESERVEDFILENAMES: ${{ inputs.cleanReservedFilenames }}
+        INPUT_UNITYPROCESSCLEANUP: ${{ inputs.unityProcessCleanup }}
+        INPUT_ENABLEBUILDDIAGNOSTICS: ${{ inputs.enableBuildDiagnostics }}
+        INPUT_ENABLEUNITYRETRY: ${{ inputs.enableUnityRetry }}
+        INPUT_UNITYRETRYMAXATTEMPTS: ${{ inputs.unityRetryMaxAttempts }}
+        INPUT_LICENSINGSTAGGERDELAY: ${{ inputs.licensingStaggerDelay }}
+        INPUT_PROFILEFINGERPRINTENABLED: ${{ inputs.profileFingerprintEnabled }}
+        INPUT_WORKERCOUNT: ${{ inputs.workerCount }}
+        INPUT_ILPPCLEANUPENABLED: ${{ inputs.ilppCleanupEnabled }}
+        INPUT_ACCELERATORMODE: ${{ inputs.acceleratorMode }}
+        INPUT_TESTRESULTCLEANUP: ${{ inputs.testResultCleanup }}
+        INPUT_DISABLEASSEMBLYUPDATER: ${{ inputs.disableAssemblyUpdater }}
+        INPUT_COLLECTUNITYLOGS: ${{ inputs.collectUnityLogs }}
+        INPUT_COLLECTUNITYLOGSONSUCCESS: ${{ inputs.collectUnityLogsOnSuccess }}
+        INPUT_UNITYLOGCATEGORIES: ${{ inputs.unityLogCategories }}
+        INPUT_UNITYLOGSINCLUDESENSITIVE: ${{ inputs.unityLogsIncludeSensitive }}
+        INPUT_UNITYLOGSOUTPUTDIR: ${{ inputs.unityLogsOutputDir }}
+        INPUT_STREAMUNITYLOGS: ${{ inputs.streamUnityLogs }}
+        INPUT_STREAMUNITYLOGPATHS: ${{ inputs.streamUnityLogPaths }}
+        INPUT_BUILDARCHIVEENABLED: ${{ inputs.buildArchiveEnabled }}
+        INPUT_BUILDARCHIVEPATH: ${{ inputs.buildArchivePath }}
+        INPUT_BUILDARCHIVERETENTION: ${{ inputs.buildArchiveRetention }}
+        INPUT_SUBMODULEPROFILEPATH: ${{ inputs.submoduleProfilePath }}
+        INPUT_SUBMODULEVARIANTPATH: ${{ inputs.submoduleVariantPath }}
+        INPUT_SUBMODULETOKEN: ${{ inputs.submoduleToken }}
+        INPUT_LOCALCACHEENABLED: ${{ inputs.localCacheEnabled }}
+        INPUT_LOCALCACHEROOT: ${{ inputs.localCacheRoot }}
+        INPUT_LOCALCACHELIBRARY: ${{ inputs.localCacheLibrary }}
+        INPUT_LOCALCACHELFS: ${{ inputs.localCacheLfs }}
+        INPUT_LOCALCACHEFALLBACK: ${{ inputs.localCacheFallback }}
+        INPUT_LOCALCACHEFALLBACKKEYS: ${{ inputs.localCacheFallbackKeys }}
+        INPUT_LOCALCACHEMODE: ${{ inputs.localCacheMode }}
+        INPUT_UPMOFFLINEENABLED: ${{ inputs.upmOfflineEnabled }}
+        INPUT_BACKGROUNDCACHESAVE: ${{ inputs.backgroundCacheSave }}
+        INPUT_CHILDWORKSPACESENABLED: ${{ inputs.childWorkspacesEnabled }}
+        INPUT_CHILDWORKSPACENAME: ${{ inputs.childWorkspaceName }}
+        INPUT_CHILDWORKSPACECACHEROOT: ${{ inputs.childWorkspaceCacheRoot }}
+        INPUT_CHILDWORKSPACEPRESERVEGIT: ${{ inputs.childWorkspacePreserveGit }}
+        INPUT_CHILDWORKSPACESEPARATELIBRARY: ${{ inputs.childWorkspaceSeparateLibrary }}
+        INPUT_LFSTRANSFERAGENT: ${{ inputs.lfsTransferAgent }}
+        INPUT_LFSTRANSFERAGENTARGS: ${{ inputs.lfsTransferAgentArgs }}
+        INPUT_LFSSTORAGEPATHS: ${{ inputs.lfsStoragePaths }}
+        INPUT_GITHOOKSENABLED: ${{ inputs.gitHooksEnabled }}
+        INPUT_GITHOOKSSKIPLIST: ${{ inputs.gitHooksSkipList }}
+        INPUT_GITHOOKSRUNBEFOREBUILD: ${{ inputs.gitHooksRunBeforeBuild }}
+        INPUT_HOTRUNNERENABLED: ${{ inputs.hotRunnerEnabled }}
+        INPUT_HOTRUNNERTRANSPORT: ${{ inputs.hotRunnerTransport }}
+        INPUT_HOTRUNNERHOST: ${{ inputs.hotRunnerHost }}
+        INPUT_HOTRUNNERPORT: ${{ inputs.hotRunnerPort }}
+        INPUT_HOTRUNNERHEALTHINTERVAL: ${{ inputs.hotRunnerHealthInterval }}
+        INPUT_HOTRUNNERMAXIDLE: ${{ inputs.hotRunnerMaxIdle }}
+        INPUT_HOTRUNNERFALLBACKTOCOLD: ${{ inputs.hotRunnerFallbackToCold }}
+        INPUT_ARTIFACTOUTPUTTYPES: ${{ inputs.artifactOutputTypes }}
+        INPUT_ARTIFACTUPLOADTARGET: ${{ inputs.artifactUploadTarget }}
+        INPUT_ARTIFACTUPLOADPATH: ${{ inputs.artifactUploadPath }}
+        INPUT_ARTIFACTCOMPRESSION: ${{ inputs.artifactCompression }}
+        INPUT_ARTIFACTRETENTIONDAYS: ${{ inputs.artifactRetentionDays }}
+        INPUT_ARTIFACTCUSTOMTYPES: ${{ inputs.artifactCustomTypes }}
+        INPUT_PREFLIGHTSUITE: ${{ inputs.preflightSuite }}
+        INPUT_TESTSUITEPATH: ${{ inputs.testSuitePath }}
+        INPUT_TESTSUITEEVENT: ${{ inputs.testSuiteEvent }}
+        INPUT_TESTFILTERREFS: ${{ inputs.testFilterRefs }}
+        INPUT_TESTFILTERINJECTION: ${{ inputs.testFilterInjection }}
+        INPUT_TESTFILTERINJECTIONPATH: ${{ inputs.testFilterInjectionPath }}
+        INPUT_TESTTAXONOMYPATH: ${{ inputs.testTaxonomyPath }}
+        INPUT_TESTRESULTFORMAT: ${{ inputs.testResultFormat }}
+        INPUT_TESTRESULTPATH: ${{ inputs.testResultPath }}
+        INPUT_SYNCSTRATEGY: ${{ inputs.syncStrategy }}
+        INPUT_SYNCINPUTREF: ${{ inputs.syncInputRef }}
+        INPUT_SYNCSTORAGEREMOTE: ${{ inputs.syncStorageRemote }}
+        INPUT_SYNCREVERTAFTER: ${{ inputs.syncRevertAfter }}
+        INPUT_SYNCSTATEPATH: ${{ inputs.syncStatePath }}
+        INPUT_ORCHESTRATORREPONAME: ${{ inputs.orchestratorRepoName }}
+        INPUT_CLONEDEPTH: ${{ inputs.cloneDepth }}
+        INPUT_SECRETSOURCE: ${{ inputs.secretSource }}
+        INPUT_STORAGEPROVIDER: ${{ inputs.storageProvider }}
+        INPUT_RCLONEREMOTE: ${{ inputs.rcloneRemote }}
+        INPUT_CACHEKEY: ${{ inputs.cacheKey }}
+        INPUT_SKIPLFS: ${{ inputs.skipLfs }}
+        INPUT_SKIPCACHE: ${{ inputs.skipCache }}
+        INPUT_SKIPINCONTAINERCLONE: ${{ inputs.skipInContainerClone }}
+        INPUT_REPOPATHOVERRIDE: ${{ inputs.repoPathOverride }}
+        INPUT_MAXCACHEENTRIES: ${{ inputs.maxCacheEntries }}
+        INPUT_MINCACHEENTRIES: ${{ inputs.minCacheEntries }}
+        INPUT_GCTIMEOUTMINUTES: ${{ inputs.gcTimeoutMinutes }}
+        INPUT_CONFIGFILES: ${{ inputs.configFiles }}
+        INPUT_POSTBUILDSTEPS: ${{ inputs.postBuildSteps }}
+        INPUT_PREBUILDSTEPS: ${{ inputs.preBuildSteps }}
+        INPUT_CONTAINERHOOKFILES: ${{ inputs.containerHookFiles }}
+        INPUT_CUSTOMHOOKFILES: ${{ inputs.customHookFiles }}
+        INPUT_CUSTOMCOMMANDHOOKS: ${{ inputs.customCommandHooks }}
+        INPUT_CUSTOMJOB: ${{ inputs.customJob }}
+        INPUT_COMMANDHOOKS: ${{ inputs.commandHooks }}

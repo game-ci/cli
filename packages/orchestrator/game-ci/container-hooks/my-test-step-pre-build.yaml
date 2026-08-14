@@ -1,0 +1,4 @@
+name: my-test-step-pre-build
+image: ubuntu
+hook: before
+commands: echo "before-build step test!"
