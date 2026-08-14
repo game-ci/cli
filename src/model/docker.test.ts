@@ -81,12 +81,29 @@ describe('Docker', () => {
       engine: 'unity',
       dockerCpuLimit: '4',
       dockerMemoryLimit: '8192m',
+      dockerShmSize: '1024m',
       useHostNetwork: true,
     });
 
     expect(command).toContain('--cpus=4');
     expect(command).toContain('--memory=8192m');
+    expect(command).toContain('--shm-size=1024m');
     expect(command).toContain('--net=host');
+  });
+
+  it('omits --shm-size when dockerShmSize is not set (game-ci/unity-test-runner#307)', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+    });
+
+    expect(command).not.toContain('--shm-size');
   });
 
   it('mounts a custom SSH public keys directory instead of the known_hosts fallback', () => {
@@ -134,11 +151,13 @@ describe('Docker', () => {
       engine: 'unity',
       dockerCpuLimit: '4',
       dockerMemoryLimit: '8192m',
+      dockerShmSize: '1024m',
       dockerIsolationMode: 'process',
     });
 
     expect(command).toContain('--cpus=4');
     expect(command).toContain('--memory=8192m');
+    expect(command).toContain('--shm-size=1024m');
     expect(command).toContain('--isolation=process');
   });
 
