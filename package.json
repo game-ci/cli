@@ -15,7 +15,6 @@
     "build": "bun build src/index.ts --outdir dist --target node",
     "build:binary": "bun build src/index.ts --compile --outfile game-ci",
     "test": "bun test ./src",
-    "test:orchestrator": "cd plugins/orchestrator && vitest run",
     "lint": "echo 'Not implemented yet.'"
   },
   "dependencies": {

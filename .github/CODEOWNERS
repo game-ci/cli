@@ -55,4 +55,5 @@
 # Release and supply chain — second pair of eyes regardless of engine.
 # ---------------------------------------------------------------------
 /.github/workflows/release-cli.yml                  @webbertakken @GabLeRoux
+/.github/workflows/orchestrator-release.yml         @webbertakken @GabLeRoux
 /.github/CODEOWNERS                                 @webbertakken @GabLeRoux

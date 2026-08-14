@@ -1,0 +1,271 @@
+name: Release Orchestrator
+
+# Port of plugins/orchestrator/.github/workflows/release-cli.yml, inert as a
+# nested workflow. Publishes @game-ci/orchestrator to npm and its own
+# standalone `game-ci-*` binaries to a GitHub release - independent of cli's
+# own release-cli.yml (which does the same for the `game-ci` product binary
+# from `src/`). Both workflows originally listened to the same `release:
+# published` event; left as-is, EVERY cli release (tag `vX.Y.Z`) would also
+# rebuild and publish orchestrator to npm. Scoped the release trigger to
+# `orchestrator-v*` tags so orchestrator gets its own release lane and cli
+# releases stay unaffected. CODEOWNERS-gated (@webbertakken @GabLeRoux),
+# matching release-cli.yml's own gating, since this touches NPM_TOKEN and a
+# public npm package.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g., orchestrator-v1.0.0). Uses latest release if empty.'
+        required: false
+        type: string
+      publish-npm:
+        description: 'Publish to npm'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: plugins/orchestrator
+
+jobs:
+  build-binaries:
+    name: Build ${{ matrix.target }}
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'orchestrator-v')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+            pkg-target: node20-linux-x64
+            binary-name: orchestrator-linux-x64
+          - target: linux-arm64
+            os: ubuntu-latest
+            pkg-target: node20-linux-arm64
+            binary-name: orchestrator-linux-arm64
+          - target: macos-x64
+            os: macos-latest
+            pkg-target: node20-macos-x64
+            binary-name: orchestrator-macos-x64
+          - target: macos-arm64
+            os: macos-latest
+            pkg-target: node20-macos-arm64
+            binary-name: orchestrator-macos-arm64
+          - target: windows-x64
+            os: windows-latest
+            pkg-target: node20-win-x64
+            binary-name: orchestrator-windows-x64.exe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        # Invoke yarn through the corepack shim so the project-pinned
+        # version (yarn 4.x per package.json `packageManager`) is used
+        # even on Windows runners, where the previous step's PATH
+        # mutations from `corepack enable` do not always take precedence
+        # over the pre-installed system yarn 1.22.x.
+        run: echo "cacheFolder=$(corepack yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-'20'-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-node-'20'-
+
+      - name: Install dependencies
+        run: corepack yarn install --immutable
+
+      - name: Build TypeScript
+        run: corepack yarn build
+
+      - name: Verify CLI before packaging
+        run: node dist/cli.js version
+
+      - name: Build standalone binary
+        run: npx @yao-pkg/pkg dist/cli.js --target ${{ matrix.pkg-target }} --output ${{ matrix.binary-name }} --compress GZip
+
+      - name: Verify standalone binary (non-cross-compiled)
+        if: |
+          (matrix.target == 'linux-x64' && runner.os == 'Linux') ||
+          (matrix.target == 'macos-arm64' && runner.os == 'macOS' && runner.arch == 'ARM64') ||
+          (matrix.target == 'macos-x64' && runner.os == 'macOS' && runner.arch == 'X64') ||
+          (matrix.target == 'windows-x64' && runner.os == 'Windows')
+        run: ./${{ matrix.binary-name }} version
+        shell: bash
+
+      # Smoke-check the image tag produced by `orchestrate --target-platform
+      # StandaloneWindows64` on the freshly-built binary. The ImageTag class
+      # (src/model/image-tag.ts) composes the Docker reference from
+      # editorVersion, the targetPlatformSuffixes lookup, and imageRollingVersion.
+      # When the binary contains the correct compiled `tag` getter, the
+      # output contains `windows-mono-3`. When the regression case ships
+      # (interpolated `${targetPlatform}` directly), the output contains
+      # the literal `StandaloneWindows64-3` instead -- a Docker tag that
+      # does not exist on Docker Hub, producing `docker pull` exit 125 in
+      # every downstream local-docker orchestrator invocation.
+      #
+      # This step fails the release if the regression substring appears,
+      # preventing the broken binary from reaching `create-checksums-and-upload`.
+      # Downstream regression history that motivated this guard:
+      # https://github.com/frostebite/GameClient/issues/11#issuecomment-4471659854
+      #
+      # `--build-method` and `--builds-path` get values that intentionally
+      # do not exist so the build short-circuits before doing real work --
+      # we only care about the image-tag log line emitted in the early
+      # orchestrator setup phase.
+      - name: Verify orchestrate emits expected image tag (windows-x64 native)
+        if: matrix.target == 'windows-x64' && runner.os == 'Windows'
+        shell: bash
+        run: |
+          set +e
+          OUTPUT=$(./${{ matrix.binary-name }} orchestrate \
+            --target-platform StandaloneWindows64 \
+            --unity-version 6000.4.7f1 \
+            --provider-strategy local-docker \
+            --project-path . \
+            --build-method nonexistent.Method \
+            --builds-path nope 2>&1)
+          set -e
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q 'StandaloneWindows64-3'; then
+            echo "::error::Built binary emits the broken image tag 'StandaloneWindows64-3' -- the ImageTag fix from PR #30 did not land in this binary. Investigate the pkg/build pipeline before publishing."
+            exit 1
+          fi
+          if ! echo "$OUTPUT" | grep -q 'windows-mono-3'; then
+            echo "::error::Built binary did not emit the expected 'windows-mono-3' image tag substring. Either the ImageTag regression returned in a new form, or targetPlatformSuffixes changed without updating this verify step."
+            exit 1
+          fi
+          echo "[verify] image tag check passed -- output contains 'windows-mono-3' and no 'StandaloneWindows64-3'"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: plugins/orchestrator/${{ matrix.binary-name }}
+          retention-days: 5
+
+  create-checksums-and-upload:
+    name: Checksums and release upload
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: List binaries
+        run: ls -la binaries/
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd binaries
+          sha256sum orchestrator-* > checksums.txt
+          echo "=== checksums.txt ==="
+          cat checksums.txt
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release tag available. Skipping upload."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload binaries to release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd binaries
+          for f in orchestrator-* checksums.txt; do
+            echo "Uploading $f..."
+            gh release upload "${{ steps.tag.outputs.tag }}" "$f" \
+              --repo "${{ github.repository }}" \
+              --clobber
+          done
+
+  publish-npm:
+    name: Publish to npm
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'orchestrator-v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish-npm)
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-'20'-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-node-'20'-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
+
+      - name: Run tests
+        run: yarn test
+
+      - name: Verify CLI
+        run: |
+          node dist/cli.js version
+          node dist/cli.js --help
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

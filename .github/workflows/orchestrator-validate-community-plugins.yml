@@ -1,0 +1,250 @@
+name: Orchestrator Validate Community Plugins
+
+# Port of plugins/orchestrator/.github/workflows/validate-community-plugins.yml,
+# inert as a nested workflow. Weekly check that third-party provider
+# plugins listed in plugins/orchestrator/community-plugins.yml still
+# implement ProviderInterface. No cloud credentials needed - only
+# `issues: write`, to file/update a tracking issue on failure.
+
+on:
+  schedule:
+    # Run weekly on Sunday at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      plugin_filter:
+        description: 'Filter plugins by name (regex pattern, empty = all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  load-plugins:
+    name: Load Plugin Registry
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      plugin_count: ${{ steps.parse.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse plugin registry
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+
+            const registry = yaml.load(fs.readFileSync('plugins/orchestrator/community-plugins.yml', 'utf8'));
+            let providers = registry.providers || [];
+
+            // Filter out commented-out example entries (null from YAML)
+            providers = providers.filter(p => p !== null && p !== undefined);
+
+            // Apply name filter if provided
+            const filter = '${{ github.event.inputs.plugin_filter }}';
+            if (filter) {
+              const regex = new RegExp(filter, 'i');
+              providers = providers.filter(p => regex.test(p.name));
+            }
+
+            const matrix = providers.map(p => ({
+              name: p.name,
+              source: p.source,
+              type: p.type || 'github',
+              timeout: p.timeout || 10,
+              env: JSON.stringify(p.env || {})
+            }));
+
+            core.setOutput('matrix', JSON.stringify({ include: matrix }));
+            core.setOutput('count', matrix.length);
+            console.log(`Found ${matrix.length} community provider plugins to validate`);
+
+  validate:
+    name: '${{ matrix.name }}'
+    needs: load-plugins
+    if: needs.load-plugins.outputs.plugin_count > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJson(matrix.timeout) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.load-plugins.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: plugins/orchestrator
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-node-20-
+
+      - name: Install dependencies
+        env:
+          YARN_ENABLE_HARDENED_MODE: 'false'
+        run: |
+          case "$(yarn --version)" in 1.*) echo 'expected up-to-date yarn version'; exit 1 ;; esac
+          yarn install --immutable
+
+      - name: Build orchestrator
+        run: yarn build
+
+      - name: Validate provider plugin
+        id: validate
+        run: |
+          node -e "
+            const { ProviderLoader } = require('./dist/model/orchestrator/providers/provider-loader');
+            const BuildParameters = require('./dist/model/build-parameters').default;
+
+            async function validate() {
+              const source = '${{ matrix.source }}';
+              const providerType = '${{ matrix.type }}';
+
+              console.log('Analyzing provider source:', source);
+              const sourceInfo = ProviderLoader.analyzeProviderSource(source);
+              console.log('Source info:', JSON.stringify(sourceInfo, null, 2));
+
+              // Install npm package if needed
+              if (providerType === 'npm') {
+                const { execSync } = require('child_process');
+                console.log('Installing npm package:', source);
+                execSync('yarn add ' + source, { stdio: 'inherit' });
+              }
+
+              // Load the provider with minimal build parameters
+              const buildParameters = new BuildParameters();
+              const provider = await ProviderLoader.loadProvider(source, buildParameters);
+
+              // Verify all ProviderInterface methods exist
+              const requiredMethods = [
+                'cleanupWorkflow',
+                'setupWorkflow',
+                'runTaskInWorkflow',
+                'garbageCollect',
+                'listResources',
+                'listWorkflow',
+                'watchWorkflow'
+              ];
+
+              const missing = requiredMethods.filter(m => typeof provider[m] !== 'function');
+              if (missing.length > 0) {
+                throw new Error('Missing ProviderInterface methods: ' + missing.join(', '));
+              }
+
+              console.log('Provider successfully implements ProviderInterface');
+              console.log('Available methods:', requiredMethods.join(', '));
+            }
+
+            validate().then(() => {
+              console.log('Validation passed');
+              process.exit(0);
+            }).catch(err => {
+              console.error('Validation failed:', err.message);
+              process.exit(1);
+            });
+          "
+        continue-on-error: true
+
+      - name: Record result
+        if: always()
+        run: |
+          STATUS="${{ steps.validate.outcome }}"
+          {
+            echo "## ${{ matrix.name }}"
+            echo ""
+            if [ "$STATUS" = "success" ]; then
+              echo "✅ **PASSED** — Provider implements ProviderInterface correctly"
+            else
+              echo "❌ **FAILED** — Provider validation failed"
+            fi
+            echo ""
+            echo "- Source: \`${{ matrix.source }}\`"
+            echo "- Type: ${{ matrix.type }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    name: Validation Report
+    needs: [load-plugins, validate]
+    if: always() && needs.load-plugins.outputs.plugin_count > 0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: run } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
+            const validateJobs = run.jobs.filter(j =>
+              !['Load Plugin Registry', 'Validation Report'].includes(j.name)
+            );
+            const passed = validateJobs.filter(j => j.conclusion === 'success').length;
+            const failed = validateJobs.filter(j => j.conclusion === 'failure').length;
+            const total = validateJobs.length;
+
+            let summary = `# Community Provider Plugin Validation Report\n\n`;
+            summary += `**${passed}/${total} passed** | ${failed} failed\n\n`;
+            summary += `| Provider | Status |\n|----------|--------|\n`;
+
+            for (const job of validateJobs) {
+              const icon = job.conclusion === 'success' ? '✅' : '❌';
+              summary += `| ${job.name} | ${icon} ${job.conclusion} |\n`;
+            }
+
+            await core.summary.addRaw(summary).write();
+
+            // Create or update issue if there are failures
+            if (failed > 0) {
+              const title = `Community Plugin Validation: ${failed} failure(s) — ${new Date().toISOString().split('T')[0]}`;
+              const body = summary + `\n\n[Workflow Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'community-plugin-validation'
+              });
+
+              if (issues.length > 0) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issues[0].number,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: title,
+                  body: body,
+                  labels: ['community-plugin-validation']
+                });
+              }
+            }
