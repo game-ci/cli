@@ -14247,7 +14247,7 @@ import * as path from "node:path";
 import * as process2 from "node:process";
 import { Buffer as Buffer2 } from "node:buffer";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var semver, import_dotenv, __filename2, __dirname3, base64, fsSyncCompat, getHomeDir = () => {
+var semver, import_dotenv, isCompiledBinary, __filename2, __dirname3, base64, fsSyncCompat, getHomeDir = () => {
   return process2.env.HOME || process2.env.USERPROFILE || null;
 };
 var init_dependencies = __esm(() => {
@@ -14260,7 +14260,8 @@ var init_dependencies = __esm(() => {
   import_dotenv = __toESM(require_main(), 1);
   String.dedent = dedent;
   Error.stackTraceLimit = 15;
-  __filename2 = fileURLToPath2(import.meta.url);
+  isCompiledBinary = !path.basename(process2.execPath).toLowerCase().startsWith("bun");
+  __filename2 = isCompiledBinary ? process2.execPath : fileURLToPath2(import.meta.url);
   __dirname3 = path.dirname(__filename2);
   base64 = {
     encode: (data) => Buffer2.from(data).toString("base64"),
@@ -17389,10 +17390,13 @@ class BuildOptions {
       argv.buildFile = UnityTargetPlatform.determineBuildFileName(resolvedBuildName, targetPlatform, resolvedAndroidExportType, Boolean(linux64RemoveExecutableExtension));
     }).option("buildMethod", {
       alias: "m",
-      description: "Build method to use",
+      description: String.dedent`Build method to use, in <Namespace.Class.StaticMethod> form. Leave unset to use
+        the built-in UnityBuilderAction.Builder.BuildProject method, which builds the scenes enabled in the
+        project - the platform entrypoint scripts only copy that built-in build script into the project when this
+        is empty (see game-ci/cli#75), so it must stay empty rather than defaulting to that class name here.`,
       type: "string",
       demandOption: false,
-      default: "UnityBuilderAction.Builder.BuildProject"
+      default: ""
     }).option("dockerWorkspacePath", {
       description: String.dedent`The path to mount the workspace inside the docker container. For windows, leave out the drive letter. For example
         c:/github/workspace should be defined as /github/workspace`,
@@ -18285,7 +18289,7 @@ class Cli {
     this.hostPlatform = process2.platform;
     this.hostOS = process2.platform === "win32" ? "windows" : process2.platform;
     this.cliPath = __dirname3;
-    this.cliDistPath = path.join(path.dirname(__dirname3), "dist");
+    this.cliDistPath = isCompiledBinary ? path.join(__dirname3, "dist") : path.join(path.dirname(__dirname3), "dist");
   }
   async setup() {
     await this.configureLogger();
