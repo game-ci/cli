@@ -1,7 +1,8 @@
 $Private:repo = "mmozeiko/build-mesa"
 $Private:downloadPath = "$Env:TEMP\mesa.zip"
 $Private:extractPath = "$Env:TEMP\mesa"
-$Private:destinationPath = "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\"
+# See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
+$Private:destinationPath = "$Env:UNITY_PATH\Editor\"
 $Private:version = "25.1.0"
 
 $LLVMPIPE_INSTALLED = "false"

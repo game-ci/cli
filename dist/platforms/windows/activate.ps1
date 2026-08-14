@@ -8,7 +8,8 @@ if ($env:UNITY_LICENSING_SERVER) {
   #
   Write-Host "Adding licensing server config"
 
-  & "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe" --acquire-floating | Out-File -FilePath license.txt -Encoding UTF8 # Note: using Out-File instead of redirection
+  # See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
+  & "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe" --acquire-floating | Out-File -FilePath license.txt -Encoding UTF8 # Note: using Out-File instead of redirection
 
   $PARSEDFILE = Select-String -Path license.txt -Pattern '\".*?\"' | ForEach-Object { $_.Matches.Value -replace '"' }
   $global:FLOATING_LICENSE = $($PARSEDFILE[1])
@@ -19,7 +20,7 @@ if ($env:UNITY_LICENSING_SERVER) {
   $global:UNITY_EXIT_CODE = $LASTEXITCODE
 }
 else {
-  & "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" -batchmode -quit -nographics `
+  & "$Env:UNITY_PATH\Editor\Unity.exe" -batchmode -quit -nographics `
                                                                             -username $Env:UNITY_EMAIL `
                                                                             -password $Env:UNITY_PASSWORD `
                                                                             -serial $Env:UNITY_SERIAL `

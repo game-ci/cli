@@ -139,7 +139,12 @@ if ($Env:BUILD_PROFILE) {
   $BuildProfileArgs = @('-activeBuildProfile', $Env:BUILD_PROFILE)
 }
 
-& "C:\Program Files\Unity\Hub\Editor\$Env:UNITY_VERSION\Editor\Unity.exe" @QuitArgs -batchmode -nographics `
+# UNITY_PATH is baked into unityci/editor windows images at build time
+# (setx -M UNITY_PATH "C:/UnityEditor/$version" - see game-ci/docker's
+# images/windows/editor/Dockerfile). Unity Hub's default install location
+# ("C:\Program Files\Unity\Hub\Editor\<version>") is never used - these
+# images install to C:/UnityEditor instead (game-ci/cli#77).
+& "$Env:UNITY_PATH\Editor\Unity.exe" @QuitArgs -batchmode -nographics `
                                                                           -projectPath $Env:UNITY_PROJECT_PATH `
                                                                           -executeMethod $Env:BUILD_METHOD `
                                                                           @BuildTargetArgs `
