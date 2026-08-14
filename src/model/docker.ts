@@ -75,6 +75,7 @@ class Docker {
       useHostNetwork,
       dockerCpuLimit,
       dockerMemoryLimit,
+      dockerShmSize,
     } = options as Options & { commands?: string };
 
     const home = homeDir;
@@ -98,6 +99,7 @@ class Docker {
       sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : '',
       dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : '',
       dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : '',
+      dockerShmSize ? `--shm-size=${dockerShmSize}` : '',
       useHostNetwork ? '--net=host' : '',
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
@@ -128,6 +130,7 @@ class Docker {
       engine,
       dockerCpuLimit,
       dockerMemoryLimit,
+      dockerShmSize,
       dockerIsolationMode,
     } = options as Options & { commands?: string };
 
@@ -150,6 +153,7 @@ class Docker {
       `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
       dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : '',
       dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : '',
+      dockerShmSize ? `  --shm-size=${dockerShmSize} \`` : '',
       dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : '',
       `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
       isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : '',
