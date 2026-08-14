@@ -17,6 +17,14 @@ else
   echo "Skipping activation"
 fi
 
+# ACTIVATE_ONLY=true (used by `game-ci activate`, see game-ci/cli's ActivateCommand)
+# activates and stops here - no build, and the license is deliberately left
+# active for a later step to use, so no return_license.sh either.
+if [ "$ACTIVATE_ONLY" = "true" ]; then
+  rm -r "$ACTIVATE_LICENSE_PATH"
+  exit $UNITY_EXIT_CODE
+fi
+
 source /steps/build.sh
 
 if [ "$SKIP_ACTIVATION" != "true" ]; then

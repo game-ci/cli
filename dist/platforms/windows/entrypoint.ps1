@@ -32,6 +32,13 @@ if ($Env:SKIP_ACTIVATION -ne "true") {
   Write-Host "Skipping activation"
 }
 
+# ACTIVATE_ONLY=true (used by `game-ci activate`) activates and stops here -
+# no build, and the license is deliberately left active for a later step to
+# use, so no return_license.ps1 either.
+if ($Env:ACTIVATE_ONLY -eq "true") {
+  exit $LASTEXITCODE
+}
+
 # Build the project
 & "c:\steps\build.ps1"
 

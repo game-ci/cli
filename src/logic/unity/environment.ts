@@ -31,6 +31,7 @@ const UnityEnvironment = {
       { name: 'MANUAL_EXIT', value: options.manualExit ? 'true' : '' },
       { name: 'BUILD_PROFILE', value: options.buildProfile },
       { name: 'SKIP_ACTIVATION', value: options.skipActivation ? 'true' : '' },
+      { name: 'ACTIVATE_ONLY', value: options.activateOnly ? 'true' : '' },
       { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
       { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
       { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },

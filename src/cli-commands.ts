@@ -23,6 +23,7 @@ export class CliCommands {
     await this.configCommand();
     await this.testCommand();
     await this.buildCommand();
+    await this.activateCommand();
     await this.buildImageCommand();
     await this.orchestrateCommand();
     await this.remoteCommands();
@@ -48,6 +49,13 @@ export class CliCommands {
 
   private async buildCommand() {
     await this.yargs.command('build [projectPath]', 'Builds a given project', async (yargs: YargsInstance) => {
+      ProjectOptions.preConfigure(yargs);
+      this.register(yargs);
+    });
+  }
+
+  private async activateCommand() {
+    await this.yargs.command('activate [projectPath]', 'Activates a license, leaving it active for a later step', async (yargs: YargsInstance) => {
       ProjectOptions.preConfigure(yargs);
       this.register(yargs);
     });
