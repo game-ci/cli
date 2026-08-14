@@ -1,0 +1,27 @@
+# Community Provider Plugin Validation Registry
+# Provider plugins listed here are automatically tested on a schedule
+# to ensure compatibility with the orchestrator's ProviderInterface.
+#
+# Providers can be loaded from GitHub repos, npm packages, or local paths.
+# See src/model/orchestrator/providers/README.md for authoring details.
+#
+# Format:
+#   - name: Human-readable name
+#     source: GitHub URL, npm package, or shorthand (user/repo, @scope/pkg)
+#     type: github | npm
+#     description: Brief description of what this provider does
+#     timeout: Validation timeout in minutes (optional, defaults to 10)
+#     env: Map of environment variables required for validation (optional)
+
+providers:
+  # Example entries — community members can submit PRs to add their provider plugins
+  #
+  # - name: My Cloud Provider
+  #   source: https://github.com/user/my-cloud-provider
+  #   type: github
+  #   description: Runs builds on My Cloud infrastructure
+  #
+  # - name: Custom K8s Provider
+  #   source: '@my-org/k8s-provider'
+  #   type: npm
+  #   description: Custom Kubernetes provider with GPU scheduling

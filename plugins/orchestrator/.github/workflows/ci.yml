@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'release/**', 'feature/**']
+  pull_request:
+    branches: [main, 'release/**']
+
+permissions:
+  contents: read
+  checks: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/test.yml
+  integration-tests:
+    uses: ./.github/workflows/integration-ci.yml
+    secrets: inherit

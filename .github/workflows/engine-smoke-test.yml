@@ -24,9 +24,58 @@ permissions:
   contents: read
 
 jobs:
+  # ─── Which engines does this PR actually touch? ────────────────
+  # These jobs pull multi-GB engine images (the Unity Windows pull alone
+  # runs ~6 minutes), so running all of them on every PR is the single
+  # biggest drag on review throughput. Anything touching the CLI core or
+  # the plugin interface is cross-cutting and still runs everything.
+  changes:
+    name: Detect changed engines
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      unity: ${{ steps.filter.outputs.unity }}
+      godot: ${{ steps.filter.outputs.godot }}
+      unreal: ${{ steps.filter.outputs.unreal }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'src/cli.ts'
+              - 'src/cli-commands.ts'
+              - 'src/dependencies.ts'
+              - 'src/index.ts'
+              - 'src/plugin/**'
+              - 'src/model/docker.ts'
+              - 'src/model/system/**'
+              - 'src/command/command-factory.ts'
+              - 'package.json'
+              - '.github/workflows/engine-smoke-test.yml'
+            unity:
+              - 'src/logic/unity/**'
+              - 'src/model/unity/**'
+              - 'src/model/unity-*.ts'
+              - 'src/command/activate/**'
+              - 'src/command/**/unity-*.ts'
+              - 'src/command-options/unity-*.ts'
+              - 'src/plugin/builtin/unity-plugin.ts'
+              - 'src/middleware/engine-detection/unity-version-detector.ts'
+              - 'dist/**'
+            godot:
+              - 'src/plugin/builtin/godot-plugin.ts'
+              - 'src/**/godot*/**'
+            unreal:
+              - 'src/plugin/builtin/unreal-plugin.ts'
+              - 'src/**/unreal*/**'
+
   # ─── Unity — detect + CLI-driven stub build ────────────────────
   unity-build:
     name: Unity stub build
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.unity == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,6 +176,8 @@ jobs:
   # ─── Godot — detect + build using third-party image ────────────
   godot-build:
     name: Godot build
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.godot == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -188,6 +239,8 @@ jobs:
   # ─── UE — detect + stub build ─────────────────────────────────
   unreal-build:
     name: UE stub build
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.unreal == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -366,3 +419,20 @@ jobs:
 
       - name: Run plugin loader tests
         run: bun test src/plugin/plugin-loader.test.ts
+
+  # Aggregate gate. Branch protection should require THIS check rather
+  # than the individual engine jobs above - a skipped-but-required job
+  # blocks every path-scoped PR, which would defeat the filtering.
+  smoke-gate:
+    name: Engine smoke gate
+    needs: [unity-build, godot-build, unreal-build, protocol-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no engine smoke test failed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "An engine smoke test failed."
+            exit 1
+          fi
+          echo "All engine smoke tests that ran are green."

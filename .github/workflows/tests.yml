@@ -5,8 +5,40 @@ on:
   pull_request: {}
 
 jobs:
+  # Compute which areas of the monorepo a PR actually touches, so each
+  # suite below only runs when it's relevant. Anything under src/ (the
+  # CLI core + built-in engine plugins) is treated as cross-cutting and
+  # runs everything, since the plugin interface lives there.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.filter.outputs.cli }}
+      orchestrator: ${{ steps.filter.outputs.orchestrator }}
+      unity: ${{ steps.filter.outputs.unity }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cli:
+              - 'src/**'
+              - 'dist/**'
+              - 'package.json'
+              - 'bunfig.toml'
+              - '.github/workflows/tests.yml'
+            orchestrator:
+              - 'plugins/orchestrator/**'
+              - '.github/workflows/tests.yml'
+            unity:
+              - 'plugins/unity/**'
+              - '.github/workflows/tests.yml'
+
   tests:
     name: Tests
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +48,126 @@ jobs:
         run: bun install
       - name: Code conventions
         run: bun run lint
+      # `bun run test` (not bare `bun test`) - the script scopes to ./src.
+      # Bare `bun test` treats its argument as a substring filter, not a
+      # path, so it would also glob plugins/orchestrator's vitest suites
+      # and fail on a runner mismatch.
       - name: Unit/Integration tests
-        run: bun test
+        run: bun run test
+
+  # Mirrors plugins/unity/.github/workflows/integrity-check.yml, which is
+  # inert (GitHub only reads root .github/workflows/) - ported here rather
+  # than left to bit-rot unreachable. Uses bun, not the original's `npm ci`
+  # - plugins/unity has no npm-specific script coupling (verified: grep for
+  # a bare `npm` in its scripts/package.json turns up nothing), and root
+  # already resolves the whole workspace via one `bun install`.
+  unity-tests:
+    name: Unity engine core tests
+    needs: changes
+    if: needs.changes.outputs.unity == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/unity
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
+        working-directory: .
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Test
+        run: bun run test
+      - name: Verify dist is up to date
+        run: |
+          bun run build
+          [ -z "$(git status --porcelain dist)" ] || { echo "plugins/unity/dist is out of date - run 'bun run build' in plugins/unity and commit the result"; git status --porcelain dist; git diff dist; exit 1; }
+
+  # Mirrors plugins/orchestrator/.github/workflows/test.yml (also inert as
+  # a nested workflow). Orchestrator's scripts hardcode `yarn` (lint calls
+  # `yarn oxlint` directly), so - unlike unity - this genuinely needs yarn
+  # via corepack, not bun. That's intentional, not fragmentation to "fix":
+  # see AGENTS.md's package-manager note.
+  orchestrator-tests:
+    name: Orchestrator tests
+    needs: changes
+    if: needs.changes.outputs.orchestrator == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/orchestrator
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install package manager (from package.json)
+        run: |
+          corepack enable
+          corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Resolve yarn cache folder
+        id: yarn-config
+        run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
+        uses: actions/cache@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-v2-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+          restore-keys: |
+            yarn-v2-${{ runner.os }}-node${{ matrix.node-version }}-
+      - name: Install deps
+        env:
+          YARN_ENABLE_HARDENED_MODE: 'false'
+        run: |
+          case "$(yarn --version)" in 1.*) echo 'expected up-to-date yarn version'; exit 1 ;; esac
+          yarn install --immutable
+      - name: Format
+        run: yarn format:check
+      - name: Lint
+        run: yarn lint
+      - name: Build
+        run: yarn build
+      - name: Typecheck
+        run: yarn typecheck
+      - name: Test
+        run: yarn coverage
+
+  # Mirrors plugins/orchestrator/.github/workflows/integration-ci.yml
+  # (a workflow_call file, invoked by the old ci.yml on every PR).
+  # Despite the job names, this runs against local emulators only
+  # (k3d for k8s, MiniStack for AWS) - no real cloud account needed. Only
+  # secrets required: GIT_PRIVATE_TOKEN/UNITY_EMAIL/UNITY_PASSWORD/
+  # UNITY_SERIAL, the same ones root's own engine-smoke-test.yml already
+  # depends on.
+  orchestrator-integration:
+    name: Orchestrator integration (local emulators)
+    needs: changes
+    if: needs.changes.outputs.orchestrator == 'true'
+    uses: ./.github/workflows/orchestrator-integration.yml
+    secrets: inherit
+
+  # Aggregate gate: stays green when a suite is legitimately skipped, but
+  # fails if any suite that DID run failed. Branch protection should
+  # require this single check rather than the individual suites above -
+  # otherwise a skipped-but-required job blocks every scoped PR.
+  tests-gate:
+    name: Tests gate
+    needs: [tests, unity-tests, orchestrator-tests, orchestrator-integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no suite failed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "A test suite failed."
+            exit 1
+          fi
+          echo "All test suites that ran are green."

@@ -7,11 +7,14 @@
   "bin": {
     "game-ci": "src/index.ts"
   },
+  "workspaces": [
+    "plugins/*"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target node",
     "build:binary": "bun build src/index.ts --compile --outfile game-ci",
-    "test": "bun test",
+    "test": "bun test ./src",
     "lint": "echo 'Not implemented yet.'"
   },
   "dependencies": {

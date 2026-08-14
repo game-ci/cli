@@ -1,0 +1,2 @@
+hook: before
+commands: echo "before-build hook test!!"

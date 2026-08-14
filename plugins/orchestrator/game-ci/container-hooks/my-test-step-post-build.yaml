@@ -1,0 +1,4 @@
+name: my-test-step-post-build
+image: ubuntu
+hook: after
+commands: echo "after-build step test!"
