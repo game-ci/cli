@@ -12,7 +12,7 @@ function engineEnvVars(options: Options) {
 
 class Docker {
   static async run(image: string, options: Options) {
-    const { hostPlatform, hostOS, engine } = options;
+    const { hostPlatform, hostOS, engine, activateOnly } = options;
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
 
@@ -35,9 +35,16 @@ class Docker {
 
       const dockerRun = await System.run(command);
 
+      // Real bug (game-ci/unity-activate#111): validateBuild() requires a
+      // "# Build results #" section, which only ever appears after a real
+      // build. An activate-only run never produces one - it was throwing
+      // "There was an error building the project" on every successful
+      // activation, because there's no build to validate in the first place.
       switch (engine) {
         case 'unity':
-          UnityBuildValidation.validateBuild(dockerRun.output);
+          if (!activateOnly) {
+            UnityBuildValidation.validateBuild(dockerRun.output);
+          }
           break;
       }
     } catch (error: any) {
