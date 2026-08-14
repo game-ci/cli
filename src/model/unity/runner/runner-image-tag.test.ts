@@ -91,7 +91,11 @@ describe('RunnerImageTag', () => {
       }
     });
 
-    it('returns no specific build platform for generic targetPlatforms', () => {
+    // Real bug (game-ci/unity-activate#111): this used to resolve to an
+    // empty suffix, producing "ubuntu-2019.2.11f1-3" - a tag unityci/editor
+    // never publishes ("manifest unknown" on docker pull). NoTarget/generic
+    // now resolves to the same 'base' image StandaloneLinux64 uses.
+    it("resolves generic targetPlatforms to the 'base' image, not an empty suffix", () => {
       const image = new RunnerImageTag({
         targetPlatform: 'NoTarget',
         hostPlatform: process.platform,
@@ -99,10 +103,10 @@ describe('RunnerImageTag', () => {
 
       switch (process.platform) {
         case 'win32':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-3`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-base-3`);
           break;
         case 'linux':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-3`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-base-3`);
           break;
       }
     });

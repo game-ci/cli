@@ -54,7 +54,17 @@ class RunnerImageTag {
 
   static get targetPlatformSuffixes() {
     return {
+      // Used only by the internal 'Test' targetPlatform (unit-test
+      // scaffolding, never a real Docker pull) - kept as-is.
       generic: '',
+      // unityci/editor never publishes a bare "ubuntu-<version>-<n>" tag -
+      // every real image has a module suffix. 'base' is the same image
+      // StandaloneLinux64 (pre-il2cpp) resolves to, and is what NoTarget
+      // actually needs: an editor image, not tied to any build target.
+      // Found via unity-activate#111's thin-wrapper CI: `game-ci activate`
+      // (which defaults targetPlatform to NoTarget, see #79) tried to pull
+      // "unityci/editor:ubuntu-2019.2.17f1-3" - manifest unknown.
+      noTarget: 'base',
       webgl: 'webgl',
       mac: 'mac-mono',
       windows: 'windows-mono',
@@ -82,8 +92,21 @@ class RunnerImageTag {
 
   static getTargetPlatformToTargetPlatformSuffixMap(hostPlatform: string, targetPlatform: string, version: string) {
     log.info(hostPlatform, targetPlatform, version);
-    const { generic, webgl, mac, windows, windowsIl2cpp, wsaPlayer, linux, linuxIl2cpp, android, ios, tvos, facebook } =
-      RunnerImageTag.targetPlatformSuffixes;
+    const {
+      generic,
+      noTarget,
+      webgl,
+      mac,
+      windows,
+      windowsIl2cpp,
+      wsaPlayer,
+      linux,
+      linuxIl2cpp,
+      android,
+      ios,
+      tvos,
+      facebook,
+    } = RunnerImageTag.targetPlatformSuffixes;
 
     const [major, minor] = version.split('.').map(Number);
 
@@ -148,7 +171,7 @@ class RunnerImageTag {
       case UnityTargetPlatform.Facebook:
         return facebook;
       case UnityTargetPlatform.NoTarget:
-        return generic;
+        return noTarget;
 
       // Test specific
       case UnityTargetPlatform.Test:
