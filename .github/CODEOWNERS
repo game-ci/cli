@@ -9,51 +9,14 @@
 #
 # Paths NOT listed below are deliberately left unowned. Unowned paths
 # trigger no code-owner requirement at all, which is what keeps the
-# CLI core and orchestrator on a fast, self-merge path.
+# CLI core, Unity integration, and release workflows on a fast,
+# self-merge path for now. Ownership of those areas is proposed
+# separately, not assigned yet.
 #
 # Last matching pattern wins, so order matters: broad patterns first,
 # specific exceptions after.
 
 # ---------------------------------------------------------------------
-# Fast path (intentionally unowned): CLI core, orchestrator, plugin
-# interface, tooling, docs. No code-owner gate.
+# Orchestrator — brought in-repo from game-ci/orchestrator (now archived).
 # ---------------------------------------------------------------------
-#   /src/cli.ts, /src/command/, /src/model/, /src/plugin/, /plugins/orchestrator/, ...
-
-# ---------------------------------------------------------------------
-# Unity — requires approval from a second maintainer.
-#
-# Rationale: Unity carries the licensing flows, the Docker/platform
-# entrypoint scripts, and the Android signing paths. It is also the
-# highest-blast-radius surface (nearly every user hits it), and the
-# hardest to validate locally, so changes here get a second reviewer.
-# ---------------------------------------------------------------------
-
-# Unity engine logic
-/src/logic/unity/                                   @webbertakken @GabLeRoux
-/src/model/unity/                                   @webbertakken @GabLeRoux
-/src/model/unity-*.ts                               @webbertakken @GabLeRoux
-/src/plugin/builtin/unity-plugin.ts                 @webbertakken @GabLeRoux
-/src/middleware/engine-detection/unity-version-detector.ts  @webbertakken @GabLeRoux
-
-# Unity-specific commands and options
-/src/command/activate/                              @webbertakken @GabLeRoux
-/src/command/**/unity-*.ts                          @webbertakken @GabLeRoux
-/src/command-options/unity-*.ts                     @webbertakken @GabLeRoux
-
-# Unity runtime assets: the in-container build/licensing scripts and the
-# default build script. These are only exercised inside a real Unity
-# container, so they are the least testable and most breakage-prone
-# files in the repo - see game-ci/cli#75 for a bug that lived exactly
-# in the seam between build-options.ts and build.sh.
-/dist/platforms/                                    @webbertakken @GabLeRoux
-/dist/default-build-script/                         @webbertakken @GabLeRoux
-/dist/unity-config/                                 @webbertakken @GabLeRoux
-/dist/BlankProject/                                 @webbertakken @GabLeRoux
-
-# ---------------------------------------------------------------------
-# Release and supply chain — second pair of eyes regardless of engine.
-# ---------------------------------------------------------------------
-/.github/workflows/release-cli.yml                  @webbertakken @GabLeRoux
-/.github/workflows/orchestrator-release.yml         @webbertakken @GabLeRoux
-/.github/CODEOWNERS                                 @webbertakken @GabLeRoux
+/plugins/orchestrator/                              @frostebite
