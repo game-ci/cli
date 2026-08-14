@@ -14523,6 +14523,7 @@ var init_environment = __esm(() => {
         { name: "MANUAL_EXIT", value: options.manualExit ? "true" : "" },
         { name: "BUILD_PROFILE", value: options.buildProfile },
         { name: "SKIP_ACTIVATION", value: options.skipActivation ? "true" : "" },
+        { name: "ACTIVATE_ONLY", value: options.activateOnly ? "true" : "" },
         { name: "RUN_AS_HOST_USER", value: options.runAsHostUser ? "true" : "" },
         { name: "ENABLE_GPU", value: options.enableGpu ? "true" : "" },
         { name: "GIT_CONFIG_EXTENSIONS", value: options.gitConfigExtensions }
@@ -16201,6 +16202,7 @@ class CliCommands {
     await this.configCommand();
     await this.testCommand();
     await this.buildCommand();
+    await this.activateCommand();
     await this.buildImageCommand();
     await this.orchestrateCommand();
     await this.remoteCommands();
@@ -16220,6 +16222,12 @@ class CliCommands {
   }
   async buildCommand() {
     await this.yargs.command("build [projectPath]", "Builds a given project", async (yargs) => {
+      ProjectOptions.preConfigure(yargs);
+      this.register(yargs);
+    });
+  }
+  async activateCommand() {
+    await this.yargs.command("activate [projectPath]", "Activates a license, leaving it active for a later step", async (yargs) => {
       ProjectOptions.preConfigure(yargs);
       this.register(yargs);
     });
@@ -17172,35 +17180,35 @@ class UnityOptions {
         description: "Email address for your Unity account",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_EMAIL || ""
       },
       unityPassword: {
         alias: "p",
         description: "Password for your Unity account",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_PASSWORD || ""
       },
       unitySerial: {
         alias: "s",
         description: "Serial number identifying a pro-license seat",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_SERIAL || ""
       },
       unityLicense: {
         alias: "l",
         description: "Contents of, or path to your Unity License File (.ulf)",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_LICENSE || ""
       },
       unityLicensingServer: {
         alias: "ls",
         description: "Licensing server to use for Unity activation",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_LICENSING_SERVER || ""
       },
       unityLicensingToolset: {
         alias: "lt",
@@ -17708,6 +17716,39 @@ class UnityBuildCommand extends CommandBase {
   }
 }
 
+// src/command/activate/activate-command.ts
+init_model();
+class ActivateCommand extends CommandBase {
+  async execute(options) {
+    const { hostPlatform } = options;
+    const activateOptions = { ...options, activateOnly: true };
+    PlatformValidation.checkCompatibility(activateOptions);
+    const image = new RunnerImageTag(activateOptions);
+    if (log.isVerbose)
+      log.debug("Using image:", image);
+    await PlatformSetup.setup(activateOptions);
+    await log.group("Unity activate", async () => {
+      if (hostPlatform === "darwin") {
+        await MacBuilder.run(activateOptions);
+      } else {
+        await Docker.run(image.toString(), activateOptions);
+      }
+    });
+    return true;
+  }
+  async configureOptions(yargs) {
+    await ProjectOptions.configure(yargs);
+    await UnityOptions.configure(yargs);
+    yargs.option("dockerWorkspacePath", {
+      description: String.dedent`The path to mount the workspace inside the docker container. For windows, leave out the drive letter. For example
+      c:/github/workspace should be defined as /github/workspace`,
+      type: "string",
+      demandOption: false,
+      default: "/github/workspace"
+    });
+  }
+}
+
 // src/command-options/remote-options.ts
 class RemoteOptions {
   static async configure(yargs) {
@@ -17956,6 +17997,8 @@ var unityPlugin = {
         switch (command2) {
           case "build":
             return new UnityBuildCommand(command2);
+          case "activate":
+            return new ActivateCommand(command2);
           case "orchestrate":
             return new UnityOrchestrateCommand(command2);
           case "run":
