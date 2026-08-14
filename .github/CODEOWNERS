@@ -9,9 +9,7 @@
 #
 # Paths NOT listed below are deliberately left unowned. Unowned paths
 # trigger no code-owner requirement at all, which is what keeps the
-# CLI core, Unity integration, and release workflows on a fast,
-# self-merge path for now. Ownership of those areas is proposed
-# separately, not assigned yet.
+# CLI core and release workflows on a fast, self-merge path for now.
 #
 # Last matching pattern wins, so order matters: broad patterns first,
 # specific exceptions after.
@@ -20,3 +18,42 @@
 # Orchestrator — brought in-repo from game-ci/orchestrator (now archived).
 # ---------------------------------------------------------------------
 /plugins/orchestrator/                              @frostebite
+
+# ---------------------------------------------------------------------
+# Unity integration — proposed here for @webbertakken/@GabLeRoux to
+# accept on their own terms. This PR is a draft and this ownership is
+# NOT yet in effect (still unowned on main) until it's reviewed and
+# merged deliberately, not unilaterally assigned.
+#
+# Rationale for the scope: Unity carries the licensing flows, the
+# Docker/platform entrypoint scripts, and the Android signing paths.
+# It's also the highest-blast-radius surface (nearly every user hits
+# it) and the hardest to validate locally, so changes here would get
+# a second reviewer.
+# ---------------------------------------------------------------------
+
+# Unity engine logic
+/src/logic/unity/                                   @webbertakken @GabLeRoux
+/src/model/unity/                                   @webbertakken @GabLeRoux
+/src/model/unity-*.ts                               @webbertakken @GabLeRoux
+/src/plugin/builtin/unity-plugin.ts                 @webbertakken @GabLeRoux
+/src/middleware/engine-detection/unity-version-detector.ts  @webbertakken @GabLeRoux
+
+# Unity-specific commands and options
+/src/command/activate/                              @webbertakken @GabLeRoux
+/src/command/**/unity-*.ts                          @webbertakken @GabLeRoux
+/src/command-options/unity-*.ts                     @webbertakken @GabLeRoux
+
+# Unity runtime assets: the in-container build/licensing scripts and the
+# default build script. These are only exercised inside a real Unity
+# container, so they are the least testable and most breakage-prone
+# files in the repo - see game-ci/cli#75 and game-ci/cli#77 for bugs
+# that lived exactly here.
+/dist/platforms/                                    @webbertakken @GabLeRoux
+/dist/default-build-script/                         @webbertakken @GabLeRoux
+/dist/unity-config/                                 @webbertakken @GabLeRoux
+/dist/BlankProject/                                 @webbertakken @GabLeRoux
+
+# plugins/unity/ (the archived unity-engine-core content, not yet wired
+# into src/'s shipping Unity plugin - see docs/architecture/plugin-interface.md)
+/plugins/unity/                                      @webbertakken @GabLeRoux
