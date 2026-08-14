@@ -4,6 +4,7 @@ import { Docker } from '../../model/index.ts';
 import { MacBuilder } from '../../model/mac-builder.ts';
 import { PlatformSetup } from '../../logic/unity/platform-setup/index.ts';
 import { PlatformValidation } from '../../logic/unity/platform-validation/platform-validation.ts';
+import { yargs } from '../../dependencies.ts';
 
 const originalDockerRun = Docker.run;
 const originalMacBuilderRun = MacBuilder.run;
@@ -61,5 +62,37 @@ describe('ActivateCommand', () => {
     await command.execute(baseOptions);
 
     expect(baseOptions.activateOnly).toBeUndefined();
+  });
+
+  it('defaults targetPlatform to NoTarget, not the build-oriented StandaloneWindows64 default', async () => {
+    // Real bug (game-ci/unity-activate#111 thin-wrapper CI): `game-ci
+    // activate <path>` with no --target-platform inherited UnityOptions'
+    // build default of StandaloneWindows64, which threw "Windows-based
+    // builds are only supported on 2019.3.X+" for older Unity versions even
+    // though activation doesn't build anything. NoTarget maps to the
+    // generic image and skips that check entirely.
+    const parser = yargs([]).exitProcess(false).fail((message, error) => {
+      throw error || new Error(message);
+    });
+
+    const command = new ActivateCommand('activate');
+    await command.configureOptions(parser as any);
+
+    const argv = await parser.parseAsync();
+
+    expect(argv.targetPlatform).toBe('NoTarget');
+  });
+
+  it('still honors an explicitly passed targetPlatform', async () => {
+    const parser = yargs(['--targetPlatform', 'StandaloneLinux64']).exitProcess(false).fail((message, error) => {
+      throw error || new Error(message);
+    });
+
+    const command = new ActivateCommand('activate');
+    await command.configureOptions(parser as any);
+
+    const argv = await parser.parseAsync();
+
+    expect(argv.targetPlatform).toBe('StandaloneLinux64');
   });
 });

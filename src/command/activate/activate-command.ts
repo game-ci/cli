@@ -7,6 +7,7 @@ import { UnityOptions } from '../../command-options/unity-options.ts';
 import type { YargsInstance, Options } from '../../dependencies.ts';
 import { PlatformValidation } from '../../logic/unity/platform-validation/platform-validation.ts';
 import { ProjectOptions } from '../../command-options/project-options.ts';
+import { UnityTargetPlatform } from '../../model/unity/target-platform/unity-target-platform.ts';
 
 /**
  * Activates (and only activates) a Unity license, leaving it active for a
@@ -44,6 +45,15 @@ export class ActivateCommand extends CommandBase implements CommandInterface {
   public async configureOptions(yargs: YargsInstance): Promise<void> {
     await ProjectOptions.configure(yargs);
     await UnityOptions.configure(yargs);
+    // UnityOptions.configure() defaults targetPlatform to StandaloneWindows64
+    // (a build-oriented default). Activation doesn't build anything - it
+    // just needs *an* editor image to run license activation inside - so
+    // override the default to NoTarget, which RunnerImageTag maps to the
+    // generic image and skips build-target validation entirely (e.g. the
+    // "Windows builds need 2019.3+" check, which has nothing to do with
+    // activating a license). Callers can still pass --target-platform
+    // explicitly if they have a reason to.
+    yargs.option('targetPlatform', { default: UnityTargetPlatform.NoTarget });
     // Needed by Docker.run() for the container mount path - normally comes
     // from BuildOptions, but `activate` intentionally doesn't pull in
     // BuildOptions' build-specific flags (buildName, buildMethod, etc.),

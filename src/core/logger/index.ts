@@ -48,6 +48,13 @@ export const configureLogger = async (verbosity: Verbosity) => {
     if (value === undefined) return 'undefined';
     if (value === null) return 'null';
     if (typeof value === 'string') return value;
+    // Error's message/stack/name are non-enumerable own properties, so
+    // JSON.stringify(error) below silently produces '{}' for any bare Error
+    // - masking every uncaught failure's actual message. Must be handled
+    // before the JSON.stringify fallback, not caught by it.
+    if (value instanceof Error) {
+      return value.stack || `${value.name}: ${value.message}`;
+    }
     try {
       return JSON.stringify(value, null, 2);
     } catch {
