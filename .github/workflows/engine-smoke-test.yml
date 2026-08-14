@@ -117,8 +117,11 @@ jobs:
 
       - name: Verify build artifacts
         run: |
-          test -f build/StandaloneLinux64/StandaloneLinux64
-          grep -q "Unity CLI smoke artifact" build/StandaloneLinux64/StandaloneLinux64
+          # StandaloneLinux64 builds get a .x86_64 extension by default now
+          # (matching unity-builder - see game-ci/cli#70), unless
+          # --linux64RemoveExecutableExtension is passed.
+          test -f build/StandaloneLinux64/StandaloneLinux64.x86_64
+          grep -q "Unity CLI smoke artifact" build/StandaloneLinux64/StandaloneLinux64.x86_64
           echo "Unity CLI stub build verified"
 
   # ─── Godot — detect + build using third-party image ────────────
