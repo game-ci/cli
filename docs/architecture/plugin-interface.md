@@ -18,7 +18,7 @@ provider implements. Plugins reach the registry three ways:
 ## Known gap: the contract is duck-typed, not shared
 
 `@game-ci/orchestrator` implements `GameCIPlugin` **structurally**. It does
-not import the type — `packages/orchestrator/src/cli-plugin/index.ts`
+not import the type — `plugins/orchestrator/src/cli-plugin/index.ts`
 references `@game-ci/cli` only in comments. Nothing fails if the interface
 changes underneath it.
 
@@ -29,11 +29,23 @@ conformance test that loads the plugin through the **public** path
 (`PluginLoader`), not a direct import — so the test proves what a third-party
 plugin would actually experience.
 
-## The Unity boundary does not exist yet
+## Two Unity implementations exist, and neither imports the other
+
+`plugins/unity/` (formerly the separate `unity-engine-core` repo) and
+`src/plugin/builtin/unity-plugin.ts` (the CLI's actual, built-in Unity
+plugin) are both real, both maintained, and **zero files in either import
+from the other.** This isn't new — it predates the monorepo consolidation
+(see [cli#69](https://github.com/game-ci/cli/issues/69)) — but bringing
+`plugins/unity/` in-repo makes the duplication visible in a way a separate
+repo didn't. Landing it here doesn't wire it in; that's the extraction work
+below.
+
+## The Unity boundary does not exist yet (in `src/`)
 
 The stated architecture is "CLI is an engine-agnostic dispatcher; Unity is
-one plugin among peers." The code does not currently match that. Five
-non-test files in the core import Unity directly:
+one plugin among peers." `src/` does not currently match that. Five
+non-test files in the core import `src/logic/unity/` and `src/model/unity/`
+directly:
 
 | File | Imports | Why it's there |
 | --- | --- | --- |
@@ -63,9 +75,13 @@ the two have very different risk profiles.
    move to the Unity module directly. Mechanical, low risk.
 3. **Move `activate` into the Unity plugin's command set.** It is a Unity
    licensing command; it should not sit in core.
-4. **Introduce `packages/core/` and `packages/unity/`** and move the code.
-   Only worth doing *after* 1–3, because until then the dependency graph
-   makes `packages/unity/` and `packages/core/` mutually dependent.
+4. **Reconcile `src/logic/unity/` + `src/model/unity/` with the already-landed
+   `plugins/unity/`** into one implementation, and wire the result into
+   `src/plugin/builtin/unity-plugin.ts`. Only worth doing *after* 1–3 - until
+   then the dependency graph makes core and Unity mutually dependent, and
+   this step also needs a decision on which implementation wins where they
+   disagree (`plugins/unity/`'s test suite is more extensive; `src/`'s is
+   the one actually shipping today).
 
 Steps 1–3 are worth doing regardless of whether step 4 ever happens: they
 make the engine-agnostic claim true in code, not just in the README.

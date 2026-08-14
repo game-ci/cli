@@ -15,6 +15,7 @@ jobs:
     outputs:
       cli: ${{ steps.filter.outputs.cli }}
       orchestrator: ${{ steps.filter.outputs.orchestrator }}
+      unity: ${{ steps.filter.outputs.unity }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -28,7 +29,10 @@ jobs:
               - 'bunfig.toml'
               - '.github/workflows/tests.yml'
             orchestrator:
-              - 'packages/orchestrator/**'
+              - 'plugins/orchestrator/**'
+              - '.github/workflows/tests.yml'
+            unity:
+              - 'plugins/unity/**'
               - '.github/workflows/tests.yml'
 
   tests:
@@ -46,7 +50,7 @@ jobs:
         run: bun run lint
       # `bun run test` (not bare `bun test`) - the script scopes to ./src.
       # Bare `bun test` treats its argument as a substring filter, not a
-      # path, so it would also glob packages/orchestrator's vitest suites
+      # path, so it would also glob plugins/orchestrator's vitest suites
       # and fail on a runner mismatch.
       - name: Unit/Integration tests
         run: bun run test

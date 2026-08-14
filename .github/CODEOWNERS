@@ -18,7 +18,7 @@
 # Fast path (intentionally unowned): CLI core, orchestrator, plugin
 # interface, tooling, docs. No code-owner gate.
 # ---------------------------------------------------------------------
-#   /src/cli.ts, /src/command/, /src/model/, /src/plugin/, /packages/orchestrator/, ...
+#   /src/cli.ts, /src/command/, /src/model/, /src/plugin/, /plugins/orchestrator/, ...
 
 # ---------------------------------------------------------------------
 # Unity — requires approval from a second maintainer.

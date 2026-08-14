@@ -25,13 +25,14 @@ out to it. No logic belongs in them.
 | `src/logic/unity/` | Unity-specific logic (licensing, platform setup) | — |
 | `dist/platforms/` | In-container build/licensing scripts (bash + PowerShell) | — |
 | `dist/default-build-script/` | The C# `UnityBuilderAction` copied into user projects | — |
-| `packages/orchestrator/` | Remote/cloud build orchestration, loaded as a CLI plugin | `packages/orchestrator/CLAUDE.md` |
+| `plugins/orchestrator/` | Remote/cloud build orchestration, loaded as a CLI plugin | `plugins/orchestrator/CLAUDE.md` |
+| `plugins/unity/` | Unity implementation extracted from the old actions. **Not currently used by `src/plugin/builtin/unity-plugin.ts`** - two independent Unity implementations exist today, see `docs/architecture/plugin-interface.md` | `docs/architecture/plugin-interface.md` |
 
 ## Conventions that bite
 
 - **Bun, not Node.** `bun test ./src` — note the `./src`. Bare `bun test <arg>`
   treats the argument as a *substring filter*, not a path, so `bun test src`
-  also globs `packages/orchestrator`'s vitest suites and fails on a runner
+  also globs `plugins/orchestrator`'s vitest suites and fails on a runner
   mismatch. Use `bun run test`.
 - **`dist/` is committed and load-bearing.** It is not build output you can
   regenerate — it holds the platform scripts and the C# build script that get

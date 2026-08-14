@@ -1,7 +1,7 @@
 {
   "name": "@game-ci/unity-engine-core",
   "version": "0.1.0",
-  "description": "Unity build/test/activation implementation logic, invoked by game-ci/cli and the thin-wrapper action repos (unity-builder, unity-test-runner, unity-activate).",
+  "description": "Unity build/test/activation implementation logic extracted from the old unity-builder/unity-test-runner/unity-activate actions. NOT currently imported by @game-ci/cli, whose own Unity plugin (src/plugin/builtin/unity-plugin.ts) is an independent, from-scratch implementation - see game-ci/cli#69 and docs/architecture/plugin-interface.md.",
   "main": "dist/index.js",
   "files": [
     "dist"
@@ -10,7 +10,6 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc && node scripts/copy-static-assets.mjs",
-    "prepare": "tsc && node scripts/copy-static-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
