@@ -19,15 +19,17 @@ class System {
    * Run any command as if you're typing in shell.
    * Make sure it's Windows/MacOS/Ubuntu compatible or has alternative commands.
    *
-   * If any error is written to stderr, this method will throw them.
-   *   new Error(stdoutErrors)
+   * If the command exits with a non-zero code, this method throws (message
+   * built from stderr, falling back to a generic "exited with code N").
+   * A non-empty stderr alone is not treated as failure - many commands
+   * (e.g. `docker run` auto-pulling an uncached image) write informational
+   * output there on a genuinely successful run.
    *
-   * In case of no errors, this will return an object similar to these examples
+   * In case of success, this will return an object similar to these examples
    *   { status: { success: true, code: 0 }, output: 'output from the command' }
-   *   { status: { success: false, code: 1~255 }, output: 'output from the command' }
    *
-   * @returns {string} output of the command on success or failure
-   * @throws  {Error}  if anything was output to stderr or return code wasn't 0
+   * @returns {string} output of the command on success
+   * @throws  {Error}  if the command's exit code wasn't 0
    */
   static async run(command: string, windowsSpecificCommand?: string, options: RunOptions = { silent: false }): Promise<RunResult> {
     let shell: string;
@@ -81,13 +83,19 @@ class System {
         const exitCode = code ?? 1;
         runResult.status = { success: exitCode === 0, code: exitCode };
 
-        if (runResult.error !== '') {
-          // Make sure we don't swallow any output if silent and there is an error
+        if (exitCode !== 0) {
+          // Real bug (game-ci/unity-activate#111): this used to throw on
+          // *any* stderr output, regardless of exit code. `docker run` on
+          // an image not yet cached locally writes "Unable to find image
+          // '...' locally" to stderr as pure status output, then pulls it
+          // and succeeds with exit code 0 - which this treated as a fatal
+          // error anyway, discarding the successful run. Exit code is the
+          // actual signal; stderr content is still included below for
+          // debugging when the command genuinely failed.
           const errorMessage = runResult.output && options.silent
             ? `${runResult.error}\n\n---\n\nOutput before the error:\n${runResult.output}`
-            : runResult.error;
+            : runResult.error || `Command exited with code ${exitCode}`;
 
-          // Throw instead of returning when any output was written to stderr
           reject(new Error(errorMessage));
           return;
         }
