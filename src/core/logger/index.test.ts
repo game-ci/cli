@@ -61,3 +61,31 @@ describe('logger groups', () => {
     expect(result).toBe(42);
   });
 });
+
+describe('logger error formatting', () => {
+  const originalConsoleError = console.error;
+  let errorLines: string[] = [];
+
+  beforeEach(async () => {
+    errorLines = [];
+    console.error = mock((...args: any[]) => {
+      errorLines.push(args.join(' '));
+    });
+    await configureLogger(Verbosity.normal);
+  });
+
+  afterEach(() => {
+    console.error = originalConsoleError;
+  });
+
+  it('prints an Error object\'s message and stack, not "{}"', () => {
+    // Real bug: Error's message/stack/name are non-enumerable own
+    // properties, so JSON.stringify(error) - the previous fallback for any
+    // non-string value - silently produced '{}', masking every uncaught
+    // failure's actual message (see game-ci/unity-activate#111).
+    (globalThis as any).log.error(new Error('something specific broke'));
+
+    expect(errorLines.some((line) => line.includes('something specific broke'))).toBe(true);
+    expect(errorLines.some((line) => line.trim() === '[ERROR] {}')).toBe(false);
+  });
+});
