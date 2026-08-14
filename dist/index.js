@@ -14580,7 +14580,21 @@ class Docker {
     }
   }
   static getLinuxCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath, commands, engine } = options;
+    const {
+      currentWorkDir,
+      homeDir,
+      cliDistPath,
+      runnerTempPath,
+      sshAgent,
+      sshPublicKeysDirectoryPath,
+      gitPrivateToken,
+      dockerWorkspacePath,
+      commands,
+      engine,
+      useHostNetwork,
+      dockerCpuLimit,
+      dockerMemoryLimit
+    } = options;
     const home = homeDir;
     const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(/ \\\n/g, " ");
     const isUnityDefaultFlow = !commands || engine === "unity";
@@ -14593,6 +14607,9 @@ class Docker {
       `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
       gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : "",
       sshAgent ? "--env SSH_AUTH_SOCK=/ssh-agent" : "",
+      dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : "",
+      dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : "",
+      useHostNetwork ? "--net=host" : "",
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
       isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
@@ -14600,13 +14617,27 @@ class Docker {
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
       isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
-      sshAgent ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
+      sshAgent && !sshPublicKeysDirectoryPath ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
+      sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : "",
       image,
       isUnityDefaultFlow ? "/bin/bash /entrypoint.sh" : commands
     ].filter(Boolean).join(" ");
   }
   static getWindowsCommand(image, options) {
-    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath, commands, engine } = options;
+    const {
+      currentWorkDir,
+      homeDir,
+      cliDistPath,
+      unitySerial,
+      gitPrivateToken,
+      cliStoragePath,
+      dockerWorkspacePath,
+      commands,
+      engine,
+      dockerCpuLimit,
+      dockerMemoryLimit,
+      dockerIsolationMode
+    } = options;
     const isUnityDefaultFlow = !commands || engine === "unity";
     return [
       "docker run `",
@@ -14616,6 +14647,9 @@ class Docker {
       isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : "",
       `  --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \``,
       `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
+      dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : "",
+      dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : "",
+      dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : "",
       `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
       isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : "",
       isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" `' : "",
@@ -14678,7 +14712,7 @@ class UnityTargetPlatform {
         return false;
     }
   }
-  static determineBuildFileName(buildName, platform2, androidExportType) {
+  static determineBuildFileName(buildName, platform2, androidExportType, linux64RemoveExecutableExtension = false) {
     if (UnityTargetPlatform.isWindows(platform2)) {
       return `${buildName}.exe`;
     }
@@ -14691,6 +14725,9 @@ class UnityTargetPlatform {
         case "androidStudioProject":
           return `${buildName}`;
       }
+    }
+    if (platform2 === UnityTargetPlatform.StandaloneLinux64 && !linux64RemoveExecutableExtension) {
+      return `${buildName}.x86_64`;
     }
     return buildName;
   }
@@ -14712,19 +14749,25 @@ class RunnerImageTag {
       engineVersion = "2019.2.11f1",
       hostPlatform,
       targetPlatform,
-      customImage
+      customImage,
+      containerRegistryRepository = "unityci/editor",
+      containerRegistryImageVersion = "3"
     } = options;
     if (!RunnerImageTag.versionPattern.test(engineVersion)) {
       throw new Error(`Invalid version "${engineVersion}".`);
     }
+    const registryString = String(containerRegistryRepository);
+    const lastSlashIndex = registryString.lastIndexOf("/");
+    const repository = lastSlashIndex === -1 ? "unityci" : registryString.slice(0, lastSlashIndex);
+    const name = lastSlashIndex === -1 ? registryString : registryString.slice(lastSlashIndex + 1);
     this.customImage = customImage;
-    this.repository = "unityci";
-    this.name = "editor";
+    this.repository = repository;
+    this.name = name;
     this.engineVersion = engineVersion;
     this.targetPlatform = targetPlatform;
     this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(hostPlatform);
     this.builderPlatform = RunnerImageTag.getTargetPlatformToTargetPlatformSuffixMap(hostPlatform, targetPlatform, engineVersion);
-    this.imageRollingVersion = 1;
+    this.imageRollingVersion = Number(containerRegistryImageVersion);
   }
   static get versionPattern() {
     return /^20\d{2}\.\d\.\w{3,4}|3$/;
@@ -17298,6 +17341,23 @@ class VersioningOptions {
 
 // src/command-options/build-options.ts
 init_unity_target_platform();
+import * as os2 from "node:os";
+function defaultDockerMemoryLimit() {
+  const bytesInMegabyte = 1024 * 1024;
+  let memoryMultiplier;
+  switch (os2.platform()) {
+    case "linux":
+      memoryMultiplier = 0.95;
+      break;
+    case "win32":
+      memoryMultiplier = 0.8;
+      break;
+    default:
+      memoryMultiplier = 0.75;
+      break;
+  }
+  return `${Math.floor(os2.totalmem() / bytesInMegabyte * memoryMultiplier)}m`;
+}
 
 class BuildOptions {
   static configure(yargs) {
@@ -17313,12 +17373,12 @@ class BuildOptions {
       demandOption: false,
       default: "build"
     }).default("buildPath", "").default("buildFile", "").middleware((argv) => {
-      const { buildName, buildsPath, targetPlatform, androidAppBundle, androidExportType } = argv;
+      const { buildName, buildsPath, targetPlatform, androidAppBundle, androidExportType, linux64RemoveExecutableExtension } = argv;
       const resolvedBuildName = buildName || targetPlatform;
       const resolvedAndroidExportType = androidExportType || (androidAppBundle ? "androidAppBundle" : "androidPackage");
       argv.buildName = resolvedBuildName;
       argv.buildPath = `${buildsPath}/${targetPlatform}`;
-      argv.buildFile = UnityTargetPlatform.determineBuildFileName(resolvedBuildName, targetPlatform, resolvedAndroidExportType);
+      argv.buildFile = UnityTargetPlatform.determineBuildFileName(resolvedBuildName, targetPlatform, resolvedAndroidExportType, Boolean(linux64RemoveExecutableExtension));
     }).option("buildMethod", {
       alias: "m",
       description: "Build method to use",
@@ -17367,6 +17427,52 @@ class BuildOptions {
     }).option("gitConfigExtensions", {
       description: String.dedent`Linux only. Newline-separated list of extra git config entries to set before the
         build, in "key=value" form (e.g. for LFS/submodule auth setups not covered by gitPrivateToken).`,
+      type: "string",
+      demandOption: false,
+      default: ""
+    }).option("linux64RemoveExecutableExtension", {
+      description: String.dedent`When building for StandaloneLinux64, remove the default .x86_64 file extension
+        Unity appends to the build's executable.`,
+      type: "boolean",
+      demandOption: false,
+      default: false
+    }).option("useHostNetwork", {
+      description: "Linux only. Initialises Docker using the host network.",
+      type: "boolean",
+      demandOption: false,
+      default: false
+    }).option("dockerCpuLimit", {
+      description: "Number of CPU cores to assign the docker container. Defaults to all available cores.",
+      type: "string",
+      demandOption: false,
+      default: os2.cpus().length.toString()
+    }).option("dockerMemoryLimit", {
+      description: String.dedent`Amount of memory to assign the docker container. Defaults to 95% of total system
+        memory rounded down to the nearest megabyte on Linux and 80% on Windows. On unrecognized platforms, defaults
+        to 75% of total system memory. To manually specify a value, use the format <number><unit>, where unit is
+        either m or g. ie: 512m = 512 megabytes`,
+      type: "string",
+      demandOption: false,
+      default: defaultDockerMemoryLimit()
+    }).option("dockerIsolationMode", {
+      description: String.dedent`Windows only. Isolation mode to use for the docker container. Can be one of
+        process, hyperv, or default. Default will pick the default mode as described by Microsoft where server
+        versions use process and desktop versions use hyperv.`,
+      type: "string",
+      demandOption: false,
+      default: "default"
+    }).option("containerRegistryRepository", {
+      description: "Container registry and repository to pull the Unity editor image from. Only applies if customImage is not set.",
+      type: "string",
+      demandOption: false,
+      default: "unityci/editor"
+    }).option("containerRegistryImageVersion", {
+      description: "Container registry image rolling version. Only applies if customImage is not set.",
+      type: "string",
+      demandOption: false,
+      default: "3"
+    }).option("sshPublicKeysDirectoryPath", {
+      description: "Path to a directory containing SSH public keys to forward to the container.",
       type: "string",
       demandOption: false,
       default: ""

@@ -61,8 +61,21 @@ class Docker {
   }
 
   private static getLinuxCommand(image: string, options: Options): string {
-    const { currentWorkDir, homeDir, cliDistPath, runnerTempPath, sshAgent, gitPrivateToken, dockerWorkspacePath, commands, engine } =
-      options as Options & { commands?: string };
+    const {
+      currentWorkDir,
+      homeDir,
+      cliDistPath,
+      runnerTempPath,
+      sshAgent,
+      sshPublicKeysDirectoryPath,
+      gitPrivateToken,
+      dockerWorkspacePath,
+      commands,
+      engine,
+      useHostNetwork,
+      dockerCpuLimit,
+      dockerMemoryLimit,
+    } = options as Options & { commands?: string };
 
     const home = homeDir;
     const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(/ \\\n/g, ' ');
@@ -83,6 +96,9 @@ class Docker {
       `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
       gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : '',
       sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : '',
+      dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : '',
+      dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : '',
+      useHostNetwork ? '--net=host' : '',
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
       isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : '',
@@ -90,7 +106,8 @@ class Docker {
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : '',
       isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : '',
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : '',
-      sshAgent ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
+      sshAgent && !sshPublicKeysDirectoryPath ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
+      sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : '',
       image,
       isUnityDefaultFlow ? '/bin/bash /entrypoint.sh' : commands!,
     ]
@@ -99,8 +116,20 @@ class Docker {
   }
 
   private static getWindowsCommand(image: string, options: Options): string {
-    const { currentWorkDir, homeDir, cliDistPath, unitySerial, gitPrivateToken, cliStoragePath, dockerWorkspacePath, commands, engine } =
-      options as Options & { commands?: string };
+    const {
+      currentWorkDir,
+      homeDir,
+      cliDistPath,
+      unitySerial,
+      gitPrivateToken,
+      cliStoragePath,
+      dockerWorkspacePath,
+      commands,
+      engine,
+      dockerCpuLimit,
+      dockerMemoryLimit,
+      dockerIsolationMode,
+    } = options as Options & { commands?: string };
 
     // Same "don't force Unity's flow onto a non-Unity engine" fix as
     // getLinuxCommand — see the comment there. No engine currently ships a
@@ -119,6 +148,9 @@ class Docker {
       isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : '',
       `  --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \``,
       `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
+      dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : '',
+      dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : '',
+      dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : '',
       `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
       isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : '',
       isUnityDefaultFlow

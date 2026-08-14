@@ -45,7 +45,12 @@ class UnityTargetPlatform {
     }
   }
 
-  static determineBuildFileName(buildName: string, platform: string, androidExportType: string) {
+  static determineBuildFileName(
+    buildName: string,
+    platform: string,
+    androidExportType: string,
+    linux64RemoveExecutableExtension = false,
+  ) {
     if (UnityTargetPlatform.isWindows(platform)) {
       return `${buildName}.exe`;
     }
@@ -59,6 +64,11 @@ class UnityTargetPlatform {
         case 'androidStudioProject':
           return `${buildName}`;
       }
+    }
+
+    // Unity appends .x86_64 to StandaloneLinux64 builds by default.
+    if (platform === UnityTargetPlatform.StandaloneLinux64 && !linux64RemoveExecutableExtension) {
+      return `${buildName}.x86_64`;
     }
 
     return buildName;
