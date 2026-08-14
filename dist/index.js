@@ -17137,35 +17137,35 @@ class UnityOptions {
         description: "Email address for your Unity account",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_EMAIL || ""
       },
       unityPassword: {
         alias: "p",
         description: "Password for your Unity account",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_PASSWORD || ""
       },
       unitySerial: {
         alias: "s",
         description: "Serial number identifying a pro-license seat",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_SERIAL || ""
       },
       unityLicense: {
         alias: "l",
         description: "Contents of, or path to your Unity License File (.ulf)",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_LICENSE || ""
       },
       unityLicensingServer: {
         alias: "ls",
         description: "Licensing server to use for Unity activation",
         type: "string",
         demandOption: false,
-        default: ""
+        default: process.env.UNITY_LICENSING_SERVER || ""
       },
       unityLicensingToolset: {
         alias: "lt",

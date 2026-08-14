@@ -149,8 +149,11 @@ export class Cli {
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
       .strict(true);
 
-      // Todo: Enable env as this is still throwing errors when added
-      // .env();
+      // Deliberately not using yargs' blanket .env(): combined with strict(true)
+      // it treats every process env var (not just game-ci-relevant ones) as an
+      // unrecognized argument and fails. Secret-bearing options set their own
+      // env fallback in their .option() default instead - see unityEmail etc.
+      // in unity-options.ts.
   }
 
   protected configureGlobalOptions() {
