@@ -1,7 +1,61 @@
+import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { Action } from './action.ts';
 import { Docker } from './docker.ts';
+import { System } from './system/system.ts';
+import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
 
 describe('Docker', () => {
+  const originalSystemRun = System.run;
+  const originalValidateBuild = UnityBuildValidation.validateBuild;
+
+  afterEach(() => {
+    System.run = originalSystemRun;
+    UnityBuildValidation.validateBuild = originalValidateBuild;
+  });
+
+  it('skips build-output validation for activate-only runs (game-ci/unity-activate#111)', async () => {
+    // Real bug: validateBuild() requires a "# Build results #" section,
+    // which only a real build ever produces - it threw on every successful
+    // activation, since there's nothing to build.
+    System.run = mock(() => Promise.resolve({ output: 'Activation complete.', error: '' }));
+    const validateBuildMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateBuildMock;
+
+    await Docker.run('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      hostPlatform: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+      activateOnly: true,
+    } as any);
+
+    expect(validateBuildMock).not.toHaveBeenCalled();
+  });
+
+  it('still validates build output for real (non-activate-only) builds', async () => {
+    System.run = mock(() => Promise.resolve({ output: '# Build results #\nErrors: 0\nSize:', error: '' }));
+    const validateBuildMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateBuildMock;
+
+    await Docker.run('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      hostPlatform: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+    } as any);
+
+    expect(validateBuildMock).toHaveBeenCalled();
+  });
   it('builds a continuous Linux docker command', () => {
     const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
       hostOS: 'linux',
