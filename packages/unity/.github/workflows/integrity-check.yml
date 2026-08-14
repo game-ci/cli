@@ -1,0 +1,33 @@
+name: Integrity
+
+on:
+  push: { branches: [main] }
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+  checks: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Verify dist is up to date
+        run: |
+          npm run build
+          [ -z "$(git status --porcelain dist)" ] || { echo "dist/ is out of date (modified or untracked files) — run 'npm run build' and commit the result"; git status --porcelain dist; git diff dist; exit 1; }
