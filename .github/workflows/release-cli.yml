@@ -20,23 +20,28 @@ jobs:
           - target: linux-x64
             runner: ubuntu-latest
             bun-target: bun-linux-x64
-            asset: game-ci-linux-x64
+            binary: game-ci
+            asset: game-ci-linux-x64.tar.gz
           - target: linux-arm64
             runner: ubuntu-latest
             bun-target: bun-linux-arm64
-            asset: game-ci-linux-arm64
+            binary: game-ci
+            asset: game-ci-linux-arm64.tar.gz
           - target: macos-x64
             runner: macos-latest
             bun-target: bun-darwin-x64
-            asset: game-ci-macos-x64
+            binary: game-ci
+            asset: game-ci-macos-x64.tar.gz
           - target: macos-arm64
             runner: macos-latest
             bun-target: bun-darwin-arm64
-            asset: game-ci-macos-arm64
+            binary: game-ci
+            asset: game-ci-macos-arm64.tar.gz
           - target: windows-x64
             runner: windows-latest
             bun-target: bun-windows-x64
-            asset: game-ci-windows-x64.exe
+            binary: game-ci.exe
+            asset: game-ci-windows-x64.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +52,17 @@ jobs:
         run: bun install
 
       - name: Build standalone binary
-        run: bun build src/index.ts --compile --target ${{ matrix.bun-target }} --outfile ${{ matrix.asset }}
+        run: bun build src/index.ts --compile --target ${{ matrix.bun-target }} --outfile pkg/${{ matrix.binary }}
+
+      # The binary alone isn't self-contained: cli.ts resolves its own
+      # static assets (default-build-script/, platforms/*,
+      # unity-config/services-config.json.template - all needed for Docker
+      # volume mounts) relative to its own directory on disk. Those assets
+      # aren't bundled into the compiled binary, so dist/ has to ship as
+      # its sibling in the same archive - see game-ci/cli#73.
+      - name: Copy static assets alongside the binary
+        shell: bash
+        run: cp -r dist pkg/dist
 
       - name: Verify binary (native only)
         if: >-
@@ -55,8 +70,18 @@ jobs:
           (matrix.target == 'macos-x64' && runner.arch == 'X64') ||
           (matrix.target == 'linux-x64') ||
           (matrix.target == 'windows-x64')
-        run: ./${{ matrix.asset }} --help
+        run: ./pkg/${{ matrix.binary }} --help
         shell: bash
+
+      - name: Package archive (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -czf ${{ matrix.asset }} -C pkg .
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path pkg\* -DestinationPath ${{ matrix.asset }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

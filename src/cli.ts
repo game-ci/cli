@@ -1,4 +1,4 @@
-import { yaml, yargs, getHomeDir, __dirname, path, process, fs } from './dependencies.ts';
+import { yaml, yargs, getHomeDir, __dirname, isCompiledBinary, path, process, fs } from './dependencies.ts';
 import type { YargsInstance, YargsArguments } from './dependencies.ts';
 import { CommandInterface } from './command/command-interface.ts';
 import { configureLogger } from './middleware/logger-verbosity/index.ts';
@@ -38,9 +38,12 @@ export class Cli {
     this.hostPlatform = process.platform;
     this.hostOS = process.platform === 'win32' ? 'windows' : process.platform;
 
-    // Todo make these variables portable when generating the cli binary
     this.cliPath = __dirname;
-    this.cliDistPath = path.join(path.dirname(__dirname), 'dist');
+    // Dev mode: __dirname is <repo>/src, so dist/ is a sibling of its parent
+    // (<repo>/dist). Compiled binary: __dirname is wherever the standalone
+    // executable itself sits on disk (no src/ nesting) - dist/ must be
+    // shipped as its direct sibling instead. See game-ci/cli#73.
+    this.cliDistPath = isCompiledBinary ? path.join(__dirname, 'dist') : path.join(path.dirname(__dirname), 'dist');
   }
 
   public async setup() {
