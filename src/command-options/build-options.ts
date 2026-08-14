@@ -56,10 +56,13 @@ export class BuildOptions implements IOptions {
       })
       .option('buildMethod', {
         alias: 'm',
-        description: 'Build method to use',
+        description: String.dedent`Build method to use, in <Namespace.Class.StaticMethod> form. Leave unset to use
+        the built-in UnityBuilderAction.Builder.BuildProject method, which builds the scenes enabled in the
+        project - the platform entrypoint scripts only copy that built-in build script into the project when this
+        is empty (see game-ci/cli#75), so it must stay empty rather than defaulting to that class name here.`,
         type: 'string',
         demandOption: false,
-        default: 'UnityBuilderAction.Builder.BuildProject',
+        default: '',
       })
       .option('dockerWorkspacePath', {
         description: String.dedent`The path to mount the workspace inside the docker container. For windows, leave out the drive letter. For example

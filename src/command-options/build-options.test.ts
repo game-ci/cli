@@ -34,6 +34,27 @@ describe('BuildOptions', () => {
     expect(argv.buildFile).toBe('StandaloneLinux64');
   });
 
+  it('defaults buildMethod to empty, not the built-in class name', async () => {
+    // Real bug, caught by live CI (game-ci/cli#75): the platform entrypoint
+    // scripts (build.sh/build.ps1) only copy the built-in
+    // UnityBuilderAction.Builder.BuildProject script into the project when
+    // BUILD_METHOD is empty. If cli defaulted buildMethod to that class
+    // name itself, the copy step never ran and Unity failed with
+    // "executeMethod class 'Builder' could not be found" - the class name
+    // was passed, but the .cs file backing it was never actually copied in.
+    const parser = yargs(['--targetPlatform', 'StandaloneLinux64'])
+      .exitProcess(false)
+      .fail((message, error) => {
+        throw error || new Error(message);
+      });
+
+    BuildOptions.configure(parser);
+
+    const argv = await parser.parseAsync();
+
+    expect(argv.buildMethod).toBe('');
+  });
+
   it('uses android export type when deriving Android buildFile', async () => {
     const parser = yargs([
       '--targetPlatform',
