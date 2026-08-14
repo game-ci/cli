@@ -5,8 +5,36 @@ on:
   pull_request: {}
 
 jobs:
+  # Compute which areas of the monorepo a PR actually touches, so each
+  # suite below only runs when it's relevant. Anything under src/ (the
+  # CLI core + built-in engine plugins) is treated as cross-cutting and
+  # runs everything, since the plugin interface lives there.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.filter.outputs.cli }}
+      orchestrator: ${{ steps.filter.outputs.orchestrator }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cli:
+              - 'src/**'
+              - 'dist/**'
+              - 'package.json'
+              - 'bunfig.toml'
+              - '.github/workflows/tests.yml'
+            orchestrator:
+              - 'packages/orchestrator/**'
+              - '.github/workflows/tests.yml'
+
   tests:
     name: Tests
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +44,41 @@ jobs:
         run: bun install
       - name: Code conventions
         run: bun run lint
+      # `bun run test` (not bare `bun test`) - the script scopes to ./src.
+      # Bare `bun test` treats its argument as a substring filter, not a
+      # path, so it would also glob packages/orchestrator's vitest suites
+      # and fail on a runner mismatch.
       - name: Unit/Integration tests
-        run: bun test
+        run: bun run test
+
+  orchestrator-tests:
+    name: Orchestrator tests
+    needs: changes
+    if: needs.changes.outputs.orchestrator == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
+      - name: Orchestrator unit tests
+        run: bun run test:orchestrator
+
+  # Aggregate gate: stays green when a suite is legitimately skipped, but
+  # fails if any suite that DID run failed. Branch protection should
+  # require this single check rather than the individual suites above -
+  # otherwise a skipped-but-required job blocks every scoped PR.
+  tests-gate:
+    name: Tests gate
+    needs: [tests, orchestrator-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no suite failed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "A test suite failed."
+            exit 1
+          fi
+          echo "All test suites that ran are green."
