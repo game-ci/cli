@@ -45,6 +45,9 @@ describe('RunnerImageTag', () => {
   });
 
   describe('toString', () => {
+    // Rolling version defaults to "3", matching unity-builder's production
+    // default (Input.containerRegistryImageVersion) - this used to be
+    // hardcoded to "1" here, which meant cli resolved a stale image tag.
     it('returns the correct version', () => {
       const image = new RunnerImageTag({
         engineVersion: '2099.1.1111',
@@ -53,10 +56,10 @@ describe('RunnerImageTag', () => {
       });
       switch (process.platform) {
         case 'win32':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2099.1.1111-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2099.1.1111-3`);
           break;
         case 'linux':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2099.1.1111-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2099.1.1111-3`);
           break;
       }
     });
@@ -80,10 +83,10 @@ describe('RunnerImageTag', () => {
 
       switch (process.platform) {
         case 'win32':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-webgl-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-webgl-3`);
           break;
         case 'linux':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-webgl-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-webgl-3`);
           break;
       }
     });
@@ -96,12 +99,33 @@ describe('RunnerImageTag', () => {
 
       switch (process.platform) {
         case 'win32':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:windows-2019.2.11f1-3`);
           break;
         case 'linux':
-          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-1`);
+          expect(image.toString()).toStrictEqual(`${defaults.image}:ubuntu-2019.2.11f1-3`);
           break;
       }
+    });
+
+    it('honors an overridden containerRegistryRepository, keeping a host+path prefix intact', () => {
+      const image = new RunnerImageTag({
+        targetPlatform: 'NoTarget',
+        hostPlatform: process.platform,
+        containerRegistryRepository: 'ghcr.io/example/editor',
+      });
+
+      expect(image.repository).toStrictEqual('ghcr.io/example');
+      expect(image.name).toStrictEqual('editor');
+    });
+
+    it('honors an overridden containerRegistryImageVersion', () => {
+      const image = new RunnerImageTag({
+        targetPlatform: 'NoTarget',
+        hostPlatform: process.platform,
+        containerRegistryImageVersion: '5',
+      });
+
+      expect(image.imageRollingVersion).toStrictEqual(5);
     });
   });
 });

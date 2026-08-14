@@ -17,15 +17,25 @@ class RunnerImageTag {
       hostPlatform,
       targetPlatform,
       customImage,
+      containerRegistryRepository = 'unityci/editor',
+      containerRegistryImageVersion = '3',
     } = options;
 
     if (!RunnerImageTag.versionPattern.test(engineVersion)) {
       throw new Error(`Invalid version "${engineVersion}".`);
     }
 
+    // Split on the last '/' so registries with a host+path prefix (e.g.
+    // ghcr.io/example/editor) keep that whole prefix as the repository,
+    // with only the final segment treated as the image name.
+    const registryString = String(containerRegistryRepository);
+    const lastSlashIndex = registryString.lastIndexOf('/');
+    const repository = lastSlashIndex === -1 ? 'unityci' : registryString.slice(0, lastSlashIndex);
+    const name = lastSlashIndex === -1 ? registryString : registryString.slice(lastSlashIndex + 1);
+
     this.customImage = customImage;
-    this.repository = 'unityci';
-    this.name = 'editor';
+    this.repository = repository;
+    this.name = name;
     this.engineVersion = engineVersion;
     this.targetPlatform = targetPlatform;
     this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(hostPlatform);
@@ -34,7 +44,8 @@ class RunnerImageTag {
       targetPlatform,
       engineVersion,
     );
-    this.imageRollingVersion = 1; // Will automatically roll to the latest non-breaking version.
+    // Rolls forward automatically within the pinned major (non-breaking updates).
+    this.imageRollingVersion = Number(containerRegistryImageVersion);
   }
 
   static get versionPattern() {

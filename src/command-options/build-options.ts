@@ -1,6 +1,26 @@
 import type { YargsArguments, YargsInstance } from '../dependencies.ts';
 import { UnityTargetPlatform } from '../model/unity/target-platform/unity-target-platform.ts';
 import { IOptions } from './options-interface.ts';
+import * as os from 'node:os';
+
+function defaultDockerMemoryLimit(): string {
+  const bytesInMegabyte = 1024 * 1024;
+
+  let memoryMultiplier: number;
+  switch (os.platform()) {
+    case 'linux':
+      memoryMultiplier = 0.95;
+      break;
+    case 'win32':
+      memoryMultiplier = 0.8;
+      break;
+    default:
+      memoryMultiplier = 0.75;
+      break;
+  }
+
+  return `${Math.floor((os.totalmem() / bytesInMegabyte) * memoryMultiplier)}m`;
+}
 
 export class BuildOptions implements IOptions {
   public static configure(yargs: YargsInstance): void {
@@ -22,7 +42,7 @@ export class BuildOptions implements IOptions {
       .default('buildPath', '')
       .default('buildFile', '')
       .middleware((argv: YargsArguments) => {
-        const { buildName, buildsPath, targetPlatform, androidAppBundle, androidExportType } = argv;
+        const { buildName, buildsPath, targetPlatform, androidAppBundle, androidExportType, linux64RemoveExecutableExtension } = argv;
         const resolvedBuildName = buildName || targetPlatform;
         const resolvedAndroidExportType = androidExportType || (androidAppBundle ? 'androidAppBundle' : 'androidPackage');
         argv.buildName = resolvedBuildName;
@@ -31,6 +51,7 @@ export class BuildOptions implements IOptions {
           resolvedBuildName,
           targetPlatform,
           resolvedAndroidExportType,
+          Boolean(linux64RemoveExecutableExtension),
         );
       })
       .option('buildMethod', {
@@ -88,6 +109,60 @@ export class BuildOptions implements IOptions {
       .option('gitConfigExtensions', {
         description: String.dedent`Linux only. Newline-separated list of extra git config entries to set before the
         build, in "key=value" form (e.g. for LFS/submodule auth setups not covered by gitPrivateToken).`,
+        type: 'string',
+        demandOption: false,
+        default: '',
+      })
+      .option('linux64RemoveExecutableExtension', {
+        description: String.dedent`When building for StandaloneLinux64, remove the default .x86_64 file extension
+        Unity appends to the build's executable.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('useHostNetwork', {
+        description: 'Linux only. Initialises Docker using the host network.',
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
+      .option('dockerCpuLimit', {
+        description: 'Number of CPU cores to assign the docker container. Defaults to all available cores.',
+        type: 'string',
+        demandOption: false,
+        default: os.cpus().length.toString(),
+      })
+      .option('dockerMemoryLimit', {
+        description: String.dedent`Amount of memory to assign the docker container. Defaults to 95% of total system
+        memory rounded down to the nearest megabyte on Linux and 80% on Windows. On unrecognized platforms, defaults
+        to 75% of total system memory. To manually specify a value, use the format <number><unit>, where unit is
+        either m or g. ie: 512m = 512 megabytes`,
+        type: 'string',
+        demandOption: false,
+        default: defaultDockerMemoryLimit(),
+      })
+      .option('dockerIsolationMode', {
+        description: String.dedent`Windows only. Isolation mode to use for the docker container. Can be one of
+        process, hyperv, or default. Default will pick the default mode as described by Microsoft where server
+        versions use process and desktop versions use hyperv.`,
+        type: 'string',
+        demandOption: false,
+        default: 'default',
+      })
+      .option('containerRegistryRepository', {
+        description: 'Container registry and repository to pull the Unity editor image from. Only applies if customImage is not set.',
+        type: 'string',
+        demandOption: false,
+        default: 'unityci/editor',
+      })
+      .option('containerRegistryImageVersion', {
+        description: 'Container registry image rolling version. Only applies if customImage is not set.',
+        type: 'string',
+        demandOption: false,
+        default: '3',
+      })
+      .option('sshPublicKeysDirectoryPath', {
+        description: 'Path to a directory containing SSH public keys to forward to the container.',
         type: 'string',
         demandOption: false,
         default: '',

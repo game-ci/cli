@@ -69,6 +69,79 @@ describe('Docker', () => {
     expect(command).not.toContain('should-not-be-used');
   });
 
+  it('applies docker resource limits and host networking when set', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+      dockerCpuLimit: '4',
+      dockerMemoryLimit: '8192m',
+      useHostNetwork: true,
+    });
+
+    expect(command).toContain('--cpus=4');
+    expect(command).toContain('--memory=8192m');
+    expect(command).toContain('--net=host');
+  });
+
+  it('mounts a custom SSH public keys directory instead of the known_hosts fallback', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '/ssh-agent',
+      sshPublicKeysDirectoryPath: '/home/runner/.ssh/keys',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+    });
+
+    expect(command).toContain('--volume /home/runner/.ssh/keys:/root/.ssh:ro');
+    expect(command).not.toContain('known_hosts');
+  });
+
+  it('mounts sshPublicKeysDirectoryPath even without sshAgent set, matching unity-builder', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      sshPublicKeysDirectoryPath: '/home/runner/.ssh/keys',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+    });
+
+    expect(command).toContain('--volume /home/runner/.ssh/keys:/root/.ssh:ro');
+  });
+
+  it('applies docker resource limits and isolation mode on Windows', () => {
+    const command = (Docker as any).getWindowsCommand('game-ci/unity-editor-stub:latest', {
+      currentWorkDir: 'C:/work/cli',
+      homeDir: 'C:/Users/runner',
+      cliDistPath: 'C:/work/cli/dist',
+      cliStoragePath: 'C:/work/.game-ci',
+      unitySerial: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+      dockerCpuLimit: '4',
+      dockerMemoryLimit: '8192m',
+      dockerIsolationMode: 'process',
+    });
+
+    expect(command).toContain('--cpus=4');
+    expect(command).toContain('--memory=8192m');
+    expect(command).toContain('--isolation=process');
+  });
+
   it.skip('runs', async () => {
     const image = 'unity-builder:2019.2.11f1-webgl';
     const parameters = {
