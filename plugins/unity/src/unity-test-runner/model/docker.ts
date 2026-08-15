@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs';
 import LicensingServerSetup from './licensing-server-setup';
 import type { RunnerContext } from './action';
 import { exec } from '@actions/exec';
+import * as core from '@actions/core';
 import path from 'path';
 
 /**
@@ -26,8 +27,16 @@ const Docker = {
       return;
     }
     const container = readFileSync(cidfile, 'ascii').trim();
-    await exec(`docker`, ['rm', '--force', '--volumes', container], { silent: true });
-    rmSync(cidfile);
+    try {
+      if (container !== '') {
+        await exec(`docker`, ['rm', '--force', '--volumes', container], { silent: true });
+      }
+    } finally {
+      // Always drop the cidfile, even if `docker rm` failed or there was nothing to
+      // remove (a docker run that failed before writing a container ID still creates
+      // the file - `--cidfile` refuses to run again while a stale file is present).
+      rmSync(cidfile);
+    }
   },
 
   async run(image, parameters, silent = false) {
@@ -48,7 +57,40 @@ const Docker = {
         throw new Error(`Operation system, ${process.platform}, is not supported yet.`);
     }
 
-    await exec(runCommand, undefined, { silent });
+    // With a githubToken set, the container runs with USE_EXIT_CODE=false (see
+    // getLinuxCommand/getWindowsCommand) - test results are reported through GitHub
+    // Checks, not the process exit code, so in that mode a nonzero exit here can only
+    // mean the docker/container launch itself failed (e.g. the intermittent Windows
+    // runner "docker.exe failed with exit code 1" flake - unity-test-runner#314),
+    // never a real test failure. Retrying is only safe in that mode: without a token,
+    // USE_EXIT_CODE=true and a nonzero exit IS how test failures are signaled, so a
+    // retry there would silently re-run (and could mask) a real failure.
+    const launchFailuresAreRetryable = Boolean(parameters.githubToken);
+    const maxAttempts = launchFailuresAreRetryable ? 3 : 1;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await exec(runCommand, undefined, { silent });
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts) throw error;
+        core.warning(
+          `Docker run failed (attempt ${attempt}/${maxAttempts}): ${
+            error instanceof Error ? error.message : String(error)
+          }. Retrying...`,
+        );
+        try {
+          await this.ensureContainerRemoval(parameters);
+        } catch (cleanupError) {
+          core.warning(
+            `Cleanup before retry failed, continuing anyway: ${
+              cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+            }`,
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
   },
 
   getLinuxCommand(image, parameters): string {
