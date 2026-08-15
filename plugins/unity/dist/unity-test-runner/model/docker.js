@@ -58,6 +58,7 @@ const Docker = {
         const cidfile = containerIdFilePath(parameters);
         const testPlatforms = (testMode === 'all' ? ['playmode', 'editmode', 'COMBINE_RESULTS'] : [testMode]).join(';');
         return `docker run \
+            --shm-size=1025m \
             --workdir /github/workspace \
             --cidfile "${cidfile}" \
             --rm \
@@ -98,6 +99,7 @@ const Docker = {
             (0, fs_1.mkdirSync)(githubWorkflow);
         const testPlatforms = (testMode === 'all' ? ['playmode', 'editmode', 'COMBINE_RESULTS'] : [testMode]).join(';');
         return `docker run \
+                --shm-size=1025m \
                 --workdir c:/github/workspace \
                 --cidfile "${cidfile}" \
                 --rm \
