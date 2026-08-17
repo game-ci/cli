@@ -181,6 +181,28 @@ describe('index.ts plugin lifecycle wiring', () => {
 
       expect(mockPlugin.handlePostBuild).toHaveBeenCalledWith(0);
     });
+
+    it('should still call afterLocalBuild when the build throws, so a move-directory cache save-back is not lost', async () => {
+      (Docker.run as Mock).mockRejectedValueOnce(new Error('container crashed'));
+
+      await runIndex();
+
+      // beforeLocalBuild may have MOVEd the cache into the workspace; afterLocalBuild
+      // must always run to move it back, even when the build itself throws instead
+      // of returning an exit code.
+      expect(mockPlugin.afterLocalBuild).toHaveBeenCalledWith('/workspace', -1);
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('container crashed'));
+    });
+
+    it('should not let an afterLocalBuild failure mask the original build error', async () => {
+      (Docker.run as Mock).mockRejectedValueOnce(new Error('container crashed'));
+      mockPlugin.afterLocalBuild.mockRejectedValueOnce(new Error('cache save-back failed'));
+
+      await runIndex();
+
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('container crashed'));
+      expect(core.warning).toHaveBeenCalledWith(expect.stringContaining('cache save-back failed'));
+    });
   });
 
   // -----------------------------------------------------------------------

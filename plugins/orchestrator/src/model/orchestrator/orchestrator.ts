@@ -405,6 +405,32 @@ class Orchestrator {
         `completed`,
       );
       if (!Orchestrator.buildParameters.isCliMode) core.endGroup();
+
+      // Release any retained-workspace lock so a crashed/failed build doesn't
+      // permanently sequester the workspace slot. The success path above only
+      // releases after a clean run; IsWorkspaceLocked has no TTL/liveness check,
+      // so without this a thrown error here leaks the lock forever and shrinks
+      // the retained-workspace pool by one on every failure. ReleaseWorkspace is
+      // idempotent (a no-op if the workspace was never locked or already released).
+      if (
+        BuildParameters.shouldUseRetainedWorkspaceMode(Orchestrator.buildParameters) &&
+        Orchestrator.lockedWorkspace
+      ) {
+        try {
+          await SharedWorkspaceLocking.ReleaseWorkspace(
+            Orchestrator.lockedWorkspace,
+            Orchestrator.buildParameters.buildGuid,
+            Orchestrator.buildParameters,
+          );
+        } catch (releaseError: any) {
+          OrchestratorLogger.log(
+            `Failed to release workspace lock for ${Orchestrator.lockedWorkspace} after build failure: ${OrchestratorLogger.stringifyError(releaseError)}`,
+          );
+        } finally {
+          Orchestrator.lockedWorkspace = ``;
+        }
+      }
+
       await OrchestratorError.handleException(
         error,
         Orchestrator.buildParameters,
