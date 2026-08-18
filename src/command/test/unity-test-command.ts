@@ -11,6 +11,27 @@ import { PlatformSetup } from '../../logic/unity/platform-setup/index.ts';
 import type { YargsInstance, Options } from '../../dependencies.ts';
 
 /**
+ * Real bug found via a live CI run: defaulting to NoTarget (RunnerImageTag's
+ * 'base' module) seemed like the obvious no-target-platform-being-built
+ * choice, but 'base' apparently lacks whatever's needed to actually compile
+ * and run test assemblies - `-runTests` exited instantly with no log output
+ * at all against it. unity-test-runner's own original ImageTag defaulted to
+ * this host's native Standalone target instead (see its
+ * getImagePlatformType) - StandaloneLinux64 resolves to the linux-il2cpp
+ * module for Unity 2020+, which does have what's needed. Matching that
+ * here, rather than NoTarget.
+ */
+function defaultTestTargetPlatform(hostPlatform: string = process.platform): string {
+  switch (hostPlatform) {
+    case 'win32':
+      return 'StandaloneWindows';
+    case 'linux':
+    default:
+      return 'StandaloneLinux64';
+  }
+}
+
+/**
  * `game-ci test` — two independent ways to run Unity tests, chosen via
  * --docker:
  *
@@ -91,13 +112,10 @@ export class UnityTestCommand extends CommandBase implements CommandInterface {
       );
     }
 
-    // No target platform is being built - resolves to the 'base' editor
-    // image, same one activate/NoTarget already uses (see RunnerImageTag's
-    // targetPlatformSuffixes.noTarget). UnityOptions.configure() defaults
-    // targetPlatform to StandaloneWindows64 (build's default, not test's) -
-    // overridden back to NoTarget in configureOptions() below, so this
-    // should already be NoTarget unless a caller explicitly passed one.
-    const testOptions = { ...options, targetPlatform: options.targetPlatform || 'NoTarget' };
+    const testOptions = {
+      ...options,
+      targetPlatform: options.targetPlatform || defaultTestTargetPlatform(hostPlatform),
+    };
 
     const image = new RunnerImageTag(testOptions);
     if (log.isVerbose) log.debug('Using image:', image);
@@ -114,11 +132,13 @@ export class UnityTestCommand extends CommandBase implements CommandInterface {
   public async configureOptions(yargs: YargsInstance): Promise<void> {
     await ProjectOptions.configure(yargs);
     await UnityOptions.configure(yargs);
-    // UnityOptions defaults targetPlatform to StandaloneWindows64 (a build
-    // concern) - tests don't build anything, so default to NoTarget's
-    // 'base' editor image instead. A caller can still pass --targetPlatform
-    // explicitly (e.g. for --testPlatforms=standalone scenarios).
-    yargs.default('targetPlatform', 'NoTarget');
+    // UnityOptions defaults targetPlatform to StandaloneWindows64
+    // unconditionally (a build concern) - override to this host's own
+    // native target, matching unity-test-runner's original default (see
+    // defaultTestTargetPlatform's comment for why NoTarget doesn't work
+    // here). A caller can still pass --targetPlatform explicitly (e.g. for
+    // --testPlatforms=standalone scenarios targeting a different platform).
+    yargs.default('targetPlatform', defaultTestTargetPlatform());
     await UnityTestOptions.configure(yargs);
     await DockerTestOptions.configure(yargs);
   }
