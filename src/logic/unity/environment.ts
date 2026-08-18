@@ -35,6 +35,22 @@ const UnityEnvironment = {
       { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
       { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
       { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },
+      // Consumed by dist/platforms/*/steps/runsteps.sh + test.sh (`game-ci
+      // test --docker`, see UnityTestCommand) - a no-op for build/activate
+      // since these are all empty/undefined there and getEnvVarString drops
+      // empty values.
+      { name: 'RUN_TESTS', value: options.runTests ? 'true' : '' },
+      { name: 'TEST_PLATFORMS', value: options.testPlatforms },
+      { name: 'ARTIFACTS_PATH', value: options.artifactsPath },
+      { name: 'COVERAGE_RESULTS_PATH', value: options.coverageResultsPath },
+      { name: 'COVERAGE_OPTIONS', value: options.coverageOptions },
+      { name: 'COVERAGE_ENABLED', value: options.coverageEnabled === false ? 'false' : 'true' },
+      { name: 'PACKAGE_MODE', value: options.packageMode ? 'true' : '' },
+      { name: 'PACKAGE_NAME', value: options.packageName },
+      { name: 'SCOPED_REGISTRY_URL', value: options.scopedRegistryUrl },
+      { name: 'REGISTRY_SCOPES', value: options.registryScopes },
+      { name: 'PRIVATE_REGISTRY_TOKEN', value: options.privateRegistryToken },
+      { name: 'PRIVATE_REGISTRY_USER', value: options.privateRegistryUser },
     ] as DockerParameter[];
   },
 };

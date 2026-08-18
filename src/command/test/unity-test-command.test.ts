@@ -1,15 +1,24 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { UnityTestCommand } from './unity-test-command.ts';
 import { UnityCliAdapter } from '../../model/unity-cli-adapter.ts';
+import { Docker } from '../../model/index.ts';
+import { HostRunner } from '../../model/host-runner.ts';
+import { PlatformSetup } from '../../logic/unity/platform-setup/index.ts';
 
 const originalIsAvailable = UnityCliAdapter.isAvailable;
 const originalTest = UnityCliAdapter.test;
+const originalDockerRun = Docker.run;
+const originalHostRunnerRun = HostRunner.run;
+const originalPlatformSetup = PlatformSetup.setup;
 
 afterEach(() => {
-  // Both are shared statics — restore them so other test files that
-  // exercise the real UnityCliAdapter aren't affected by this file's mocks.
+  // All statics — restore them so other test files that exercise the real
+  // implementations aren't affected by this file's mocks.
   UnityCliAdapter.isAvailable = originalIsAvailable;
   UnityCliAdapter.test = originalTest;
+  Docker.run = originalDockerRun;
+  HostRunner.run = originalHostRunnerRun;
+  PlatformSetup.setup = originalPlatformSetup;
 });
 
 describe('UnityTestCommand', () => {
@@ -51,5 +60,53 @@ describe('UnityTestCommand', () => {
     const command = new UnityTestCommand('test');
 
     await expect(command.execute({} as any)).rejects.toThrow(/test:.*failed.*unity wrote to stderr/);
+  });
+
+  it('--docker runs the classic batchmode flow via Docker.run, not the unity CLI', async () => {
+    const isAvailableMock = mock(() => Promise.resolve(true));
+    UnityCliAdapter.isAvailable = isAvailableMock;
+    PlatformSetup.setup = mock(() => Promise.resolve());
+    const dockerRunMock = mock(() => Promise.resolve());
+    Docker.run = dockerRunMock;
+
+    const command = new UnityTestCommand('test');
+    const result = await command.execute({
+      docker: true,
+      hostPlatform: 'linux',
+      engineVersion: '2022.3.20f1',
+    } as any);
+
+    expect(result).toBe(true);
+    expect(isAvailableMock).not.toHaveBeenCalled();
+    expect(dockerRunMock).toHaveBeenCalledTimes(1);
+    const [image, options] = dockerRunMock.mock.calls[0] as unknown as [string, any];
+    expect(image).toContain('base'); // NoTarget resolves to the 'base' editor image
+    expect(options.runTests).toBe(true);
+  });
+
+  it('--docker --local runs directly on the host via HostRunner.run, not Docker', async () => {
+    const dockerRunMock = mock(() => Promise.resolve());
+    Docker.run = dockerRunMock;
+    const hostRunnerMock = mock(() => Promise.resolve());
+    HostRunner.run = hostRunnerMock;
+
+    const command = new UnityTestCommand('test');
+    const result = await command.execute({ docker: true, local: true, hostPlatform: 'linux' } as any);
+
+    expect(result).toBe(true);
+    expect(dockerRunMock).not.toHaveBeenCalled();
+    expect(hostRunnerMock).toHaveBeenCalledTimes(1);
+    const [options] = hostRunnerMock.mock.calls[0] as unknown as [any];
+    expect(options.runTests).toBe(true);
+  });
+
+  it('--docker on macOS throws instead of trying to pull a nonexistent macOS editor image', async () => {
+    PlatformSetup.setup = mock(() => Promise.resolve());
+
+    const command = new UnityTestCommand('test');
+
+    await expect(
+      command.execute({ docker: true, hostPlatform: 'darwin', engineVersion: '2022.3.20f1' } as any),
+    ).rejects.toThrow(/macOS/i);
   });
 });
