@@ -80,7 +80,11 @@ describe('UnityTestCommand', () => {
     expect(isAvailableMock).not.toHaveBeenCalled();
     expect(dockerRunMock).toHaveBeenCalledTimes(1);
     const [image, options] = dockerRunMock.mock.calls[0] as unknown as [string, any];
-    expect(image).toContain('base'); // NoTarget resolves to the 'base' editor image
+    // Defaults to this host's native Standalone target (StandaloneLinux64 on
+    // Linux), which resolves to the linux-il2cpp module for Unity 2020+ -
+    // NOT the 'base'/NoTarget image, which lacks what's needed to actually
+    // compile and run test assemblies (see defaultTestTargetPlatform).
+    expect(image).toContain('linux-il2cpp');
     expect(options.runTests).toBe(true);
   });
 

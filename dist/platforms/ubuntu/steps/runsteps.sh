@@ -11,12 +11,6 @@
 #
 STEPS_DIR="${STEPS_DIR:-/steps}"
 
-# TEMPORARY: tracing every command to stderr while diagnosing a real CI
-# failure where a Docker test run produces zero visible stdout before
-# failing near-instantly (game-ci/cli - see the PR this landed in for
-# context). Remove once root-caused.
-set -x
-
 source "$STEPS_DIR/set_extra_git_configs.sh"
 source "$STEPS_DIR/set_gitcredential.sh"
 
