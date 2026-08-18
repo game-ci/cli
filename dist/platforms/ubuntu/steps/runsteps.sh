@@ -3,11 +3,19 @@
 #
 # Run steps
 #
-source /steps/set_extra_git_configs.sh
-source /steps/set_gitcredential.sh
+# STEPS_DIR defaults to /steps (the Docker container mount point). Host-mode
+# execution (no Docker, see src/model/host-runner.ts) runs this script
+# directly against the real filesystem and overrides STEPS_DIR to point at
+# the CLI's own dist/platforms/ubuntu/steps instead - everything else in
+# this file is unchanged either way.
+#
+STEPS_DIR="${STEPS_DIR:-/steps}"
+
+source "$STEPS_DIR/set_extra_git_configs.sh"
+source "$STEPS_DIR/set_gitcredential.sh"
 
 if [ "$SKIP_ACTIVATION" != "true" ]; then
-  source /steps/activate.sh
+  source "$STEPS_DIR/activate.sh"
 
   # If we didn't activate successfully, exit with the exit code from the activation step.
   if [[ $UNITY_EXIT_CODE -ne 0 ]]; then
@@ -25,10 +33,20 @@ if [ "$ACTIVATE_ONLY" = "true" ]; then
   exit $UNITY_EXIT_CODE
 fi
 
-source /steps/build.sh
+# RUN_TESTS=true (used by `game-ci test --docker`, see game-ci/cli's
+# UnityTestCommand) runs the classic Docker/Hub-image-driven Unity batchmode
+# test flow instead of a build - same activation/license-return steps either
+# way, only the middle step differs.
+if [ "$RUN_TESTS" = "true" ]; then
+  source "$STEPS_DIR/test.sh"
+  STEP_EXIT_CODE=$TEST_RUNNER_EXIT_CODE
+else
+  source "$STEPS_DIR/build.sh"
+  STEP_EXIT_CODE=$BUILD_EXIT_CODE
+fi
 
 if [ "$SKIP_ACTIVATION" != "true" ]; then
-  source /steps/return_license.sh
+  source "$STEPS_DIR/return_license.sh"
 fi
 
 #
@@ -41,7 +59,7 @@ rm -r "$ACTIVATE_LICENSE_PATH"
 # Instructions for debugging
 #
 
-if [[ $BUILD_EXIT_CODE -gt 0 ]]; then
+if [[ $STEP_EXIT_CODE -gt 0 ]]; then
 echo ""
 echo "###########################"
 echo "#         Failure         #"
@@ -55,7 +73,7 @@ echo ""
 fi;
 
 #
-# Exit with code from the build step.
+# Exit with code from the build/test step.
 #
 
-exit $BUILD_EXIT_CODE
+exit $STEP_EXIT_CODE
