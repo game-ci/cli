@@ -202,7 +202,7 @@ for platform in ${TEST_PLATFORMS//;/ }; do
     ls -Ralph "$UNITY_PROJECT_PATH/Assets/Editor/"
     ls -Ralph "$UNITY_PROJECT_PATH/Assets/Player/"
 
-    runTests="-runTests -testPlatform StandaloneLinux64 -builtTestRunnerPath $UNITY_PROJECT_PATH/Build/UnityTestRunner-Standalone"
+    runTests=(-runTests -testPlatform StandaloneLinux64 -builtTestRunnerPath "$UNITY_PROJECT_PATH/Build/UnityTestRunner-Standalone")
   else
     echo ""
     echo "###########################"
@@ -211,18 +211,26 @@ for platform in ${TEST_PLATFORMS//;/ }; do
     echo ""
 
     if [[ "$platform" != "COMBINE_RESULTS" ]]; then
-      runTests="-runTests -testPlatform $platform -testResults $FULL_ARTIFACTS_PATH/$platform-results.xml"
+      runTests=(-runTests -testPlatform "$platform" -testResults "$FULL_ARTIFACTS_PATH/$platform-results.xml")
     else
-      runTests="-quit"
+      runTests=(-quit)
     fi
   fi
 
-  eval unity-editor \
+  # CUSTOM_PARAMETERS is a single string of space-separated Unity CLI args
+  # (e.g. "-profile Foo -someBoolean") - deliberately left unquoted below so
+  # it word-splits into separate argv entries, same as the rest of this
+  # array-based invocation. No eval anywhere here: an earlier version of
+  # this script used eval to get the same word-splitting, which would have
+  # let CUSTOM_PARAMETERS (user-controlled, via the action's own input)
+  # inject arbitrary shell syntax - array expansion gets the same splitting
+  # without that risk.
+  unity-editor \
     -batchmode \
-    -logFile "\"$FULL_ARTIFACTS_PATH/$platform.log\"" \
-    -projectPath "\"$UNITY_PROJECT_PATH\"" \
-    $runTests \
-    $COVERAGE_FLAGS \
+    -logFile "$FULL_ARTIFACTS_PATH/$platform.log" \
+    -projectPath "$UNITY_PROJECT_PATH" \
+    "${runTests[@]}" \
+    "${COVERAGE_FLAGS[@]}" \
     $CUSTOM_PARAMETERS
 
   # Catch exit code
