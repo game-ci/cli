@@ -11,12 +11,6 @@
 #
 STEPS_DIR="${STEPS_DIR:-/steps}"
 
-# TEMPORARY (round 2): re-tracing after the target-platform fix (#101,
-# linux-il2cpp image now pulled correctly) - the Docker test run still
-# fails the same way, need to see whether it's the same or a new symptom
-# against the correct image. Remove once root-caused.
-set -x
-
 source "$STEPS_DIR/set_extra_git_configs.sh"
 source "$STEPS_DIR/set_gitcredential.sh"
 
