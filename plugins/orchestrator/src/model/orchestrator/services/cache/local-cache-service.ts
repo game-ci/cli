@@ -901,6 +901,71 @@ export class LocalCacheService {
   }
 
   /**
+   * Proactively sweep orphaned background-save lock files across every cache-key
+   * directory under cacheRoot. A lock is orphaned when its recorded PID is no
+   * longer alive (or unreadable/unparseable).
+   *
+   * waitForBackgroundLock() only self-heals reactively -- it checks a lock file
+   * when a later save/restore call happens to target that exact cache key. A
+   * background save killed mid-copy (runner crash, OOM kill) under a cache key
+   * this run never touches would otherwise leave its lock in place indefinitely,
+   * since nothing else in the process would ever look at it again. Call this once
+   * at the start of a build (before any restore) to catch that case too.
+   *
+   * Returns the number of stale locks removed.
+   */
+  static sweepStaleLocks(cacheRoot: string): number {
+    if (!fs.existsSync(cacheRoot)) return 0;
+
+    let cacheKeyDirs: string[];
+    try {
+      cacheKeyDirs = fs
+        .readdirSync(cacheRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Failed to scan ${cacheRoot} for stale locks: ${error.message}`,
+      );
+
+      return 0;
+    }
+
+    let swept = 0;
+    for (const cacheKeyDir of cacheKeyDirs) {
+      const lockPath = path.join(cacheRoot, cacheKeyDir, BACKGROUND_LOCK_FILE);
+      if (!fs.existsSync(lockPath)) continue;
+
+      try {
+        const pid = Number.parseInt(fs.readFileSync(lockPath, 'utf8').trim(), 10);
+        if (pid > 0) {
+          try {
+            process.kill(pid, 0); // Signal 0 = existence check
+            // Owning process is still alive -- a save is genuinely in progress.
+            continue;
+          } catch {
+            // Process is gone; fall through to remove the stale lock.
+          }
+        }
+
+        fs.unlinkSync(lockPath);
+        swept++;
+        OrchestratorLogger.log(`[LocalCache] Swept stale background-save lock: ${lockPath}`);
+      } catch (error: any) {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Failed to sweep lock ${lockPath}: ${error.message}`,
+        );
+      }
+    }
+
+    if (swept > 0) {
+      OrchestratorLogger.log(`[LocalCache] Stale lock sweep complete: ${swept} lock(s) removed`);
+    }
+
+    return swept;
+  }
+
+  /**
    * Wait for a background cache save lock to be released.
    * Polls the lock file for up to 5 minutes.
    */

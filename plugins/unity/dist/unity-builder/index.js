@@ -85,15 +85,34 @@ async function runMain() {
 }
 async function runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin) {
     await plugin?.beforeLocalBuild(workspace);
-    await platform_setup_1.default.setup(buildParameters, actionFolder);
-    const exitCode = process.platform === 'darwin'
-        ? await mac_builder_1.default.run(actionFolder)
-        : await model_1.Docker.run(baseImage.toString(), {
-            workspace,
-            actionFolder,
-            ...buildParameters,
-        });
-    await plugin?.afterLocalBuild(workspace, exitCode);
+    // beforeLocalBuild() may have restored the local cache via a filesystem MOVE
+    // (localCacheMode=move-directory), which removes it from the cache root rather
+    // than copying it. afterLocalBuild() must always run to move the cache back,
+    // even when setup/build throws instead of returning an exit code -- otherwise
+    // the cache is lost with no surviving copy anywhere. See plugins/orchestrator
+    // LocalCacheService / ChildWorkspaceService for the move-based cache services.
+    let exitCode = -1;
+    try {
+        await platform_setup_1.default.setup(buildParameters, actionFolder);
+        exitCode =
+            process.platform === 'darwin'
+                ? await mac_builder_1.default.run(actionFolder)
+                : await model_1.Docker.run(baseImage.toString(), {
+                    workspace,
+                    actionFolder,
+                    ...buildParameters,
+                });
+    }
+    finally {
+        try {
+            await plugin?.afterLocalBuild(workspace, exitCode);
+        }
+        catch (afterBuildError) {
+            // Don't let a cache save-back failure mask a build error that may
+            // already be propagating out of the try block above.
+            core.warning(`afterLocalBuild failed: ${afterBuildError.message ?? afterBuildError}`);
+        }
+    }
     return exitCode;
 }
 // Only auto-run when executed directly (subprocess/script invocation), not

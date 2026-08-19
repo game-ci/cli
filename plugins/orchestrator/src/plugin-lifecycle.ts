@@ -590,6 +590,11 @@ export function createPlugin(): OrchestratorPlugin {
             coreParams.branch || '',
           ) || '';
 
+        // Sweep orphaned background-save locks (e.g. left by a killed process)
+        // before restoring, so a stale lock under a cache key this run doesn't
+        // touch isn't left to linger indefinitely.
+        LocalCacheService.sweepStaleLocks(cacheRoot);
+
         localCacheState = { cacheRoot, cacheKey };
 
         if (config.localCacheLfs) {
@@ -834,6 +839,18 @@ export function createPlugin(): OrchestratorPlugin {
 
         ChildWorkspaceService.saveWorkspace(projectFullPath, childWorkspaceConfig);
         core.info(`Child workspace "${config.childWorkspaceName}" saved to cache`);
+
+        // Age-based sweep for stale cached child workspaces. Reuses cacheRetentionDays
+        // (already used to gate LocalCacheService.garbageCollect above) rather than
+        // introducing a separate retention setting -- a cached child workspace and a
+        // local Library cache entry are the same kind of disk-space liability.
+        const childWorkspaceRetentionDays = Number(coreParams.cacheRetentionDays) || 0;
+        if (childWorkspaceRetentionDays > 0) {
+          ChildWorkspaceService.cleanStaleWorkspaces(
+            childWorkspaceConfig.parentCacheRoot,
+            childWorkspaceRetentionDays,
+          );
+        }
       }
 
       // ── Sync revert ────────────────────────────────────────────
