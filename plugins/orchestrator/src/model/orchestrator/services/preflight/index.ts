@@ -1,6 +1,6 @@
 export { PreflightService } from './preflight-service';
 export { builtInChecks, listBuiltInCheckIds, listBuiltInChecks } from './built-in-checks';
-export {
+export type {
   PreflightCheck,
   PreflightCategory,
   PreflightScope,
