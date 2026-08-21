@@ -1,4 +1,4 @@
-export { EnginePlugin } from './engine-plugin';
+export type { EnginePlugin } from './engine-plugin';
 export { UnityPlugin } from './unity-plugin';
 export { GodotPlugin } from './godot-plugin';
 export { UnrealPlugin } from './unreal-plugin';

@@ -10,6 +10,7 @@ import { PluginLoader } from './plugin/plugin-loader.ts';
 import { unityPlugin } from './plugin/builtin/unity-plugin.ts';
 import { godotPlugin } from './plugin/builtin/godot-plugin.ts';
 import { unrealPlugin } from './plugin/builtin/unreal-plugin.ts';
+import { orchestratorPlugin } from '../plugins/orchestrator/src/cli-plugin/index.ts';
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -57,6 +58,7 @@ export class Cli {
     await PluginRegistry.registerOnce(unityPlugin);
     await PluginRegistry.registerOnce(godotPlugin);
     await PluginRegistry.registerOnce(unrealPlugin);
+    await PluginRegistry.registerOnce(orchestratorPlugin);
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);
