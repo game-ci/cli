@@ -28,7 +28,7 @@ if [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; then
   fi
 
   # Activate license
-  ACTIVATION_OUTPUT=$(unity-editor \
+  ACTIVATION_OUTPUT=$(${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
       -logFile /dev/stdout \
       -quit \
       -manualLicenseFile $FILE_PATH)
@@ -64,7 +64,7 @@ elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
   echo "Requesting activation (professional license)"
 
   # Activate license
-  unity-editor \
+  ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
     -logFile /dev/stdout \
     -quit \
     -serial "$UNITY_SERIAL" \

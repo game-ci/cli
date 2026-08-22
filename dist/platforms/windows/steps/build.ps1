@@ -118,7 +118,7 @@ try {
   $UnityExePath = Get-UnityEditorExePath
   $LogPath = Join-Path $BuildPathFull 'build.log'
 
-  & $UnityExePath @QuitArgs -batchmode -nographics `
+  Invoke-UnityLaunch -ExePath $UnityExePath @QuitArgs -batchmode -nographics `
     -logFile $LogPath `
     -customBuildName $Env:BUILD_NAME `
     -projectPath $Env:UNITY_PROJECT_PATH `

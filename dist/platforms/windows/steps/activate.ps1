@@ -36,7 +36,7 @@ try {
       ((Get-Content -Raw $Env:UNITY_LICENSE_FILE) -replace "`r", '') | Set-Content -Path $FilePath -NoNewline
     }
 
-    & $UnityExePath -logFile $LogPath -quit -manualLicenseFile $FilePath | Out-Host
+    Invoke-UnityLaunch -ExePath $UnityExePath -logFile $LogPath -quit -manualLicenseFile $FilePath | Out-Host
     $global:UNITY_EXIT_CODE = $LASTEXITCODE
 
     # The exit code for personal activation is always 1; determine whether
@@ -56,7 +56,7 @@ try {
     Write-Host 'Requesting activation (professional license)'
 
     $LogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'activate.log'
-    & $UnityExePath -logFile $LogPath -quit -serial $Env:UNITY_SERIAL -username $Env:UNITY_EMAIL -password $Env:UNITY_PASSWORD | Out-Host
+    Invoke-UnityLaunch -ExePath $UnityExePath -logFile $LogPath -quit -serial $Env:UNITY_SERIAL -username $Env:UNITY_EMAIL -password $Env:UNITY_PASSWORD | Out-Host
     $global:UNITY_EXIT_CODE = $LASTEXITCODE
     if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
   } elseif ($Env:UNITY_LICENSING_SERVER) {

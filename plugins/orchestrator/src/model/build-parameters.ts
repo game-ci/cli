@@ -72,6 +72,10 @@ class BuildParameters {
   // provider's self-hosted-runner use case, where Unity is already licensed via
   // a long-lived Unity Hub session and per-run activation/return is unwanted.
   skipActivation!: boolean;
+  // Command to prefix the engine's process invocation with (ENGINE_LAUNCH_WRAPPER
+  // env var consumed by dist/platforms/*/steps/*.sh|ps1 and, for the local/local-system
+  // provider, threaded into the generated script below). Empty by default: no wrapper.
+  engineLaunchWrapper!: string;
   skipInContainerClone!: boolean;
   repoPathOverride!: string;
   lockedWorkspace!: string;
@@ -259,6 +263,11 @@ class BuildParameters {
     p.skipLfs = false;
     p.skipCache = false;
     p.skipActivation = Cli.options?.skipActivation ?? Input.getInput('skipActivation') === 'true';
+    p.engineLaunchWrapper =
+      Cli.options?.engineLaunchWrapper ??
+      Input.getInput('engineLaunchWrapper') ??
+      process.env.ENGINE_LAUNCH_WRAPPER ??
+      '';
     p.skipInContainerClone =
       Cli.options?.skipInContainerClone ?? Input.getInput('skipInContainerClone') === 'true';
     p.repoPathOverride = Cli.options?.repoPathOverride ?? Input.getInput('repoPathOverride') ?? '';

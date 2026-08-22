@@ -63,6 +63,10 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   // self-hosted runners with an already-licensed, long-lived Unity Hub
   // session, distinct from `game-ci activate`'s per-run activation.
   bp.skipActivation = options.skipActivation === true || options.skipActivation === 'true';
+  // Command to prefix the engine's process invocation with, for the local/local-system
+  // provider's generated build script (sets ENGINE_LAUNCH_WRAPPER for runsteps.sh) --
+  // e.g. a self-hosted runner's own launch-serialization lock. Empty by default.
+  bp.engineLaunchWrapper = options.engineLaunchWrapper || process.env.ENGINE_LAUNCH_WRAPPER || '';
   bp.skipInContainerClone =
     options.skipInContainerClone === true || options.skipInContainerClone === 'true';
   bp.repoPathOverride = options.repoPathOverride || '';

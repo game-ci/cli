@@ -25,7 +25,7 @@ try {
     #
     $UnityExePath = Get-UnityEditorExePath
     $LogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'return_license.log'
-    & $UnityExePath -logFile $LogPath -quit -returnlicense -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
+    Invoke-UnityLaunch -ExePath $UnityExePath -logFile $LogPath -quit -returnlicense -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
     if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
   }
 } catch {

@@ -63,7 +63,7 @@ export class UnityOptions implements IOptions {
           type: 'string',
           demandOption: false,
           default: '',
-        }
+        },
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {

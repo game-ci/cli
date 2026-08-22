@@ -98,6 +98,28 @@ describe('BuildAutomationWorkflow.BuildWorkflow (local/local-system branch)', ()
     expect(script).toContain('export SKIP_ACTIVATION=""');
   });
 
+  it('threads engineLaunchWrapper from BuildParameters into ENGINE_LAUNCH_WRAPPER in the generated script', () => {
+    Orchestrator.buildParameters = makeBuildParameters({
+      providerStrategy: 'local',
+      engineLaunchWrapper: 'flock /tmp/engine.lock --',
+    });
+
+    const script = getBuildWorkflow();
+
+    expect(script).toContain('export ENGINE_LAUNCH_WRAPPER="flock /tmp/engine.lock --"');
+  });
+
+  it('leaves ENGINE_LAUNCH_WRAPPER unset (empty) when engineLaunchWrapper is not set', () => {
+    Orchestrator.buildParameters = makeBuildParameters({
+      providerStrategy: 'local',
+      engineLaunchWrapper: '',
+    });
+
+    const script = getBuildWorkflow();
+
+    expect(script).toContain('export ENGINE_LAUNCH_WRAPPER=""');
+  });
+
   it('maps core BuildParameters fields to the env vars build.sh/activate.sh read', () => {
     Orchestrator.buildParameters = makeBuildParameters({
       providerStrategy: 'local',

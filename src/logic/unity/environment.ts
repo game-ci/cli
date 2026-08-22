@@ -16,6 +16,13 @@ const UnityEnvironment = {
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
       { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
+      // Not a documented core CLI option (core build/test/activate stay
+      // lean) - this is Orchestrator's advanced-ops surface
+      // (--engineLaunchWrapper on `orchestrate`). Reading the raw env var
+      // directly here still lets it reach Docker.run's non-Unity branch for
+      // Godot/Unreal, since Orchestrator has no equivalent script chain for
+      // those engines to own this instead.
+      { name: 'ENGINE_LAUNCH_WRAPPER', value: options.engineLaunchWrapper || process.env.ENGINE_LAUNCH_WRAPPER },
       { name: 'UNITY_VERSION', value: options.engineVersion },
       { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
       { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },

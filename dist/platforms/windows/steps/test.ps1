@@ -67,7 +67,7 @@ if ($Env:PACKAGE_MODE -eq 'true') {
   Write-Host "Creating an empty Unity project to add the package $($Env:PACKAGE_NAME) to."
   $TempProjectPath = Join-Path (Get-Location) 'TempProject'
 
-  & $UnityExePath -batchmode -createProject $TempProjectPath -quit | Out-Host
+  Invoke-UnityLaunch -ExePath $UnityExePath -batchmode -createProject $TempProjectPath -quit | Out-Host
 
   Write-Host 'Adding package to the temporary project''s dependencies and testables...'
   Write-Host ''
@@ -191,7 +191,7 @@ foreach ($Platform in $Platforms) {
 
   $LogPath = Join-Path $FullArtifactsPath "$Platform.log"
 
-  & $UnityExePath -batchmode -logFile $LogPath -projectPath $Env:UNITY_PROJECT_PATH @RunTestsArgs @CoverageFlags @CustomParametersArray | Out-Host
+  Invoke-UnityLaunch -ExePath $UnityExePath -batchmode -logFile $LogPath -projectPath $Env:UNITY_PROJECT_PATH @RunTestsArgs @CoverageFlags @CustomParametersArray | Out-Host
   $TestExitCode = $LASTEXITCODE
 
   if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }

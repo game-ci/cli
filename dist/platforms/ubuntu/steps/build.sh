@@ -132,7 +132,7 @@ if [ -n "$BUILD_PROFILE" ]; then
   BUILD_PROFILE_FLAGS="-activeBuildProfile $BUILD_PROFILE"
 fi
 
-unity-editor \
+${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
   -logfile /dev/stdout \
   $QUIT_FLAG \
   -customBuildName "$BUILD_NAME" \
