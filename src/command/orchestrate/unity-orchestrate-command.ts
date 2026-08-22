@@ -3,6 +3,7 @@ import type { YargsArguments, YargsInstance } from '../../dependencies.ts';
 import { CommandBase } from '../command-base.ts';
 import { RemoteOptions } from '../../command-options/remote-options.ts';
 import { ProjectOptions } from '../../command-options/project-options.ts';
+import { OrchestrateBuildOptions } from '../../command-options/orchestrate-build-options.ts';
 import { Orchestrator, ImageTag } from '../../../plugins/orchestrator/src/model/index.ts';
 import { createBuildParametersFromCliOptions } from '../../../plugins/orchestrator/src/cli-plugin/index.ts';
 
@@ -34,6 +35,7 @@ export class UnityOrchestrateCommand extends CommandBase implements CommandInter
 
   public async configureOptions(yargs: YargsInstance): Promise<void> {
     await ProjectOptions.configure(yargs);
+    await OrchestrateBuildOptions.configure(yargs);
     await RemoteOptions.configure(yargs);
   }
 }
