@@ -72,6 +72,8 @@ describe('CLI Plugin Adapter', () => {
       expect(registered).toHaveProperty('ansibleInventory');
       expect(registered).toHaveProperty('skipActivation');
       expect(registered.skipActivation.default).toBe(false);
+      expect(registered).toHaveProperty('middlewarePipeline');
+      expect(registered).toHaveProperty('middlewareFiles');
     });
   });
 
@@ -176,6 +178,48 @@ describe('CLI Plugin Adapter', () => {
 
       const stringFalse = createBuildParametersFromCliOptions({ skipActivation: 'false' });
       expect(stringFalse.skipActivation).toBe(false);
+    });
+
+    it('maps middlewarePipeline from CLI options to BuildParameters', () => {
+      const yaml = 'name: mw\ntype: command\ntrigger:\n  phase: [build]\nbefore: echo "hi"';
+      const bp = createBuildParametersFromCliOptions({ middlewarePipeline: yaml });
+      expect(bp.middlewarePipeline).toBe(yaml);
+    });
+
+    it('defaults middlewarePipeline to empty string when unset', () => {
+      const bp = createBuildParametersFromCliOptions({});
+      expect(bp.middlewarePipeline).toBe('');
+    });
+  });
+
+  describe('middlewareFiles CLI reachability', () => {
+    // middlewareFiles is read directly via OrchestratorOptions.getInput (the
+    // same mechanism as commandHookFiles/containerHookFiles), not routed
+    // through BuildParameters. Confirm it is actually wired end-to-end from
+    // Cli.options through to OrchestratorOptions.middlewareFiles.
+    afterEach(async () => {
+      const { Cli } = await import('../model/cli/cli');
+      Cli.options = undefined;
+    });
+
+    it('reads a comma-separated middlewareFiles CLI option through to OrchestratorOptions', async () => {
+      const { Cli } = await import('../model/cli/cli');
+      const { default: OrchestratorOptions } =
+        await import('../model/orchestrator/options/orchestrator-options');
+
+      Cli.options = { mode: 'cli', middlewareFiles: 'code-signing,cache-optimizer' } as any;
+
+      expect(OrchestratorOptions.middlewareFiles).toEqual(['code-signing', 'cache-optimizer']);
+    });
+
+    it('defaults middlewareFiles to an empty array when unset', async () => {
+      const { Cli } = await import('../model/cli/cli');
+      const { default: OrchestratorOptions } =
+        await import('../model/orchestrator/options/orchestrator-options');
+
+      Cli.options = { mode: 'cli' } as any;
+
+      expect(OrchestratorOptions.middlewareFiles).toEqual([]);
     });
   });
 });
