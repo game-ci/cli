@@ -224,7 +224,12 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
       }
 
       if (bp.localCacheLfs) {
-        await LocalCacheService.saveLfsCache(workspacePath, cacheRoot, cacheKey, bp.maxCacheEntries);
+        await LocalCacheService.saveLfsCache(
+          workspacePath,
+          cacheRoot,
+          cacheKey,
+          bp.maxCacheEntries,
+        );
       }
     } catch (error: any) {
       OrchestratorLogger.logWarning(

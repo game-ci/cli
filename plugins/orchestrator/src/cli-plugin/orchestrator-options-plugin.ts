@@ -453,7 +453,8 @@ export function configureOrchestratorOptions(yargs: any): void {
   });
 
   yargs.option('localCacheRoot', {
-    description: 'Root directory for the local cache (default: RUNNER_TEMP/game-ci-cache or .game-ci/cache)',
+    description:
+      'Root directory for the local cache (default: RUNNER_TEMP/game-ci-cache or .game-ci/cache)',
     type: 'string',
     default: '',
   });
