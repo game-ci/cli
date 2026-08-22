@@ -6,6 +6,7 @@ import { CommandHookService } from '../services/hooks/command-hook-service';
 import path from 'node:path';
 import Orchestrator from '../orchestrator';
 import { ContainerHookService } from '../services/hooks/container-hook-service';
+import { MiddlewareService } from '../services/hooks/middleware-service';
 import { CacheCheckpointService } from '../services/cache/cache-checkpoint-service';
 import { PreflightService } from '../services/preflight';
 import { getEngine } from '../../engine';
@@ -239,12 +240,25 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
   }
 
   private static get BuildWorkflow() {
-    const setupHooks = CommandHookService.getHooks(
-      Orchestrator.buildParameters.commandHooks,
-    ).filter((x) => x.step?.includes(`setup`));
-    const buildHooks = CommandHookService.getHooks(
-      Orchestrator.buildParameters.commandHooks,
-    ).filter((x) => x.step?.includes(`build`));
+    // Load middleware once per build (not once per phase/timing slot) and
+    // merge its resolved command hooks in with the legacy command-hook list.
+    // Merge order is legacy-first so a project not using middleware gets a
+    // byte-identical hook list to before this change (resolveCommandHooks
+    // returns [] when no middleware matches).
+    const middlewareDefinitions = MiddlewareService.getMiddleware(
+      Orchestrator.buildParameters.middlewarePipeline || '',
+    );
+    const legacyCommandHooks = CommandHookService.getHooks(Orchestrator.buildParameters.commandHooks);
+    const setupHooks = [
+      ...legacyCommandHooks.filter((x) => x.step?.includes(`setup`)),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'setup', 'before'),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'setup', 'after'),
+    ];
+    const buildHooks = [
+      ...legacyCommandHooks.filter((x) => x.step?.includes(`build`)),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'build', 'before'),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'build', 'after'),
+    ];
     const isContainerized =
       Orchestrator.buildParameters.providerStrategy === 'aws' ||
       Orchestrator.buildParameters.providerStrategy === 'k8s' ||

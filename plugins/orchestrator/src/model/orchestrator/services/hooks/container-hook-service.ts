@@ -10,6 +10,7 @@ import Input from '../../../input';
 import OrchestratorOptions from '../../options/orchestrator-options';
 import { ContainerHook } from './container-hook';
 import { OrchestratorStepParameters } from '../../options/orchestrator-step-parameters';
+import { MiddlewareService } from './middleware-service';
 
 export class ContainerHookService {
   static GetContainerHooksFromFiles(hookLifecycle: string): ContainerHook[] {
@@ -426,11 +427,24 @@ export class ContainerHookService {
 
   static async RunPostBuildSteps(orchestratorStepState: OrchestratorStepParameters) {
     let output = ``;
+    // Load middleware once for this phase and merge its resolved container
+    // hooks in with the legacy container-hook list (inline YAML + files).
+    // Merge order is legacy-first so a project not using middleware gets a
+    // byte-identical hook list to before this change (resolveContainerHooks
+    // returns [] when no middleware matches). Both timings ('before' and
+    // 'after') are included here since RunPostBuildSteps is itself a single
+    // container job run after the main build -- there is no separate legacy
+    // slot to distinguish "before the post-build job" from "after" it.
+    const middlewareDefinitions = MiddlewareService.getMiddleware(
+      Orchestrator.buildParameters.middlewarePipeline || '',
+    );
     const steps: ContainerHook[] = [
       ...ContainerHookService.ParseContainerHooks(
         Orchestrator.buildParameters.postBuildContainerHooks,
       ),
       ...ContainerHookService.GetContainerHooksFromFiles(`after`),
+      ...MiddlewareService.resolveContainerHooks(middlewareDefinitions, 'post-build', 'before'),
+      ...MiddlewareService.resolveContainerHooks(middlewareDefinitions, 'post-build', 'after'),
     ];
 
     if (steps.length > 0) {
@@ -445,11 +459,17 @@ export class ContainerHookService {
   }
   static async RunPreBuildSteps(orchestratorStepState: OrchestratorStepParameters) {
     let output = ``;
+    // See RunPostBuildSteps for the merge-strategy rationale.
+    const middlewareDefinitions = MiddlewareService.getMiddleware(
+      Orchestrator.buildParameters.middlewarePipeline || '',
+    );
     const steps: ContainerHook[] = [
       ...ContainerHookService.ParseContainerHooks(
         Orchestrator.buildParameters.preBuildContainerHooks,
       ),
       ...ContainerHookService.GetContainerHooksFromFiles(`before`),
+      ...MiddlewareService.resolveContainerHooks(middlewareDefinitions, 'pre-build', 'before'),
+      ...MiddlewareService.resolveContainerHooks(middlewareDefinitions, 'pre-build', 'after'),
     ];
 
     if (steps.length > 0) {
