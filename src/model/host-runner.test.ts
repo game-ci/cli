@@ -1,7 +1,16 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { HostRunner } from './host-runner.ts';
 import { System } from './system/system.ts';
-import { path } from '../dependencies.ts';
+import { path, fsSync as fs } from '../dependencies.ts';
+import os from 'node:os';
+
+// buildEnv/run both do a real fs.mkdirSync for ACTIVATE_LICENSE_PATH (see
+// host-runner.ts) - previously these tests passed hardcoded paths like
+// '/work/repo', which happened to succeed on a couple of local dev
+// sandboxes but is not guaranteed writable (and reliably isn't, e.g.
+// EACCES on GitHub's own Linux runners, which can't mkdir at filesystem
+// root). Use a real, writable temp directory instead.
+const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-runner-test-'));
 
 describe('HostRunner', () => {
   const originalSystemRun = System.run;
@@ -14,23 +23,25 @@ describe('HostRunner', () => {
     const buildEnv = (options: any): Record<string, string> => (HostRunner as any).buildEnv(options);
 
     it('sets ACTION_FOLDER from cliDistPath (needed by build scripts default-build-script fallback)', () => {
+      const cliDistPath = path.join(scratchDir, 'dist');
       const env = buildEnv({
-        currentWorkDir: '/work/repo',
-        cliDistPath: '/work/repo/dist',
+        currentWorkDir: scratchDir,
+        cliDistPath,
         hostPlatform: 'linux',
       });
 
-      expect(env.ACTION_FOLDER).toBe('/work/repo/dist');
+      expect(env.ACTION_FOLDER).toBe(cliDistPath);
     });
 
     it('points STEPS_DIR at the ubuntu steps dir for linux', () => {
+      const cliDistPath = path.join(scratchDir, 'dist');
       const env = buildEnv({
-        currentWorkDir: '/work/repo',
-        cliDistPath: '/work/repo/dist',
+        currentWorkDir: scratchDir,
+        cliDistPath,
         hostPlatform: 'linux',
       });
 
-      expect(env.STEPS_DIR).toBe(path.join('/work/repo/dist', 'platforms', 'ubuntu', 'steps'));
+      expect(env.STEPS_DIR).toBe(path.join(cliDistPath, 'platforms', 'ubuntu', 'steps'));
     });
 
     it('points STEPS_DIR at the native windows steps dir (not the Docker-container script set) for win32', () => {
@@ -60,7 +71,7 @@ describe('HostRunner', () => {
   describe('run', () => {
     it('rejects unsupported host platforms (e.g. darwin) with a clear error', async () => {
       await expect(
-        HostRunner.run({ hostPlatform: 'darwin', cliDistPath: '/dist', currentWorkDir: '/work' } as any),
+        HostRunner.run({ hostPlatform: 'darwin', cliDistPath: '/dist', currentWorkDir: scratchDir } as any),
       ).rejects.toThrow(/only supported when running on Linux or Windows/);
     });
 
@@ -70,8 +81,8 @@ describe('HostRunner', () => {
 
       await HostRunner.run({
         hostPlatform: 'win32',
-        cliDistPath: 'C:\\dist',
-        currentWorkDir: 'C:\\work',
+        cliDistPath: path.join(scratchDir, 'dist'),
+        currentWorkDir: scratchDir,
       } as any);
 
       expect(runMock).toHaveBeenCalled();
@@ -87,8 +98,8 @@ describe('HostRunner', () => {
 
       await HostRunner.run({
         hostPlatform: 'win32',
-        cliDistPath: 'C:\\dist',
-        currentWorkDir: 'C:\\work',
+        cliDistPath: path.join(scratchDir, 'dist'),
+        currentWorkDir: scratchDir,
       } as any);
 
       expect(capturedCommand).toContain('powershell');
@@ -105,13 +116,14 @@ describe('HostRunner', () => {
       });
       System.run = runMock as any;
 
+      const cliDistPath = path.join(scratchDir, 'dist');
       await HostRunner.run({
         hostPlatform: 'linux',
-        cliDistPath: '/dist',
-        currentWorkDir: '/work',
+        cliDistPath,
+        currentWorkDir: scratchDir,
       } as any);
 
-      expect(capturedCommand).toBe(`bash "${path.join('/dist', 'platforms', 'ubuntu', 'steps', 'runsteps.sh')}"`);
+      expect(capturedCommand).toBe(`bash "${path.join(cliDistPath, 'platforms', 'ubuntu', 'steps', 'runsteps.sh')}"`);
     });
   });
 });
