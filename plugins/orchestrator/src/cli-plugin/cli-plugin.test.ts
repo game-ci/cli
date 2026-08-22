@@ -204,9 +204,8 @@ describe('CLI Plugin Adapter', () => {
 
     it('reads a comma-separated middlewareFiles CLI option through to OrchestratorOptions', async () => {
       const { Cli } = await import('../model/cli/cli');
-      const { default: OrchestratorOptions } = await import(
-        '../model/orchestrator/options/orchestrator-options'
-      );
+      const { default: OrchestratorOptions } =
+        await import('../model/orchestrator/options/orchestrator-options');
 
       Cli.options = { mode: 'cli', middlewareFiles: 'code-signing,cache-optimizer' } as any;
 
@@ -215,9 +214,8 @@ describe('CLI Plugin Adapter', () => {
 
     it('defaults middlewareFiles to an empty array when unset', async () => {
       const { Cli } = await import('../model/cli/cli');
-      const { default: OrchestratorOptions } = await import(
-        '../model/orchestrator/options/orchestrator-options'
-      );
+      const { default: OrchestratorOptions } =
+        await import('../model/orchestrator/options/orchestrator-options');
 
       Cli.options = { mode: 'cli' } as any;
 

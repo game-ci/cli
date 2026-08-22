@@ -248,7 +248,9 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     const middlewareDefinitions = MiddlewareService.getMiddleware(
       Orchestrator.buildParameters.middlewarePipeline || '',
     );
-    const legacyCommandHooks = CommandHookService.getHooks(Orchestrator.buildParameters.commandHooks);
+    const legacyCommandHooks = CommandHookService.getHooks(
+      Orchestrator.buildParameters.commandHooks,
+    );
     const setupHooks = [
       ...legacyCommandHooks.filter((x) => x.step?.includes(`setup`)),
       ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'setup', 'before'),
