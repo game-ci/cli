@@ -355,6 +355,16 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: '',
   });
 
+  yargs.option('enableBuildRetry', {
+    description:
+      'Enable automatic classify/decide/retry recovery for failed Unity builds on the bare-host ' +
+      '`local`/`local-system` provider strategy (UnityRetryService, budget-gated). Default off: a ' +
+      'single failed attempt still throws exactly as before -- retry can back up or nuke the Library ' +
+      'folder as a recovery action, which is a meaningful behavior change existing users must opt into.',
+    type: 'boolean',
+    default: false,
+  });
+
   yargs.option('skipInContainerClone', {
     description:
       'Skip the in-container git clone and reuse a pre-hydrated workspace bind-mounted by the caller. ' +

@@ -154,6 +154,12 @@ class BuildParameters {
   // ── reliability ─────────────────────────────────────────────────────
   gitIntegrityCheck!: boolean;
   gitAutoRecover!: boolean;
+  // Opt-in (default false) automatic classify -> decide -> retry loop for
+  // failed Unity runs on the bare-host `local`/`local-system` provider's
+  // build path only (see UnityRetryService). Off by default because retry
+  // can nuke/backup the Library folder as a recovery action -- a meaningful
+  // behavior change that must not silently activate for existing users.
+  enableBuildRetry!: boolean;
   cleanReservedFilenames!: boolean;
   buildArchiveEnabled!: boolean;
   buildArchivePath!: string;
