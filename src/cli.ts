@@ -19,6 +19,7 @@ export class Cli {
   private readonly cliPath: string;
   private readonly cliDistPath: string;
   private readonly configFileName!: string;
+  private readonly rawArgs: string[];
   private readonly currentWorkDir: string;
   private readonly homeDir: string;
   private readonly isRunningLocally: boolean;
@@ -28,6 +29,7 @@ export class Cli {
 
   constructor(args: string[], cwd: string) {
     this.yargs = yargs(args);
+    this.rawArgs = args;
     this.currentWorkDir = cwd;
     this.configFileName = '.game-ci.yml';
 
@@ -136,7 +138,6 @@ export class Cli {
   protected configureGlobalSettings() {
     const defaultCanonicalPath = `${this.cliStorageCanonicalPath}/${this.configFileName}`;
 
-
     this.yargs
       .parserConfiguration({
         'dot-notation': false,
@@ -154,19 +155,18 @@ export class Cli {
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
       .strict(true);
 
-      // Deliberately not using yargs' blanket .env(): combined with strict(true)
-      // it treats every process env var (not just game-ci-relevant ones) as an
-      // unrecognized argument and fails. Secret-bearing options set their own
-      // env fallback in their .option() default instead - see unityEmail etc.
-      // in unity-options.ts.
+    // Deliberately not using yargs' blanket .env(): combined with strict(true)
+    // it treats every process env var (not just game-ci-relevant ones) as an
+    // unrecognized argument and fails. Secret-bearing options set their own
+    // env fallback in their .option() default instead - see unityEmail etc.
+    // in unity-options.ts.
   }
 
   protected configureGlobalOptions() {
     const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
     this.yargs
       .option('plugin', {
-        description:
-          'Load an external plugin from npm, a local path, github:<repo>, or executable:<path>',
+        description: 'Load an external plugin from npm, a local path, github:<repo>, or executable:<path>',
         type: 'string',
         array: true,
       })
@@ -174,6 +174,11 @@ export class Cli {
         description: 'Alias for --plugin to support config-driven plugin arrays',
         type: 'string',
         array: true,
+      })
+      .option('profile', {
+        description: 'Select a named build profile from the profiles: map in the config file',
+        type: 'string',
+        demandOption: false,
       })
       .config('config', `default: .game-ci.yml`, (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
@@ -258,21 +263,18 @@ export class Cli {
   }
 
   protected loadConfig(configPath: string) {
+    let rootConfig: any;
+
     try {
       const { readFileSync } = require('node:fs');
       const configFile = readFileSync(configPath, 'utf-8');
 
       try {
-        const jsonConfig = JSON.parse(configFile).cliOptions;
-        if (log.isMaxVerbose) log.debug('jsonConfig', jsonConfig);
-
-        return jsonConfig;
+        rootConfig = JSON.parse(configFile);
+        if (log.isMaxVerbose) log.debug('jsonConfig', rootConfig?.cliOptions);
       } catch {
-        const yamlConfigRaw = yaml.parse(configFile) as any;
-        const yamlConfig = yamlConfigRaw.cliOptions;
-        if (log.isMaxVerbose) log.debug('yamlConfig', yamlConfig);
-
-        return yamlConfig;
+        rootConfig = yaml.parse(configFile) as any;
+        if (log.isMaxVerbose) log.debug('yamlConfig', rootConfig?.cliOptions);
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -281,6 +283,58 @@ export class Cli {
 
       throw new Error(`Could not parse config file ${configPath}`);
     }
+
+    return this.resolveCliOptions(rootConfig, configPath);
+  }
+
+  // Merges the base `cliOptions:` block with the selected `--profile`'s
+  // overrides (profile wins on key conflicts) *before* handing the result
+  // back to yargs' .config() callback. This keeps yargs' own (already
+  // correct) precedence between config-sourced values and explicit CLI
+  // flags intact - explicit flags still win over whatever this returns.
+  private resolveCliOptions(rootConfig: any, configPath: string): Record<string, unknown> {
+    const cliOptions = (rootConfig?.cliOptions ?? {}) as Record<string, unknown>;
+    const profiles = (rootConfig?.profiles ?? {}) as Record<string, unknown>;
+    const profileName = this.getRequestedProfileName();
+
+    if (!profileName) {
+      return cliOptions;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(profiles, profileName)) {
+      const availableProfiles = Object.keys(profiles);
+      const availableList = availableProfiles.length > 0 ? availableProfiles.join(', ') : '(no profiles defined)';
+
+      throw new Error(
+        `Unknown profile "${profileName}" passed via --profile. ` +
+          `Available profiles in ${configPath}: ${availableList}`,
+      );
+    }
+
+    const profileOptions = profiles[profileName] as Record<string, unknown>;
+
+    return { ...cliOptions, ...profileOptions };
+  }
+
+  // --profile is read directly from the raw argv rather than from a parsed
+  // yargs result: this method is called from inside the yargs .config()
+  // callback, which only receives the resolved "config" value - not the
+  // rest of the parsed argv - so we can't rely on yargs having parsed
+  // --profile yet at this point.
+  private getRequestedProfileName(): string | undefined {
+    for (let index = 0; index < this.rawArgs.length; index++) {
+      const arg = this.rawArgs[index];
+
+      if (arg === '--profile') {
+        return this.rawArgs[index + 1];
+      }
+
+      if (arg?.startsWith('--profile=')) {
+        return arg.slice('--profile='.length);
+      }
+    }
+
+    return undefined;
   }
 
   protected async nonStrict(fn: () => void) {
