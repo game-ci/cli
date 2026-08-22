@@ -89,14 +89,21 @@ export class UnityTestCommand extends CommandBase implements CommandInterface {
     const { hostPlatform, local } = options;
 
     if (local) {
+      // HostRunner itself now supports both Linux and Windows natively
+      // (dist/platforms/{ubuntu,windows}/steps/{runsteps,test}.{sh,ps1}) -
+      // this no longer needs a platform gate the way the container path
+      // below still does.
       await HostRunner.run({ ...options, runTests: true });
       return true;
     }
 
-    // Docker test mode is currently only wired up for Linux containers -
-    // dist/platforms/ubuntu/steps/test.sh + runsteps.sh's RUN_TESTS branch.
-    // Windows' entrypoint.ps1 doesn't know about RUN_TESTS yet (it always
-    // runs build.ps1), so running this on a Windows host today would
+    // Docker (container) test mode is currently only wired up for Linux
+    // containers - dist/platforms/ubuntu/steps/test.sh + runsteps.sh's
+    // RUN_TESTS branch. Windows' entrypoint.ps1 (the unityci/editor
+    // Windows *container* image's entrypoint - see HostRunner's doc comment
+    // for why that's a different script set from HostRunner's own native
+    // dist/platforms/windows/steps/) doesn't know about RUN_TESTS yet (it
+    // always runs build.ps1), so running this on a Windows host today would
     // silently attempt a BUILD instead of a test rather than failing
     // loudly - reject it explicitly instead. macOS has no Unity Editor
     // Docker images at all. Checked before PlatformSetup.setup runs, so
