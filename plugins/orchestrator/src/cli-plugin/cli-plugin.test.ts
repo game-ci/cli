@@ -72,6 +72,8 @@ describe('CLI Plugin Adapter', () => {
       expect(registered).toHaveProperty('ansibleInventory');
       expect(registered).toHaveProperty('skipActivation');
       expect(registered.skipActivation.default).toBe(false);
+      expect(registered).toHaveProperty('engineLaunchWrapper');
+      expect(registered.engineLaunchWrapper.default).toBe('');
       expect(registered).toHaveProperty('middlewarePipeline');
       expect(registered).toHaveProperty('middlewareFiles');
     });
@@ -178,6 +180,18 @@ describe('CLI Plugin Adapter', () => {
 
       const stringFalse = createBuildParametersFromCliOptions({ skipActivation: 'false' });
       expect(stringFalse.skipActivation).toBe(false);
+    });
+
+    it('maps engineLaunchWrapper from CLI options to BuildParameters', () => {
+      const bp = createBuildParametersFromCliOptions({
+        engineLaunchWrapper: 'flock /tmp/engine.lock --',
+      });
+      expect(bp.engineLaunchWrapper).toBe('flock /tmp/engine.lock --');
+    });
+
+    it('defaults engineLaunchWrapper to empty string when unset', () => {
+      const bp = createBuildParametersFromCliOptions({});
+      expect(bp.engineLaunchWrapper).toBe('');
     });
 
     it('maps middlewarePipeline from CLI options to BuildParameters', () => {

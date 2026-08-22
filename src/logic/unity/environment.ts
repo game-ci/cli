@@ -16,6 +16,7 @@ const UnityEnvironment = {
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
       { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
+      { name: 'ENGINE_LAUNCH_WRAPPER', value: options.engineLaunchWrapper },
       { name: 'UNITY_VERSION', value: options.engineVersion },
       { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
       { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },

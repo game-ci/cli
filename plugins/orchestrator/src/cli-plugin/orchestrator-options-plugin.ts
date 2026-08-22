@@ -346,6 +346,15 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: false,
   });
 
+  yargs.option('engineLaunchWrapper', {
+    description:
+      "Command to prefix the engine's process invocation with (e.g. a self-hosted runner's own " +
+      'launch-serialization lock). Applied precisely around the engine launch itself, not the ' +
+      'surrounding build step. Only meaningful for providerStrategy=local(-system). Empty by default.',
+    type: 'string',
+    default: '',
+  });
+
   yargs.option('skipInContainerClone', {
     description:
       'Skip the in-container git clone and reuse a pre-hydrated workspace bind-mounted by the caller. ' +

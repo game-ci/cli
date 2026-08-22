@@ -45,6 +45,40 @@ function Get-UnityEditorExePath {
   return $exePath
 }
 
+# Invokes the Unity Editor executable, transparently prefixing the
+# invocation with $Env:ENGINE_LAUNCH_WRAPPER when it is set (e.g. a
+# self-hosted runner's own launch-serialization lock). When unset, this is
+# byte-identical to calling `& $ExePath @Arguments` directly - no wrapper
+# process is introduced. $Arguments is passed through unmodified via
+# splatting so each call site's exact existing argument list (flags, quit
+# args, custom-parameter arrays, etc.) is preserved unchanged.
+#
+# ENGINE_LAUNCH_WRAPPER may itself be a multi-word command (e.g.
+# "flock /tmp/unity.lock --"), matching the Linux side's unquoted
+# $ENGINE_LAUNCH_WRAPPER, which bash word-splits. PowerShell's `&` call
+# operator does not split a single string argument the same way - passing
+# the whole value as one token would make it look for a single (nonexistent)
+# executable literally named "flock /tmp/unity.lock --" - so it's split into
+# tokens here first, the same way this script set already splits
+# CUSTOM_PARAMETERS elsewhere (build.ps1/test.ps1).
+function Invoke-UnityLaunch {
+  param(
+    [Parameter(Mandatory)]
+    [string]$ExePath,
+    [Parameter(ValueFromRemainingArguments)]
+    [string[]]$Arguments
+  )
+
+  if ($Env:ENGINE_LAUNCH_WRAPPER) {
+    $WrapperParts = @($Env:ENGINE_LAUNCH_WRAPPER -split '\s+' | Where-Object { $_ -ne '' })
+    $WrapperExe = $WrapperParts[0]
+    $WrapperArgs = if ($WrapperParts.Length -gt 1) { $WrapperParts[1..($WrapperParts.Length - 1)] } else { @() }
+    & $WrapperExe @WrapperArgs $ExePath @Arguments
+  } else {
+    & $ExePath @Arguments
+  }
+}
+
 function Get-UnityLicensingClientExePath {
   $root = Get-UnityEditorRoot
   $exePath = Join-Path $root 'Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe'

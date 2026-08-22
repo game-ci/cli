@@ -63,7 +63,17 @@ export class UnityOptions implements IOptions {
           type: 'string',
           demandOption: false,
           default: '',
-        }
+        },
+        engineLaunchWrapper: {
+          description: String.dedent`
+            Command to prefix the engine's process invocation with (e.g. a
+            self-hosted runner's own launch-serialization lock). Applied
+            precisely around the engine launch itself, not the surrounding
+            build step. Empty by default, meaning no wrapper is used.`,
+          type: 'string',
+          demandOption: false,
+          default: process.env.ENGINE_LAUNCH_WRAPPER || '',
+        },
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {

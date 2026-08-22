@@ -83,6 +83,7 @@ class Docker {
       dockerCpuLimit,
       dockerMemoryLimit,
       dockerShmSize,
+      engineLaunchWrapper,
     } = options as Options & { commands?: string };
 
     const home = homeDir;
@@ -94,6 +95,13 @@ class Docker {
     // build with `engine !== 'unity'` always ran Unity's entrypoint instead
     // of the command the engine plugin actually asked for.
     const isUnityDefaultFlow = !commands || engine === 'unity';
+
+    // Non-Unity engines' `commands` is already just the engine invocation
+    // itself (no surrounding activate/build/return-license lifecycle), so a
+    // single prefix here is exactly as precise a wrap as the per-call-site
+    // fix inside entrypoint.sh's step scripts is for Unity. Unset (the
+    // default) leaves `commands` byte-identical to today.
+    const wrappedCommands = engineLaunchWrapper && commands ? `${engineLaunchWrapper} ${commands}` : commands;
 
     return [
       'docker run',
@@ -118,7 +126,7 @@ class Docker {
       sshAgent && !sshPublicKeysDirectoryPath ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
       sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : '',
       image,
-      isUnityDefaultFlow ? '/bin/bash /entrypoint.sh' : commands!,
+      isUnityDefaultFlow ? '/bin/bash /entrypoint.sh' : wrappedCommands!,
     ]
       .filter(Boolean)
       .join(' ');
@@ -139,6 +147,7 @@ class Docker {
       dockerMemoryLimit,
       dockerShmSize,
       dockerIsolationMode,
+      engineLaunchWrapper,
     } = options as Options & { commands?: string };
 
     // Same "don't force Unity's flow onto a non-Unity engine" fix as
@@ -147,6 +156,10 @@ class Docker {
     // for consistency and so a future one isn't silently broken like this
     // was.
     const isUnityDefaultFlow = !commands || engine === 'unity';
+
+    // See getLinuxCommand's own comment - same single top-level wrap,
+    // byte-identical to today when engineLaunchWrapper is unset.
+    const wrappedCommands = engineLaunchWrapper && commands ? `${engineLaunchWrapper} ${commands}` : commands;
 
     // Note: the equals sign (=) is needed in Powershell.
     // Note: homedir is currently not configured for windows (yet).
@@ -176,7 +189,7 @@ class Docker {
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : '',
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : '',
       `  ${image} \``,
-      isUnityDefaultFlow ? '  powershell c:/steps/entrypoint.ps1' : `  ${commands}`,
+      isUnityDefaultFlow ? '  powershell c:/steps/entrypoint.ps1' : `  ${wrappedCommands}`,
     ]
       .filter(Boolean)
       .join('\n');

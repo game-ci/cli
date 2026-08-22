@@ -89,7 +89,7 @@ if [ "$PACKAGE_MODE" = "true" ]; then
 
   TEMP_PROJECT_PATH="./TempProject"
 
-  unity-editor \
+  ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
     -batchmode \
     -createProject "$TEMP_PROJECT_PATH" \
     -quit
@@ -225,7 +225,7 @@ for platform in ${TEST_PLATFORMS//;/ }; do
   # let CUSTOM_PARAMETERS (user-controlled, via the action's own input)
   # inject arbitrary shell syntax - array expansion gets the same splitting
   # without that risk.
-  unity-editor \
+  ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
     -batchmode \
     -logFile "$FULL_ARTIFACTS_PATH/$platform.log" \
     -projectPath "$UNITY_PROJECT_PATH" \

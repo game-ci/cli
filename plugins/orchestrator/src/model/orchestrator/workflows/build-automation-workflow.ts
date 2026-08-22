@@ -495,6 +495,7 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     export MANUAL_EXIT="${bp.manualExit ? 'true' : ''}"
     export BUILD_PROFILE="${bp.buildProfile || ''}"
     export SKIP_ACTIVATION="${bp.skipActivation ? 'true' : ''}"
+    export ENGINE_LAUNCH_WRAPPER="${bp.engineLaunchWrapper || ''}"
     # entrypoint.sh normally creates this before sourcing runsteps.sh; replicated
     # here since we bypass entrypoint.sh entirely (see HostRunner.buildEnv).
     export ACTIVATE_LICENSE_PATH="$GITHUB_WORKSPACE/_activate-license~"
