@@ -275,9 +275,58 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
    * failures unrelated to Library content, so they remain bankable as long
    * as diagnostics.importCompleted is true. SKIP/SUCCESS are not reachable
    * here -- this is only ever called on the failure path.
+   *
+   * This default is configurable, not hardcoded policy: --localCacheFloor
+   * -CorruptionCategories overrides it with a caller-supplied comma-separated
+   * UnityFailureCategory list (e.g. an environment that's confident PACKAGE
+   * failures never actually indicate corruption for its own project can
+   * narrow this to just "COMPILE"). Unrecognized category names in an
+   * override are ignored with a warning rather than silently mismatching.
    */
+  private static readonly DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES: readonly UnityFailureCategory[] =
+    ['COMPILE', 'PACKAGE'];
+
   private static isCorruptionSpecificCategory(category: UnityFailureCategory): boolean {
-    return category === 'COMPILE' || category === 'PACKAGE';
+    return BuildAutomationWorkflow.corruptionSpecificCategories().includes(category);
+  }
+
+  private static corruptionSpecificCategories(): readonly UnityFailureCategory[] {
+    const override = Orchestrator.buildParameters?.localCacheFloorCorruptionCategories;
+    if (!override) {
+      return BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
+    }
+
+    const knownCategories = new Set<UnityFailureCategory>([
+      'LICENSE',
+      'CRASH',
+      'COMPILE',
+      'PACKAGE',
+      'SKIP',
+      'EXIT_NEG1',
+      'GENERIC',
+      'SUCCESS',
+    ]);
+
+    const parsed: UnityFailureCategory[] = [];
+    for (const raw of override.split(',')) {
+      const category = raw.trim().toUpperCase() as UnityFailureCategory;
+      if (!category) continue;
+      if (knownCategories.has(category)) {
+        parsed.push(category);
+      } else {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Ignoring unrecognized category "${raw.trim()}" in --localCacheFloorCorruptionCategories`,
+        );
+      }
+    }
+
+    // An override that resolves to nothing usable (e.g. all-unrecognized
+    // input) falls back to the default rather than silently treating every
+    // failure as bankable -- an empty corruption list is a meaningful,
+    // security-relevant choice that should be explicit, not accidental.
+    return parsed.length > 0
+      ? parsed
+      : BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
   }
 
   /**

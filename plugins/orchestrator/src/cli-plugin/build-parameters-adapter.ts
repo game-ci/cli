@@ -122,6 +122,7 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.localCacheMode = options.localCacheMode || 'tar';
   bp.localCacheSaveOnFailure =
     options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
+  bp.localCacheFloorCorruptionCategories = options.localCacheFloorCorruptionCategories || '';
   bp.childWorkspacesEnabled =
     options.childWorkspacesEnabled === true || options.childWorkspacesEnabled === 'true';
   bp.childWorkspaceName = options.childWorkspaceName || '';

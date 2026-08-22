@@ -208,6 +208,69 @@ describe('BuildAutomationWorkflow cache-floor-on-failure wiring (isBareLocalProv
     expect(options.skipOnCorruptionEvidence).toBe(true);
   });
 
+  it('localCacheFloorCorruptionCategories override narrows the default: PACKAGE removed -> banks despite the built-in default treating it as corruption-specific', async () => {
+    Orchestrator.buildParameters = makeBuildParameters({
+      localCacheEnabled: true,
+      localCacheLibrary: true,
+      localCacheSaveOnFailure: true,
+      localCacheFloorCorruptionCategories: 'COMPILE',
+    });
+    writeJobLog(
+      'Unity Editor log\nAssetDatabase Refresh completed\n' +
+        'error CS0246: type or namespace not found Library/PackageCache/foo\n' +
+        'RUNSTEPS_EXIT_CODE:1\n',
+    );
+    stubProviderToFail();
+
+    await expect(new BuildAutomationWorkflow().run(makeStepState())).rejects.toThrow();
+
+    expect(LocalCacheService.saveEngineCache).toHaveBeenCalledTimes(1);
+    const [, , , options] = (LocalCacheService.saveEngineCache as any).mock.calls[0];
+    expect(options.skipOnCorruptionEvidence).toBe(false);
+  });
+
+  it('localCacheFloorCorruptionCategories override widens the default: CRASH added -> blocks a category the built-in default would bank', async () => {
+    Orchestrator.buildParameters = makeBuildParameters({
+      localCacheEnabled: true,
+      localCacheLibrary: true,
+      localCacheSaveOnFailure: true,
+      localCacheFloorCorruptionCategories: 'COMPILE, PACKAGE, CRASH',
+    });
+    writeJobLog(
+      'Unity Editor log\nAssetDatabase Refresh completed\nSegmentation fault\nRUNSTEPS_EXIT_CODE:139\n',
+    );
+    stubProviderToFail();
+
+    await expect(new BuildAutomationWorkflow().run(makeStepState())).rejects.toThrow();
+
+    expect(LocalCacheService.saveEngineCache).toHaveBeenCalledTimes(1);
+    const [, , , options] = (LocalCacheService.saveEngineCache as any).mock.calls[0];
+    expect(options.skipOnCorruptionEvidence).toBe(true);
+  });
+
+  it('localCacheFloorCorruptionCategories with only unrecognized entries falls back to the built-in default rather than treating everything as bankable', async () => {
+    Orchestrator.buildParameters = makeBuildParameters({
+      localCacheEnabled: true,
+      localCacheLibrary: true,
+      localCacheSaveOnFailure: true,
+      localCacheFloorCorruptionCategories: 'NOT_A_REAL_CATEGORY',
+    });
+    writeJobLog(
+      'Unity Editor log\nAssetDatabase Refresh completed\n' +
+        'error CS0246: type or namespace not found Library/PackageCache/foo\n' +
+        'RUNSTEPS_EXIT_CODE:1\n',
+    );
+    stubProviderToFail();
+
+    await expect(new BuildAutomationWorkflow().run(makeStepState())).rejects.toThrow();
+
+    expect(LocalCacheService.saveEngineCache).toHaveBeenCalledTimes(1);
+    const [, , , options] = (LocalCacheService.saveEngineCache as any).mock.calls[0];
+    // Falls back to the default (COMPILE, PACKAGE) since the override had
+    // nothing usable in it -- PACKAGE is still blocked.
+    expect(options.skipOnCorruptionEvidence).toBe(true);
+  });
+
   it('(c) does NOT bank the cache when import never completed, regardless of category (GENERIC)', async () => {
     Orchestrator.buildParameters = makeBuildParameters({
       localCacheEnabled: true,

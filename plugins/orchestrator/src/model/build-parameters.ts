@@ -135,6 +135,12 @@ class BuildParameters {
   // change existing users must opt into -- same caution as
   // enableBuildRetry. Requires localCacheEnabled to also be on.
   localCacheSaveOnFailure!: boolean;
+  // Overrides which UnityFailureCategory values block a cache-floor save
+  // unconditionally (see BuildAutomationWorkflow.corruptionSpecificCategories).
+  // Comma-separated, e.g. "COMPILE,PACKAGE". Empty/unset uses the built-in
+  // default (COMPILE, PACKAGE) -- this only needs setting to override that
+  // default for a specific environment's known failure characteristics.
+  localCacheFloorCorruptionCategories!: string;
   childWorkspacesEnabled!: boolean;
   childWorkspaceName!: string;
   childWorkspaceCacheRoot!: string;

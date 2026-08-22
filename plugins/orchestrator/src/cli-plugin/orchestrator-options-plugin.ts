@@ -491,6 +491,16 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: false,
   });
 
+  yargs.option('localCacheFloorCorruptionCategories', {
+    description:
+      'Comma-separated UnityFailureCategory list that blocks a --localCacheSaveOnFailure "cache ' +
+      'floor" save unconditionally, even when asset import completed (default: COMPILE,PACKAGE -- ' +
+      'categories: LICENSE, CRASH, COMPILE, PACKAGE, SKIP, EXIT_NEG1, GENERIC). Only meaningful ' +
+      'together with localCacheSaveOnFailure.',
+    type: 'string',
+    default: '',
+  });
+
   yargs.option('localCacheFallback', {
     description: 'Allow restoring from a fallback cache key when the exact key misses',
     type: 'boolean',
