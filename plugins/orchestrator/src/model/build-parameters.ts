@@ -117,6 +117,10 @@ class BuildParameters {
   localCacheEnabled!: boolean;
   localCacheLibrary!: boolean;
   localCacheLfs!: boolean;
+  localCacheRoot!: string;
+  localCacheFallback!: boolean;
+  localCacheFallbackKeys!: string;
+  localCacheMode!: string;
   childWorkspacesEnabled!: boolean;
   childWorkspaceName!: string;
   childWorkspaceCacheRoot!: string;
