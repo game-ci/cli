@@ -58,6 +58,11 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.finalHooks = options.finalHooks ? String(options.finalHooks).split(',') : [];
   bp.skipLfs = options.skipLfs === true || options.skipLfs === 'true';
   bp.skipCache = options.skipCache === true || options.skipCache === 'true';
+  // Skip Unity license activation/return for the local/local-system provider's
+  // generated build script (sets SKIP_ACTIVATION for runsteps.sh) -- for
+  // self-hosted runners with an already-licensed, long-lived Unity Hub
+  // session, distinct from `game-ci activate`'s per-run activation.
+  bp.skipActivation = options.skipActivation === true || options.skipActivation === 'true';
   bp.skipInContainerClone =
     options.skipInContainerClone === true || options.skipInContainerClone === 'true';
   bp.repoPathOverride = options.repoPathOverride || '';

@@ -101,6 +101,17 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
       Orchestrator.buildParameters.providerStrategy === 'k8s' ||
       Orchestrator.buildParameters.providerStrategy === 'local-docker';
 
+    // The bare-host provider (game-ci/orchestrator's `local`/`local-system`
+    // provider strategy, both backed by LocalOrchestrator -- see
+    // plugins/orchestrator/src/cli-plugin/index.ts) is non-containerized like
+    // aws/k8s/local-docker's remote-dispatch cousins (test, gcp-cloud-run,
+    // github-actions, ...), but unlike those it actually needs to invoke
+    // Unity directly on this machine, so it gets its own branch below.
+    const isBareLocalProvider =
+      !isContainerized &&
+      (Orchestrator.buildParameters.providerStrategy === 'local' ||
+        Orchestrator.buildParameters.providerStrategy === 'local-system');
+
     const builderPath = isContainerized
       ? OrchestratorFolders.ToLinuxFolder(
           path.join(OrchestratorFolders.builderPathAbsolute, 'dist', `index.js`),
@@ -124,14 +135,17 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
         Orchestrator.buildParameters.providerStrategy === 'local-docker'
           ? `export GITHUB_WORKSPACE="${Orchestrator.buildParameters.dockerWorkspacePath}"
       echo "Using docker workspace: $GITHUB_WORKSPACE"`
-          : `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.repoPathAbsolute)}"`
+          : isBareLocalProvider
+            ? `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(process.cwd())}"
+      echo "Using local workspace: $GITHUB_WORKSPACE"`
+            : `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.repoPathAbsolute)}"`
       }
       ${isContainerized ? 'df -H /data/' : '# skipping df on /data in non-container provider'}
       export LOG_FILE=${isContainerized ? '/home/job-log.txt' : '$(pwd)/temp/job-log.txt'}
       ${BuildAutomationWorkflow.setupCommands(builderPath, isContainerized)}
       ${setupHooks.filter((x) => x.hook.includes(`after`)).map((x) => x.commands) || ' '}
       ${buildHooks.filter((x) => x.hook.includes(`before`)).map((x) => x.commands) || ' '}
-      ${BuildAutomationWorkflow.BuildCommands(builderPath, isContainerized)}
+      ${BuildAutomationWorkflow.BuildCommands(builderPath, isContainerized, isBareLocalProvider)}
       ${buildHooks.filter((x) => x.hook.includes(`after`)).map((x) => x.commands) || ' '}`;
   }
 
@@ -172,7 +186,11 @@ export CACHE_KEY="${Orchestrator.buildParameters.cacheKey}"
 echo "CACHE_KEY=$CACHE_KEY"`;
   }
 
-  private static BuildCommands(builderPath: string, isContainerized: boolean) {
+  private static BuildCommands(
+    builderPath: string,
+    isContainerized: boolean,
+    isBareLocalProvider = false,
+  ) {
     const distFolder = path.join(OrchestratorFolders.builderPathAbsolute, 'dist');
     const ubuntuPlatformsFolder = path.join(
       OrchestratorFolders.builderPathAbsolute,
@@ -284,6 +302,51 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     # Write end markers to both stdout and log file (builder might be cleaned up by post-build)
     echo "end of orchestrator job" | tee -a /home/job-log.txt
     echo "---${Orchestrator.buildParameters.logId}" | tee -a /home/job-log.txt`;
+    }
+
+    if (isBareLocalProvider) {
+      const bp = Orchestrator.buildParameters;
+      // Same step-script chain game-ci/cli's own HostRunner (src/model/host-runner.ts)
+      // drives for `game-ci build/test --local`: runsteps.sh -> activate.sh ->
+      // build.sh/test.sh -> return_license.sh, run directly against this host's
+      // Unity install. Deliberately skips entrypoint.sh (container-only setup:
+      // /etc/machine-id randomization, useradd/groupadd) for the same reason
+      // HostRunner does -- see the comment on HostRunner for why that would be
+      // dangerous to run against a real, persistent self-hosted machine.
+      //
+      // No repo clone / LFS pull here (unlike the aws/k8s/local-docker branches
+      // above): the `local` provider is for a self-hosted runner where the
+      // project is assumed already checked out and hydrated at GITHUB_WORKSPACE
+      // (set to process.cwd() above), so there is nothing to clone or hydrate.
+      const stepsDir = OrchestratorFolders.ToLinuxFolder(
+        path.join(process.cwd(), 'dist', 'platforms', 'ubuntu', 'steps'),
+      );
+
+      // prettier-ignore
+      return `
+    echo "game ci start"
+    echo "game ci start" >> "$LOG_FILE"
+    export STEPS_DIR="${stepsDir}"
+    export PROJECT_PATH="${bp.projectPath || ''}"
+    export BUILD_TARGET="${bp.targetPlatform || ''}"
+    export BUILD_NAME="${bp.buildName || ''}"
+    export BUILD_PATH="${bp.buildPath || ''}"
+    export BUILD_FILE="${bp.buildFile || ''}"
+    export BUILD_METHOD="${bp.buildMethod || ''}"
+    export VERSION="${bp.buildVersion || ''}"
+    export ANDROID_VERSION_CODE="${bp.androidVersionCode || ''}"
+    export CHOWN_FILES_TO="${bp.chownFilesTo || ''}"
+    export MANUAL_EXIT="${bp.manualExit ? 'true' : ''}"
+    export BUILD_PROFILE="${bp.buildProfile || ''}"
+    export SKIP_ACTIVATION="${bp.skipActivation ? 'true' : ''}"
+    # entrypoint.sh normally creates this before sourcing runsteps.sh; replicated
+    # here since we bypass entrypoint.sh entirely (see HostRunner.buildEnv).
+    export ACTIVATE_LICENSE_PATH="$GITHUB_WORKSPACE/_activate-license~"
+    mkdir -p "$ACTIVATE_LICENSE_PATH"
+    mkdir -p "$GITHUB_WORKSPACE/$BUILD_PATH"
+    # Pipe runsteps.sh output through log stream to capture Unity build/activation output
+    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | node ${builderPath} -m remote-cli-log-stream --logFile "$LOG_FILE"
+    node ${builderPath} -m remote-cli-post-build`;
     }
 
     // prettier-ignore
