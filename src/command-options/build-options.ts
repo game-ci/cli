@@ -178,6 +178,14 @@ export class BuildOptions implements IOptions {
         type: 'string',
         demandOption: false,
         default: '',
+      })
+      .option('skipNativePluginCheck', {
+        description: String.dedent`Skip the preflight scan for native plugins (.dll.meta) whose PluginImporter
+        restricts them to Windows-hosted Editors only. That scan only warns (it never fails the build), but some
+        projects may want to skip it entirely - e.g. too much noise, or the setup is already well understood.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
       });
   }
 }
