@@ -14,8 +14,33 @@ export interface LocalCacheRestoreOptions {
 }
 
 export interface LocalCacheSaveOptions {
-  diagnostics?: { crashEvidenceFound?: boolean };
+  /**
+   * Diagnostics computed for the run that produced this save (see
+   * UnityBuildDiagnosticsService.analyzeRun). `importCompleted` gates the
+   * `skipOnCrashEvidence` decision below; `crashEvidenceFound` is carried
+   * through for logging/observability only -- it does not gate anything
+   * here by itself.
+   */
+  diagnostics?: { crashEvidenceFound?: boolean; importCompleted?: boolean };
+  /**
+   * This save is happening on a build/test FAILURE path (a "cache floor"
+   * save after a failed run, not the normal post-success save). Refuse to
+   * save unless `diagnostics.importCompleted` is true: a run that failed
+   * before asset import finished cannot be trusted to leave behind a usable
+   * Library, so there is nothing worth banking. Always overridden by
+   * `skipOnCorruptionEvidence` below when both are set. The success path
+   * must never set this flag.
+   */
   skipOnCrashEvidence?: boolean;
+  /**
+   * The failure has been classified as corruption-specific (e.g. the
+   * COMPILE / PACKAGE UnityFailureCategory values -- see
+   * isCorruptionSpecificCategory in BuildAutomationWorkflow). Refuse to
+   * save UNCONDITIONALLY, even if `diagnostics.importCompleted` is true --
+   * these categories indicate the Library/PackageCache content itself may
+   * be broken, not merely that the process crashed after a clean import.
+   */
+  skipOnCorruptionEvidence?: boolean;
   skipOnLfsPointerPoisoning?: boolean;
   saveMode?: LocalCacheMode;
   maxCacheEntries?: number;
@@ -285,9 +310,19 @@ export class LocalCacheService {
     const folderPath = path.join(projectPath, folder);
 
     try {
-      if (options.skipOnCrashEvidence && options.diagnostics?.crashEvidenceFound) {
+      if (options.skipOnCorruptionEvidence) {
         OrchestratorLogger.logWarning(
-          `[LocalCache] ${folder} save skipped because Unity crash evidence was found`,
+          `[LocalCache] ${folder} save skipped: corruption-specific failure evidence found ` +
+            `(unconditional block, regardless of import completion)`,
+        );
+
+        return;
+      }
+
+      if (options.skipOnCrashEvidence && !options.diagnostics?.importCompleted) {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] ${folder} save skipped: build/test failed before asset import completed` +
+            `${options.diagnostics?.crashEvidenceFound ? ' (crash evidence found)' : ''}`,
         );
 
         return;

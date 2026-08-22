@@ -120,6 +120,8 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
     options.localCacheFallback === true || options.localCacheFallback === 'true';
   bp.localCacheFallbackKeys = options.localCacheFallbackKeys || '';
   bp.localCacheMode = options.localCacheMode || 'tar';
+  bp.localCacheSaveOnFailure =
+    options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
   bp.childWorkspacesEnabled =
     options.childWorkspacesEnabled === true || options.childWorkspacesEnabled === 'true';
   bp.childWorkspaceName = options.childWorkspaceName || '';
