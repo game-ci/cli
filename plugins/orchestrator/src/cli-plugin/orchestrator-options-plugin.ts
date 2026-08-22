@@ -478,6 +478,29 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: '',
   });
 
+  yargs.option('localCacheSaveOnFailure', {
+    description:
+      'Bank a "cache floor" Library/LFS save even when the build/test FAILS, for the bare-host ' +
+      '`local`/`local-system` provider strategy (requires localCacheEnabled). A save is only ' +
+      'attempted if UnityBuildDiagnosticsService reports asset import completed and the failure is ' +
+      'not corruption-specific (COMPILE/PACKAGE); a plain crash/license/generic failure after a ' +
+      'clean import still banks. Default off: previously a failed build never touched the cache at ' +
+      'all -- this is a meaningful behavior change existing users must opt into, matching the ' +
+      'caution shown for enableBuildRetry.',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheFloorCorruptionCategories', {
+    description:
+      'Comma-separated UnityFailureCategory list that blocks a --localCacheSaveOnFailure "cache ' +
+      'floor" save unconditionally, even when asset import completed (default: COMPILE,PACKAGE -- ' +
+      'categories: LICENSE, CRASH, COMPILE, PACKAGE, SKIP, EXIT_NEG1, GENERIC). Only meaningful ' +
+      'together with localCacheSaveOnFailure.',
+    type: 'string',
+    default: '',
+  });
+
   yargs.option('localCacheFallback', {
     description: 'Allow restoring from a fallback cache key when the exact key misses',
     type: 'boolean',

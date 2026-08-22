@@ -125,6 +125,22 @@ class BuildParameters {
   localCacheFallback!: boolean;
   localCacheFallbackKeys!: string;
   localCacheMode!: string;
+  // Opt-in (default false) "cache floor" save: when a build/test on the
+  // bare-host `local`/`local-system` provider FAILS, still attempt a
+  // best-effort Library/LFS cache save if diagnostics show asset import
+  // completed and the failure isn't corruption-specific (see
+  // UnityBuildDiagnosticsService / isCorruptionSpecificCategory in
+  // BuildAutomationWorkflow). Off by default: previously a failed build
+  // never touched the cache at all, so this is a meaningful behavior
+  // change existing users must opt into -- same caution as
+  // enableBuildRetry. Requires localCacheEnabled to also be on.
+  localCacheSaveOnFailure!: boolean;
+  // Overrides which UnityFailureCategory values block a cache-floor save
+  // unconditionally (see BuildAutomationWorkflow.corruptionSpecificCategories).
+  // Comma-separated, e.g. "COMPILE,PACKAGE". Empty/unset uses the built-in
+  // default (COMPILE, PACKAGE) -- this only needs setting to override that
+  // default for a specific environment's known failure characteristics.
+  localCacheFloorCorruptionCategories!: string;
   childWorkspacesEnabled!: boolean;
   childWorkspaceName!: string;
   childWorkspaceCacheRoot!: string;

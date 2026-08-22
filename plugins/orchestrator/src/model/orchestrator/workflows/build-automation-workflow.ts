@@ -4,12 +4,18 @@ import { OrchestratorStepParameters } from '../options/orchestrator-step-paramet
 import { WorkflowInterface } from './workflow-interface';
 import { CommandHookService } from '../services/hooks/command-hook-service';
 import path from 'node:path';
+import fs from 'node:fs';
 import Orchestrator from '../orchestrator';
 import { ContainerHookService } from '../services/hooks/container-hook-service';
 import { MiddlewareService } from '../services/hooks/middleware-service';
 import { CacheCheckpointService } from '../services/cache/cache-checkpoint-service';
 import { PreflightService } from '../services/preflight';
 import { getEngine } from '../../engine';
+import {
+  UnityBuildDiagnosticsService,
+  UnityFailureCategory,
+  UnityRunDiagnostics,
+} from '../services/reliability/unity-build-diagnostics-service';
 
 export class BuildAutomationWorkflow implements WorkflowInterface {
   async run(orchestratorStepState: OrchestratorStepParameters) {
@@ -47,21 +53,35 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     // (this code path is the standalone `game-ci orchestrate` CLI command).
     const localCacheState = await BuildAutomationWorkflow.restoreLocalCacheIfEnabled();
 
-    output += await Orchestrator.Provider.runTaskInWorkflow(
-      Orchestrator.buildParameters.buildGuid,
-      baseImage.toString(),
-      BuildAutomationWorkflow.BuildWorkflow,
-      `/${OrchestratorFolders.buildVolumeFolder}`,
-      `/${OrchestratorFolders.buildVolumeFolder}/`,
-      orchestratorStepState.environment,
-      orchestratorStepState.secrets,
-    );
-    OrchestratorLogger.logWithTime('Build time');
+    try {
+      output += await Orchestrator.Provider.runTaskInWorkflow(
+        Orchestrator.buildParameters.buildGuid,
+        baseImage.toString(),
+        BuildAutomationWorkflow.BuildWorkflow,
+        `/${OrchestratorFolders.buildVolumeFolder}`,
+        `/${OrchestratorFolders.buildVolumeFolder}/`,
+        orchestratorStepState.environment,
+        orchestratorStepState.secrets,
+      );
+      OrchestratorLogger.logWithTime('Build time');
 
-    // Save step mirrors plugin-lifecycle.ts's afterLocalBuild() handling.
-    // Only reached if runTaskInWorkflow above resolved rather than throwing,
-    // i.e. Unity actually ran to completion.
-    await BuildAutomationWorkflow.saveLocalCacheIfEnabled(localCacheState);
+      // Save step mirrors plugin-lifecycle.ts's afterLocalBuild() handling.
+      // Only reached if runTaskInWorkflow above resolved rather than
+      // throwing, i.e. Unity actually ran to completion. Success-path
+      // behavior is unchanged by the failure-path addition below.
+      await BuildAutomationWorkflow.saveLocalCacheIfEnabled(localCacheState);
+    } catch (error) {
+      // runTaskInWorkflow threw -- Unity's build/test run failed. Previously
+      // saveLocalCacheIfEnabled was structurally unreachable from here (it
+      // sat after this call, on the success-only path), so a crash *after*
+      // import already completed discarded a Library that was otherwise
+      // fine to keep. Evaluate an opt-in "cache floor" save before
+      // re-throwing -- this never swallows or replaces the original
+      // failure, it only banks a cache alongside it.
+      await BuildAutomationWorkflow.saveLocalCacheOnFailureIfEnabled(localCacheState);
+
+      throw error;
+    }
 
     output += await ContainerHookService.RunPostBuildSteps(orchestratorStepState);
     OrchestratorLogger.logWithTime('Configurable post build step(s) time');
@@ -236,6 +256,215 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
       OrchestratorLogger.logWarning(
         `[LocalCache] Save step failed after a successful build: ${error.message}`,
       );
+    }
+  }
+
+  /**
+   * UnityFailureCategory values that indicate the Library/PackageCache
+   * content itself may be broken, not just that the process crashed after a
+   * clean import -- conceptually the same class of risk as a corruption
+   * poison sentinel, distinct from a generic process-level failure:
+   *
+   * - COMPILE: compile errors can indicate a broken/incomplete import that
+   *   still looks import-complete but fails downstream.
+   * - PACKAGE: PackageCache/GUID corruption (categorizeFailure's guidErrors
+   *   check, itself detecting `error CS0246` under Library/PackageCache) --
+   *   a corrupted cache subsystem specifically, not a crashed process.
+   *
+   * CRASH, LICENSE, EXIT_NEG1 and GENERIC are process/environment-level
+   * failures unrelated to Library content, so they remain bankable as long
+   * as diagnostics.importCompleted is true. SKIP/SUCCESS are not reachable
+   * here -- this is only ever called on the failure path.
+   *
+   * This default is configurable, not hardcoded policy: --localCacheFloor
+   * -CorruptionCategories overrides it with a caller-supplied comma-separated
+   * UnityFailureCategory list (e.g. an environment that's confident PACKAGE
+   * failures never actually indicate corruption for its own project can
+   * narrow this to just "COMPILE"). Unrecognized category names in an
+   * override are ignored with a warning rather than silently mismatching.
+   */
+  private static readonly DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES: readonly UnityFailureCategory[] =
+    ['COMPILE', 'PACKAGE'];
+
+  private static isCorruptionSpecificCategory(category: UnityFailureCategory): boolean {
+    return BuildAutomationWorkflow.corruptionSpecificCategories().includes(category);
+  }
+
+  private static corruptionSpecificCategories(): readonly UnityFailureCategory[] {
+    const override = Orchestrator.buildParameters?.localCacheFloorCorruptionCategories;
+    if (!override) {
+      return BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
+    }
+
+    const knownCategories = new Set<UnityFailureCategory>([
+      'LICENSE',
+      'CRASH',
+      'COMPILE',
+      'PACKAGE',
+      'SKIP',
+      'EXIT_NEG1',
+      'GENERIC',
+      'SUCCESS',
+    ]);
+
+    const parsed: UnityFailureCategory[] = [];
+    for (const raw of override.split(',')) {
+      const category = raw.trim().toUpperCase() as UnityFailureCategory;
+      if (!category) continue;
+      if (knownCategories.has(category)) {
+        parsed.push(category);
+      } else {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Ignoring unrecognized category "${raw.trim()}" in --localCacheFloorCorruptionCategories`,
+        );
+      }
+    }
+
+    // An override that resolves to nothing usable (e.g. all-unrecognized
+    // input) falls back to the default rather than silently treating every
+    // failure as bankable -- an empty corruption list is a meaningful,
+    // security-relevant choice that should be explicit, not accidental.
+    return parsed.length > 0
+      ? parsed
+      : BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
+  }
+
+  /**
+   * Re-read the same $LOG_FILE convention BuildWorkflow exports for the bare
+   * `local`/`local-system` provider (`$(pwd)/temp/job-log.txt`) and the exit
+   * code the bare-local BuildCommands branch writes into it
+   * (`RUNSTEPS_EXIT_CODE:$?`, appended right after runsteps.sh exits -- see
+   * BuildCommands' isBareLocalProvider branch), then classify the failed run
+   * via UnityBuildDiagnosticsService. Mirrors LocalOrchestrator.runWithRetry's
+   * own log-resolution approach (providers/local/index.ts) so this failure
+   * path and the retry feature agree on where the real Editor log content
+   * lives.
+   *
+   * Returns undefined (never throws) if the log can't be read/parsed --
+   * callers must treat that as "cannot classify this failure" and therefore
+   * not bank anything.
+   */
+  private static analyzeRunForCacheFloor(): UnityRunDiagnostics | undefined {
+    try {
+      const bp = Orchestrator.buildParameters;
+      const projectPath = path.isAbsolute(bp.projectPath || '')
+        ? bp.projectPath
+        : path.join(process.cwd(), bp.projectPath || '.');
+      const logFilePath = path.join(process.cwd(), 'temp', 'job-log.txt');
+      const logText = BuildAutomationWorkflow.readEditorLogForCacheFloor(logFilePath);
+
+      const exitCodeMatch = logText.match(/RUNSTEPS_EXIT_CODE:(-?\d+)/);
+      // A failure with no recovered exit code still needs a nonzero
+      // placeholder -- categorizeFailure() has an exitCode === 0 branch
+      // (SUCCESS) that must never be hit here, since this is only invoked
+      // once runTaskInWorkflow has already thrown.
+      const exitCode = exitCodeMatch ? Number(exitCodeMatch[1]) : 1;
+
+      return UnityBuildDiagnosticsService.analyzeRun({
+        exitCode,
+        logText,
+        projectPath,
+      });
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Failure-path diagnostics analysis failed, skipping cache floor save: ${error.message}`,
+      );
+
+      return undefined;
+    }
+  }
+
+  private static readEditorLogForCacheFloor(logFilePath: string): string {
+    try {
+      return fs.readFileSync(logFilePath, 'utf8');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Opt-in (--localCacheSaveOnFailure, default off) "cache floor" save: on
+   * the bare-host `local`/`local-system` provider strategy, when Unity's
+   * build/test run has just thrown, attempt a best-effort Library/LFS save
+   * anyway if diagnostics show the failure occurred after asset import
+   * already completed and is not corruption-specific (see
+   * isCorruptionSpecificCategory above). Mirrors the shape of
+   * saveLocalCacheIfEnabled but is only ever reached from the failure path
+   * (see the catch block in standardBuildAutomation) -- never called on
+   * success.
+   *
+   * Must never throw: any error here is logged and swallowed exactly like
+   * saveLocalCacheIfEnabled's own try/catch, so a failed cache-floor save can
+   * never mask or replace the real build failure the caller re-throws right
+   * after this returns.
+   */
+  private static async saveLocalCacheOnFailureIfEnabled(
+    cacheState: { cacheRoot: string; cacheKey: string } | undefined,
+  ): Promise<void> {
+    const bp = Orchestrator.buildParameters;
+    if (
+      !BuildAutomationWorkflow.isBareLocalProvider ||
+      !bp.localCacheEnabled ||
+      !bp.localCacheSaveOnFailure ||
+      !cacheState
+    ) {
+      return;
+    }
+
+    try {
+      const diagnostics = BuildAutomationWorkflow.analyzeRunForCacheFloor();
+      if (!diagnostics) {
+        return;
+      }
+
+      const isCorruptionSpecific = BuildAutomationWorkflow.isCorruptionSpecificCategory(
+        diagnostics.failureCategory,
+      );
+      const shouldBankAsFloor = diagnostics.importCompleted && !isCorruptionSpecific;
+
+      OrchestratorLogger.log(
+        `[LocalCache] Cache floor evaluation: category=${diagnostics.failureCategory} ` +
+          `importCompleted=${diagnostics.importCompleted} corruptionSpecific=${isCorruptionSpecific} ` +
+          `-> ${shouldBankAsFloor ? 'eligible to bank as floor' : 'not eligible'}`,
+      );
+
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const { cacheRoot, cacheKey } = cacheState;
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLibrary) {
+        // LocalCacheService.saveCacheFolder is the final arbiter: it enforces
+        // both the unconditional corruption-specific block and the
+        // import-completed requirement itself (see LocalCacheSaveOptions),
+        // so this is defense-in-depth alongside the shouldBankAsFloor log
+        // line above, not a second independent decision.
+        await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          saveMode: bp.localCacheMode as any,
+          skipOnLfsPointerPoisoning: true,
+          maxCacheEntries: bp.maxCacheEntries,
+          diagnostics: {
+            crashEvidenceFound: diagnostics.crashEvidenceFound,
+            importCompleted: diagnostics.importCompleted,
+          },
+          skipOnCrashEvidence: true,
+          skipOnCorruptionEvidence: isCorruptionSpecific,
+        });
+      }
+
+      // saveLfsCache has no diagnostics-aware gate (LFS content isn't
+      // Library-corruption-specific and its save mechanics are intentionally
+      // left untouched here), so gate it directly with the same decision.
+      if (bp.localCacheLfs && shouldBankAsFloor) {
+        await LocalCacheService.saveLfsCache(
+          workspacePath,
+          cacheRoot,
+          cacheKey,
+          bp.maxCacheEntries,
+        );
+      }
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(`[LocalCache] Cache floor save failed: ${error.message}`);
     }
   }
 
