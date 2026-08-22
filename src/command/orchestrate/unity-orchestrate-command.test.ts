@@ -76,4 +76,49 @@ describe('UnityOrchestrateCommand', () => {
     expect(buildParametersArg.editorVersion).toBe('2022.3.20f1');
     expect(typeof baseImageArg).toBe('string');
   });
+
+  describe('configureOptions', () => {
+    // Regression test for a real bug: configureOptions previously only
+    // registered ProjectOptions + RemoteOptions, so under yargs' global
+    // strict(true) mode, `game-ci orchestrate --targetPlatform=...` failed
+    // with "Unknown argument: targetPlatform" before ever reaching
+    // createBuildParametersFromCliOptions, which reads that field (and
+    // buildName/buildsPath/buildMethod/etc.) unconditionally. This made
+    // `orchestrate` impossible to invoke for a concrete build target via
+    // its own documented flags - confirmed live, not just in theory: the
+    // exact command above returned exit 1 with that error before this fix.
+    it('registers targetPlatform and the other build-identification options build-parameters-adapter reads', async () => {
+      const registered: Record<string, any> = {};
+      const mockYargs: any = {
+        option(name: string, config: any) {
+          registered[name] = config;
+
+          return mockYargs;
+        },
+      };
+
+      const command = new UnityOrchestrateCommand('orchestrate');
+      await command.configureOptions(mockYargs);
+
+      for (const name of [
+        'targetPlatform',
+        'buildName',
+        'buildsPath',
+        'buildMethod',
+        'buildProfile',
+        'buildVersion',
+        'androidVersionCode',
+        'manualExit',
+        'enableGpu',
+        'allowDirtyBuild',
+        'cacheUnityInstallationOnMac',
+        'chownFilesTo',
+        'sshAgent',
+        'sshPublicKeysDirectoryPath',
+        'gitPrivateToken',
+      ]) {
+        expect(registered).toHaveProperty(name);
+      }
+    });
+  });
 });
