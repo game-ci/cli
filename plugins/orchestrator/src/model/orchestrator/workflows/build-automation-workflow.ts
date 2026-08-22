@@ -39,6 +39,13 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     OrchestratorLogger.logLine(` `);
     OrchestratorLogger.logLine('Starting build automation job');
 
+    // Local Library/LFS caching for the bare-host `local`/`local-system`
+    // provider strategy -- mirrors the restore step plugin-lifecycle.ts runs
+    // in beforeLocalBuild() for the unity-builder integration surface, but
+    // calls LocalCacheService directly instead of going through that surface
+    // (this code path is the standalone `game-ci orchestrate` CLI command).
+    const localCacheState = await BuildAutomationWorkflow.restoreLocalCacheIfEnabled();
+
     output += await Orchestrator.Provider.runTaskInWorkflow(
       Orchestrator.buildParameters.buildGuid,
       baseImage.toString(),
@@ -49,6 +56,11 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
       orchestratorStepState.secrets,
     );
     OrchestratorLogger.logWithTime('Build time');
+
+    // Save step mirrors plugin-lifecycle.ts's afterLocalBuild() handling.
+    // Only reached if runTaskInWorkflow above resolved rather than throwing,
+    // i.e. Unity actually ran to completion.
+    await BuildAutomationWorkflow.saveLocalCacheIfEnabled(localCacheState);
 
     output += await ContainerHookService.RunPostBuildSteps(orchestratorStepState);
     OrchestratorLogger.logWithTime('Configurable post build step(s) time');
@@ -89,6 +101,138 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     }
   }
 
+  /**
+   * True for game-ci/orchestrator's bare-host `local`/`local-system` provider
+   * strategy (both backed by LocalOrchestrator -- see
+   * plugins/orchestrator/src/cli-plugin/index.ts). Non-containerized like
+   * aws/k8s/local-docker's remote-dispatch cousins (test, gcp-cloud-run,
+   * github-actions, ...), but unlike those it actually needs to invoke Unity
+   * directly on this machine.
+   */
+  private static get isBareLocalProvider(): boolean {
+    const isContainerized =
+      Orchestrator.buildParameters.providerStrategy === 'aws' ||
+      Orchestrator.buildParameters.providerStrategy === 'k8s' ||
+      Orchestrator.buildParameters.providerStrategy === 'local-docker';
+
+    return (
+      !isContainerized &&
+      (Orchestrator.buildParameters.providerStrategy === 'local' ||
+        Orchestrator.buildParameters.providerStrategy === 'local-system')
+    );
+  }
+
+  /**
+   * Restore Library/LFS caches via LocalCacheService before Unity runs, for
+   * the bare-host `local`/`local-system` provider strategy only. Mirrors
+   * plugin-lifecycle.ts's beforeLocalBuild() local-cache-restore block.
+   *
+   * LocalCacheService's restore methods already catch and log their own
+   * errors internally (a cache miss or restore failure returns
+   * false/void rather than throwing), so a first run with no cache yet is
+   * expected to log a miss and fall through -- not fail the build. The
+   * try/catch here is an extra safety net around resolveCacheRoot /
+   * generateCacheKey / generateCacheKeyCandidates, which are cheap sync
+   * calls but are still wrapped so that any unexpected error here can never
+   * abort the build.
+   */
+  private static async restoreLocalCacheIfEnabled(): Promise<
+    { cacheRoot: string; cacheKey: string } | undefined
+  > {
+    const bp = Orchestrator.buildParameters;
+    if (!BuildAutomationWorkflow.isBareLocalProvider || !bp.localCacheEnabled) {
+      return undefined;
+    }
+
+    try {
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const cacheRoot = LocalCacheService.resolveCacheRoot(bp as any) || '';
+      const cacheKey =
+        LocalCacheService.generateCacheKey(bp.targetPlatform, bp.editorVersion, bp.branch || '') ||
+        '';
+
+      // GITHUB_WORKSPACE for the bare-local provider is process.cwd() (see
+      // the isBareLocalProvider branch of BuildWorkflow below); the project
+      // itself lives at process.cwd()/<projectPath> underneath that.
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLfs) {
+        await LocalCacheService.restoreLfsCache(workspacePath, cacheRoot, cacheKey);
+      }
+
+      if (bp.localCacheLibrary) {
+        const fallbackKeys = bp.localCacheFallback
+          ? LocalCacheService.generateCacheKeyCandidates(
+              cacheRoot,
+              bp.targetPlatform,
+              bp.editorVersion,
+              bp.branch || '',
+              String(bp.localCacheFallbackKeys || '')
+                .split(',')
+                .map((key: string) => key.trim())
+                .filter(Boolean),
+            ).filter((key) => key !== cacheKey)
+          : [];
+
+        await LocalCacheService.restoreEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          fallbackKeys,
+          restoreMode: bp.localCacheMode as any,
+        });
+      }
+
+      return { cacheRoot, cacheKey };
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Restore step failed, continuing without cache: ${error.message}`,
+      );
+
+      return undefined;
+    }
+  }
+
+  /**
+   * Save Library/LFS caches via LocalCacheService after Unity finishes, for
+   * the bare-host `local`/`local-system` provider strategy only. Mirrors
+   * plugin-lifecycle.ts's afterLocalBuild() local-cache-save block.
+   *
+   * LocalCacheService's save methods already catch and log their own errors
+   * internally and never throw, so this can never mask a build that
+   * otherwise completed successfully. The try/catch is an extra safety net,
+   * matching restoreLocalCacheIfEnabled() above.
+   */
+  private static async saveLocalCacheIfEnabled(
+    cacheState: { cacheRoot: string; cacheKey: string } | undefined,
+  ): Promise<void> {
+    const bp = Orchestrator.buildParameters;
+    if (!BuildAutomationWorkflow.isBareLocalProvider || !bp.localCacheEnabled || !cacheState) {
+      return;
+    }
+
+    try {
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const { cacheRoot, cacheKey } = cacheState;
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLibrary) {
+        await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          saveMode: bp.localCacheMode as any,
+          skipOnLfsPointerPoisoning: true,
+          maxCacheEntries: bp.maxCacheEntries,
+        });
+      }
+
+      if (bp.localCacheLfs) {
+        await LocalCacheService.saveLfsCache(workspacePath, cacheRoot, cacheKey, bp.maxCacheEntries);
+      }
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Save step failed after a successful build: ${error.message}`,
+      );
+    }
+  }
+
   private static get BuildWorkflow() {
     const setupHooks = CommandHookService.getHooks(
       Orchestrator.buildParameters.commandHooks,
@@ -101,16 +245,7 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
       Orchestrator.buildParameters.providerStrategy === 'k8s' ||
       Orchestrator.buildParameters.providerStrategy === 'local-docker';
 
-    // The bare-host provider (game-ci/orchestrator's `local`/`local-system`
-    // provider strategy, both backed by LocalOrchestrator -- see
-    // plugins/orchestrator/src/cli-plugin/index.ts) is non-containerized like
-    // aws/k8s/local-docker's remote-dispatch cousins (test, gcp-cloud-run,
-    // github-actions, ...), but unlike those it actually needs to invoke
-    // Unity directly on this machine, so it gets its own branch below.
-    const isBareLocalProvider =
-      !isContainerized &&
-      (Orchestrator.buildParameters.providerStrategy === 'local' ||
-        Orchestrator.buildParameters.providerStrategy === 'local-system');
+    const isBareLocalProvider = BuildAutomationWorkflow.isBareLocalProvider;
 
     const builderPath = isContainerized
       ? OrchestratorFolders.ToLinuxFolder(

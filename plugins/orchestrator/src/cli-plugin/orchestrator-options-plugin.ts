@@ -433,6 +433,49 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: 0,
   });
 
+  // --- Local cache (Library/LFS, bare-host `local`/`local-system` providers) ---
+  yargs.option('localCacheEnabled', {
+    description: 'Enable local filesystem Library/LFS caching (local/local-system providers)',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheLibrary', {
+    description: 'Cache the engine Library folder locally (requires localCacheEnabled)',
+    type: 'boolean',
+    default: true,
+  });
+
+  yargs.option('localCacheLfs', {
+    description: 'Cache .git/lfs locally (requires localCacheEnabled)',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheRoot', {
+    description: 'Root directory for the local cache (default: RUNNER_TEMP/game-ci-cache or .game-ci/cache)',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('localCacheFallback', {
+    description: 'Allow restoring from a fallback cache key when the exact key misses',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheFallbackKeys', {
+    description: 'Comma-separated explicit fallback cache keys to try, in order',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('localCacheMode', {
+    description: 'Local cache save/restore mode: tar, move-directory, or copy-directory',
+    type: 'string',
+    default: 'tar',
+  });
+
   yargs.option('gcTimeoutMinutes', {
     description: 'Force garbage collection after this many minutes (0 = disabled)',
     type: 'number',
