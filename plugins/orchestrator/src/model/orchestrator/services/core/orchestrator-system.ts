@@ -22,6 +22,13 @@ export class OrchestratorSystem {
     suppressLogs = false,
     // eslint-disable-next-line no-unused-vars
     outputCallback?: (output: string) => void,
+    // Invoked with the real (non-normalized) child process exit code right
+    // before the promise settles -- on both the success and failure paths.
+    // Purely additive: existing callers that don't pass this get identical
+    // behavior (same thrown string, same resolved output) to before this
+    // parameter was added.
+    // eslint-disable-next-line no-unused-vars
+    onExitCode?: (code: number) => void,
   ) {
     for (const element of command.split(`\n`)) {
       if (!suppressLogs) {
@@ -53,6 +60,7 @@ export class OrchestratorSystem {
         if (!suppressLogs) {
           RemoteClientLogger.log(`[${code}]`);
         }
+        onExitCode?.(code ?? -1);
         if (code !== 0 && !suppressError) {
           throwError(output);
         }

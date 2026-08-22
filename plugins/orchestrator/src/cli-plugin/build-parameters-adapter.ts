@@ -153,6 +153,7 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   // ── reliability ───────────────────────────────────────────────────
   bp.gitIntegrityCheck = options.gitIntegrityCheck === true || options.gitIntegrityCheck === 'true';
   bp.gitAutoRecover = options.gitAutoRecover === true || options.gitAutoRecover === 'true';
+  bp.enableBuildRetry = options.enableBuildRetry === true || options.enableBuildRetry === 'true';
   bp.cleanReservedFilenames =
     options.cleanReservedFilenames === true || options.cleanReservedFilenames === 'true';
   bp.buildArchiveEnabled =
