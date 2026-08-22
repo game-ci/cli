@@ -337,6 +337,15 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: false,
   });
 
+  yargs.option('skipActivation', {
+    description:
+      'Skip Unity license activation/return -- for self-hosted runners with an already-licensed, ' +
+      'long-lived Unity Hub session. Only meaningful for providerStrategy=local(-system). Distinct ' +
+      'from `game-ci activate`, which activates a license per-run and leaves it active for a later step.',
+    type: 'boolean',
+    default: false,
+  });
+
   yargs.option('skipInContainerClone', {
     description:
       'Skip the in-container git clone and reuse a pre-hydrated workspace bind-mounted by the caller. ' +

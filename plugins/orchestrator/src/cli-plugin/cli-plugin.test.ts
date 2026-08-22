@@ -70,6 +70,8 @@ describe('CLI Plugin Adapter', () => {
       expect(registered).toHaveProperty('gitlabProjectId');
       expect(registered).toHaveProperty('remotePowershellHost');
       expect(registered).toHaveProperty('ansibleInventory');
+      expect(registered).toHaveProperty('skipActivation');
+      expect(registered.skipActivation.default).toBe(false);
     });
   });
 
@@ -155,6 +157,25 @@ describe('CLI Plugin Adapter', () => {
       expect(bp.gitlabProjectId).toBe('12345');
       expect(bp.ansibleInventory).toBe('/path/to/hosts');
       expect(bp.remotePowershellHost).toBe('win-server');
+    });
+
+    it('maps skipActivation (true) from boolean and string forms', () => {
+      const fromBoolean = createBuildParametersFromCliOptions({ skipActivation: true });
+      expect(fromBoolean.skipActivation).toBe(true);
+
+      const fromString = createBuildParametersFromCliOptions({ skipActivation: 'true' });
+      expect(fromString.skipActivation).toBe(true);
+    });
+
+    it('defaults skipActivation to false when unset or falsy', () => {
+      const unset = createBuildParametersFromCliOptions({});
+      expect(unset.skipActivation).toBe(false);
+
+      const explicitFalse = createBuildParametersFromCliOptions({ skipActivation: false });
+      expect(explicitFalse.skipActivation).toBe(false);
+
+      const stringFalse = createBuildParametersFromCliOptions({ skipActivation: 'false' });
+      expect(stringFalse.skipActivation).toBe(false);
     });
   });
 });

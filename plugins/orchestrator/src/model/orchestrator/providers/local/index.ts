@@ -18,7 +18,16 @@ class LocalOrchestrator implements ProviderInterface {
   watchWorkflow(): Promise<string> {
     throw new Error('Method not implemented.');
   }
-  garbageCollect(
+  // The `local`/`local-system` provider runs Unity directly on a self-hosted
+  // machine that already exists independently of this process -- it does not
+  // provision or own any cloud resources (ECS tasks, k8s pods/PVCs, S3/EBS
+  // volumes, ...) the way aws/k8s do. There is therefore nothing for this
+  // provider to garbage-collect: no-op success rather than a fabricated
+  // cleanup of resources this provider never owned. Must not throw --
+  // Orchestrator.run()'s constantGarbageCollection path and gcTimeoutMinutes
+  // finally-block both call this unconditionally, and previously this threw
+  // 'Method not implemented.', hard-failing that cleanup path for local runs.
+  async garbageCollect(
     // eslint-disable-next-line no-unused-vars
     filter: string,
     // eslint-disable-next-line no-unused-vars
@@ -30,7 +39,11 @@ class LocalOrchestrator implements ProviderInterface {
     // eslint-disable-next-line no-unused-vars
     baseDependencies: boolean,
   ): Promise<string> {
-    throw new Error('Method not implemented.');
+    OrchestratorLogger.log(
+      'LocalOrchestrator.garbageCollect: no-op (the local/local-system provider owns no cloud resources to clean up)',
+    );
+
+    return 'nothing to garbage-collect for provider=local';
   }
   cleanupWorkflow(
     // eslint-disable-next-line no-unused-vars
