@@ -56,6 +56,17 @@ describe("Cli plugin loading", () => {
     expect(command.name).toBe("Deploy steam");
   });
 
+  it("loads runtime-test-framework through PluginLoader and resolves `test-runtime` without engine detection", async () => {
+    const cli = new Cli([], process.cwd());
+
+    await cli.setup();
+
+    expect(PluginRegistry.getRegisteredPlugins().some((plugin) => plugin.name === "runtime-test-framework")).toBe(true);
+
+    const command = new CommandFactory().createCommand(["test-runtime"]);
+    expect(command.name).toBe("Test runtime");
+  });
+
   it("loads executable plugins from config during setup", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-"));
     try {

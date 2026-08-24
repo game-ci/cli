@@ -1,7 +1,7 @@
 {
   "name": "@game-ci/runtime-test-framework",
-  "version": "0.0.1",
-  "description": "Runtime Test Framework plugin (draft). GPU-free, assertion-based tests run against the actual built player, not the editor.",
+  "version": "0.1.0",
+  "description": "Runtime Test Framework plugin. `game-ci test-runtime <buildPath>` runs GPU-free, assertion-based tests against the actual built player, not the editor.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

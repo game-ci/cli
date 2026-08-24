@@ -28,6 +28,7 @@ export class CliCommands {
     await this.orchestrateCommand();
     await this.remoteCommands();
     await this.deployCommand();
+    await this.testRuntimeCommand();
 
     // This is needed to run the engine and vcs detection middleware.
     // Their output is used to register the correct commands based on the detected engine and vcs.
@@ -99,6 +100,19 @@ export class CliCommands {
     await this.yargs.command(
       "deploy <target> [buildPath]",
       "Deploy a pre-built output to a distribution target",
+      async (yargs: YargsInstance) => {
+        this.register(yargs);
+      },
+    );
+  }
+
+  private async testRuntimeCommand() {
+    // Also engine-independent, and unlike deploy has no sub-target to
+    // dispatch on - a single plugin (or none) handles it, via the '*'
+    // engine wildcard in PluginRegistry.
+    await this.yargs.command(
+      "test-runtime [buildPath]",
+      "Run tests against an already-built player executable",
       async (yargs: YargsInstance) => {
         this.register(yargs);
       },
