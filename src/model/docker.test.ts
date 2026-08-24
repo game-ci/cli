@@ -38,6 +38,32 @@ describe("Docker", () => {
     expect(validateBuildMock).not.toHaveBeenCalled();
   });
 
+  // Real bug (game-ci/unity-test-runner#310): a test run produces NUnit
+  // results, never a "# Build results #" section, so validateBuild turned a
+  // fully passing suite into "There was an error building the project".
+  it("skips build-output validation for test runs", async () => {
+    System.run = mock(() =>
+      Promise.resolve({ output: '<test-run id="2" result="Passed" total="5" passed="5"/>', error: "" }),
+    );
+    const validateBuildMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateBuildMock;
+
+    await Docker.run("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      hostPlatform: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      runTests: true,
+    } as any);
+
+    expect(validateBuildMock).not.toHaveBeenCalled();
+  });
+
   it("still validates build output for real (non-activate-only) builds", async () => {
     System.run = mock(() => Promise.resolve({ output: "# Build results #\nErrors: 0\nSize:", error: "" }));
     const validateBuildMock = mock(() => {});

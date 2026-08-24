@@ -12,7 +12,7 @@ function engineEnvVars(options: Options) {
 
 class Docker {
   static async run(image: string, options: Options) {
-    const { hostPlatform, hostOS, engine, activateOnly } = options;
+    const { hostPlatform, hostOS, engine, activateOnly, runTests } = options;
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
 
@@ -40,9 +40,17 @@ class Docker {
       // build. An activate-only run never produces one - it was throwing
       // "There was an error building the project" on every successful
       // activation, because there's no build to validate in the first place.
+      //
+      // A test run (game-ci/unity-test-runner#310) has exactly the same
+      // shape and was missed by that fix: `game-ci test --docker` produces
+      // NUnit results, never a "# Build results #" section, so a fully
+      // passing suite ("result=Passed total=5 passed=5") was still being
+      // reported as `There was an error building the project`. Test
+      // outcomes are validated from the results XML by the caller, not from
+      // build-log scraping, so there is nothing for validateBuild to do here.
       switch (engine) {
         case "unity":
-          if (!activateOnly) {
+          if (!activateOnly && !runTests) {
             UnityBuildValidation.validateBuild(dockerRun.output);
           }
           break;
