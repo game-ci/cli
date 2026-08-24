@@ -70,7 +70,11 @@ export function digestDirectory(
 
       if (!IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
 
-      const contents = fsImpl.readFileSync(full);
+      // Read as a plain Uint8Array view rather than passing the Buffer
+      // through directly - this plugin's isolated tsconfig resolves a
+      // stricter BinaryLike type than crypto.Hash#update's Buffer overload
+      // expects, even though both ultimately reference the same Node types.
+      const contents = new Uint8Array(fsImpl.readFileSync(full));
       const digest = crypto.createHash('sha256').update(contents).digest('hex');
       // Normalize to forward slashes so a baseline captured on Linux still
       // matches the same capture produced on a Windows runner.

@@ -20,8 +20,35 @@
         "typescript": "^5.3.3",
       },
     },
+    "plugins/anti-cheat": {
+      "name": "@game-ci/anti-cheat",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
     "plugins/code-signing": {
       "name": "@game-ci/code-signing",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
+    "plugins/dedicated-server-provisioning": {
+      "name": "@game-ci/dedicated-server-provisioning",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
+    "plugins/dev-tunnel": {
+      "name": "@game-ci/dev-tunnel",
       "version": "0.0.1",
       "devDependencies": {
         "@types/node": "^17.0.23",
@@ -144,6 +171,15 @@
     },
     "plugins/save-data-compat": {
       "name": "@game-ci/save-data-compat",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
+    "plugins/screen-capture": {
+      "name": "@game-ci/screen-capture",
       "version": "0.0.1",
       "devDependencies": {
         "@types/node": "^17.0.23",
@@ -428,7 +464,13 @@
 
     "@fastify/busboy": ["@fastify/busboy@2.1.1", "", {}, "sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA=="],
 
+    "@game-ci/anti-cheat": ["@game-ci/anti-cheat@workspace:plugins/anti-cheat"],
+
     "@game-ci/code-signing": ["@game-ci/code-signing@workspace:plugins/code-signing"],
+
+    "@game-ci/dedicated-server-provisioning": ["@game-ci/dedicated-server-provisioning@workspace:plugins/dedicated-server-provisioning"],
+
+    "@game-ci/dev-tunnel": ["@game-ci/dev-tunnel@workspace:plugins/dev-tunnel"],
 
     "@game-ci/gamemaker": ["@game-ci/gamemaker@workspace:plugins/gamemaker"],
 
@@ -447,6 +489,8 @@
     "@game-ci/runtime-test-framework": ["@game-ci/runtime-test-framework@workspace:plugins/runtime-test-framework"],
 
     "@game-ci/save-data-compat": ["@game-ci/save-data-compat@workspace:plugins/save-data-compat"],
+
+    "@game-ci/screen-capture": ["@game-ci/screen-capture@workspace:plugins/screen-capture"],
 
     "@game-ci/steam-deploy": ["@game-ci/steam-deploy@workspace:plugins/steam-deploy"],
 
@@ -1676,7 +1720,13 @@
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
+    "@game-ci/anti-cheat/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
     "@game-ci/code-signing/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/dedicated-server-provisioning/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/dev-tunnel/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/gamemaker/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
@@ -1695,6 +1745,8 @@
     "@game-ci/runtime-test-framework/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/save-data-compat/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/screen-capture/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/steam-deploy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 

@@ -77,15 +77,6 @@ export class OutputTypeRegistry {
       description: 'Debug symbols for crash symbolication (dSYM, PDB, Breakpad, IL2CPP maps)',
       builtIn: true,
     },
-    // Reference captures a run is compared against; kept separate from
-    // `images` (the current run's captures) so a baseline is never
-    // overwritten by the run being judged against it.
-    'visual-baseline': {
-      name: 'visual-baseline',
-      defaultPath: './VisualBaseline/',
-      description: 'Reference screenshots for visual-regression comparison',
-      builtIn: true,
-    },
   };
 
   private static customTypes: Record<string, OutputTypeDefinition> = {};
