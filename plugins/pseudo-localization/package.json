@@ -1,0 +1,32 @@
+{
+  "name": "@game-ci/pseudo-localization",
+  "version": "0.0.1",
+  "description": "Pseudo-localization QA plugin (draft). Injects pseudo-loc strings pre-translation to catch UI overflow/truncation bugs.",
+  "license": "MIT",
+  "repository": "git@github.com:game-ci/cli.git",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.23",
+    "typescript": "4.7.4",
+    "vitest": "^4"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
