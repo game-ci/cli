@@ -59,7 +59,7 @@ describe('OutputTypeRegistry', () => {
     it('should have 10 built-in types', () => {
       const allTypes = OutputTypeRegistry.getAllTypes();
       const builtInTypes = allTypes.filter((t) => t.builtIn);
-      expect(builtInTypes).toHaveLength(10);
+      expect(builtInTypes).toHaveLength(9);
     });
 
     it.each([
@@ -72,7 +72,6 @@ describe('OutputTypeRegistry', () => {
       'metrics',
       'coverage',
       'symbols',
-      'visual-baseline',
     ])('should include built-in type "%s"', (typeName) => {
       const typeDef = OutputTypeRegistry.getType(typeName);
       expect(typeDef).toBeDefined();
@@ -141,7 +140,7 @@ describe('OutputTypeRegistry', () => {
       });
 
       const allTypes = OutputTypeRegistry.getAllTypes();
-      expect(allTypes.length).toBe(11); // 10 built-in + 1 custom
+      expect(allTypes.length).toBe(10); // 9 built-in + 1 custom
       expect(allTypes.some((t) => t.name === 'custom-a')).toBe(true);
     });
 

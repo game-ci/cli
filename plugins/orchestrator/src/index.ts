@@ -62,11 +62,15 @@ export type {
 } from './model/orchestrator/services/reliability';
 export { TestWorkflowService } from './model/orchestrator/services/test-workflow';
 
-// Build-lifecycle capabilities. These were originally drafted as separate
-// @game-ci/* plugins, but a plugin adds user-facing command surface (see
-// steam-deploy, runtime-test-framework, the engine plugins) whereas these
-// are all things that happen *to* a build or a running job - orchestrator's
-// existing domain. See each module's doc comment.
+// Crash-symbol collection. Debug symbols have to be captured at build time
+// or they are gone for good, so this is an output-collection concern -
+// orchestrator's existing domain (see the `symbols` built-in output type) -
+// rather than a standalone plugin. The other four capabilities once drafted
+// alongside this one (visual regression, dedicated-server provisioning, the
+// service directory, anti-cheat middleware) were reclassified back to
+// @game-ci/* plugins instead - see plugins/screen-capture,
+// plugins/dedicated-server-provisioning, plugins/dev-tunnel,
+// plugins/anti-cheat.
 export {
   collectSymbols,
   summarizeSymbols,
@@ -76,38 +80,6 @@ export type {
   SymbolFormat,
   CollectSymbolsOptions,
 } from './model/orchestrator/services/output/symbol-collector';
-export {
-  compareVisualCaptures,
-  digestDirectory,
-  summarizeVisualComparison,
-} from './model/orchestrator/services/output/visual-baseline';
-export type {
-  VisualChangeKind,
-  VisualComparisonEntry,
-  VisualComparisonResult,
-} from './model/orchestrator/services/output/visual-baseline';
-export {
-  generateDockerCompose,
-  generateSystemdUnit,
-  generateFirewallRules,
-} from './model/orchestrator/services/provisioning/dedicated-server-provisioner';
-export type {
-  DedicatedServerConfig,
-  ServerPort,
-} from './model/orchestrator/services/provisioning/dedicated-server-provisioner';
-export {
-  ServiceDirectory,
-  ServiceDirectoryError,
-} from './model/orchestrator/services/network/service-directory';
-export type {
-  ServiceEntry,
-  ServiceVisibility,
-} from './model/orchestrator/services/network/service-directory';
-export { createAntiCheatMiddleware } from './model/orchestrator/services/hooks/presets/anti-cheat-middleware';
-export type {
-  AntiCheatProvider,
-  AntiCheatMiddlewareConfig,
-} from './model/orchestrator/services/hooks/presets/anti-cheat-middleware';
 export {
   PreflightService,
   builtInChecks,
