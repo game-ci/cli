@@ -71,6 +71,7 @@ export class Cli {
     // src/ tree.
     await PluginLoader.load("@game-ci/orchestrator/cli-plugin");
     await PluginLoader.load("@game-ci/steam-deploy");
+    await PluginLoader.load("@game-ci/runtime-test-framework");
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);

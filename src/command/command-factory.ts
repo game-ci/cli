@@ -36,7 +36,11 @@ export class CommandFactory {
     // that folder's contents don't carry any Unity/Godot/Unreal project
     // markers for detectEngine() to find. Dispatched via the '*' engine
     // wildcard in PluginRegistry.createCommand.
-    if (command === "deploy") {
+    // test-runtime doesn't require engine detection either, for the same
+    // reason deploy doesn't: it launches an already-built player
+    // executable, which carries no Unity/Godot/Unreal project markers of
+    // its own for detectEngine() to find.
+    if (command === "deploy" || command === "test-runtime") {
       const pluginCommand = PluginRegistry.createCommand("*", command, subCommands);
       if (pluginCommand) {
         return pluginCommand;
