@@ -4,11 +4,11 @@ import type {
   CommandPlugin,
   OptionsPlugin,
   ProviderPlugin,
-} from './plugin-interface.ts';
-import type { YargsInstance } from '../dependencies.ts';
-import { CommandInterface } from '../command/command-interface.ts';
+} from "./plugin-interface.ts";
+import type { YargsInstance } from "../dependencies.ts";
+import { CommandInterface } from "../command/command-interface.ts";
 
-const globalLogger = typeof globalThis !== 'undefined' && 'log' in globalThis ? (globalThis as any).log : undefined;
+const globalLogger = typeof globalThis !== "undefined" && "log" in globalThis ? (globalThis as any).log : undefined;
 
 /**
  * Central plugin registry.
@@ -52,7 +52,7 @@ export class PluginRegistry {
       await plugin.onLoad();
     }
 
-    globalLogger?.info?.(`Plugin registered: ${plugin.name}${plugin.version ? ` v${plugin.version}` : ''}`);
+    globalLogger?.info?.(`Plugin registered: ${plugin.name}${plugin.version ? ` v${plugin.version}` : ""}`);
   }
 
   /**
@@ -80,21 +80,32 @@ export class PluginRegistry {
   static detectEngine(projectPath: string): { engine: string; engineVersion: string } {
     for (const detector of PluginRegistry.engineDetectors) {
       const result = detector.detect(projectPath);
-      if (result && result.engine !== 'unknown') {
+      if (result && result.engine !== "unknown") {
         return result;
       }
     }
 
-    return { engine: 'unknown', engineVersion: 'unknown' };
+    return { engine: "unknown", engineVersion: "unknown" };
   }
 
   /**
    * Create a command for the given engine. Queries registered command plugins
-   * for the engine, returning the first match.
+   * for the engine, returning the first match. Plugins registered with
+   * engine '*' are engine-agnostic (e.g. deploy commands, which apply to a
+   * pre-built output folder regardless of which engine produced it) and are
+   * checked after exact-engine matches, mirroring configureOptions' existing
+   * '*' handling for options plugins.
    */
   static createCommand(engine: string, command: string, subCommands: string[]): CommandInterface | null {
     for (const plugin of PluginRegistry.commandPlugins) {
       if (plugin.engine === engine) {
+        const cmd = plugin.createCommand(command, subCommands);
+        if (cmd) return cmd;
+      }
+    }
+
+    for (const plugin of PluginRegistry.commandPlugins) {
+      if (plugin.engine === "*") {
         const cmd = plugin.createCommand(command, subCommands);
         if (cmd) return cmd;
       }
@@ -108,7 +119,7 @@ export class PluginRegistry {
    */
   static async configureOptions(engine: string, yargs: YargsInstance): Promise<void> {
     for (const plugin of PluginRegistry.optionsPlugins) {
-      if (plugin.engine === engine || plugin.engine === '*') {
+      if (plugin.engine === engine || plugin.engine === "*") {
         await plugin.configure(yargs);
       }
     }

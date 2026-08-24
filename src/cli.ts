@@ -70,6 +70,7 @@ export class Cli {
     // (@game-ci/orchestrator/cli-plugin), never a relative path into its
     // src/ tree.
     await PluginLoader.load("@game-ci/orchestrator/cli-plugin");
+    await PluginLoader.load("@game-ci/steam-deploy");
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);
@@ -251,9 +252,15 @@ export class Cli {
   }
 
   private registerCommand(args: YargsArguments) {
-    const { engine, engineVersion, _: command } = args;
+    const { engine, engineVersion, _: command, target } = args;
     const commandCast = command as string[];
-    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(commandCast);
+    // `deploy <target> [buildPath]`'s <target> is a named yargs positional
+    // (e.g. args.target === 'steam'), not part of `_` - yargs only puts
+    // bare, undeclared trailing tokens into `_`. Fold it back in so
+    // CommandFactory's [command, ...subCommands] dispatch still sees it as
+    // subCommands[0], exactly as if it actually were the second `_` entry.
+    const fullCommand = target ? [...commandCast, target as string] : commandCast;
+    this.command = new CommandFactory().selectEngine(engine, engineVersion).createCommand(fullCommand);
   }
 
   protected async finalParse() {
