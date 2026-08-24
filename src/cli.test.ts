@@ -43,6 +43,19 @@ describe("Cli plugin loading", () => {
     expect(PluginRegistry.getRegisteredPlugins().some((plugin) => plugin.name === "orchestrator")).toBe(true);
   });
 
+  it("loads steam-deploy through PluginLoader and resolves `deploy steam` without engine detection", async () => {
+    const cli = new Cli([], process.cwd());
+
+    await cli.setup();
+
+    expect(PluginRegistry.getRegisteredPlugins().some((plugin) => plugin.name === "steam-deploy")).toBe(true);
+
+    // No engine detected (Engine.unknown) - deploy must resolve via the '*'
+    // wildcard bypass in CommandFactory, not the normal engine-scoped path.
+    const command = new CommandFactory().createCommand(["deploy", "steam"]);
+    expect(command.name).toBe("Deploy steam");
+  });
+
   it("loads executable plugins from config during setup", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-"));
     try {
