@@ -69,6 +69,15 @@
         "vitest": "^4",
       },
     },
+    "plugins/pseudo-localization": {
+      "name": "@game-ci/pseudo-localization",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
     "plugins/steam-deploy": {
       "name": "@game-ci/steam-deploy",
       "version": "0.1.0",
@@ -338,6 +347,8 @@
     "@fastify/busboy": ["@fastify/busboy@2.1.1", "", {}, "sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA=="],
 
     "@game-ci/orchestrator": ["@game-ci/orchestrator@workspace:plugins/orchestrator"],
+
+    "@game-ci/pseudo-localization": ["@game-ci/pseudo-localization@workspace:plugins/pseudo-localization"],
 
     "@game-ci/steam-deploy": ["@game-ci/steam-deploy@workspace:plugins/steam-deploy"],
 
@@ -1566,6 +1577,8 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@game-ci/orchestrator/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/pseudo-localization/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/steam-deploy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
