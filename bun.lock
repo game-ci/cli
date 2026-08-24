@@ -56,15 +56,6 @@
         "vitest": "^4",
       },
     },
-    "plugins/live-show": {
-      "name": "@game-ci/live-show",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@types/node": "^17.0.23",
-        "typescript": "4.7.4",
-        "vitest": "^4",
-      },
-    },
     "plugins/orchestrator": {
       "name": "@game-ci/orchestrator",
       "version": "1.0.0",
@@ -444,8 +435,6 @@
     "@game-ci/github-release-deploy": ["@game-ci/github-release-deploy@workspace:plugins/github-release-deploy"],
 
     "@game-ci/itch-deploy": ["@game-ci/itch-deploy@workspace:plugins/itch-deploy"],
-
-    "@game-ci/live-show": ["@game-ci/live-show@workspace:plugins/live-show"],
 
     "@game-ci/orchestrator": ["@game-ci/orchestrator@workspace:plugins/orchestrator"],
 
@@ -1694,8 +1683,6 @@
     "@game-ci/github-release-deploy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/itch-deploy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
-
-    "@game-ci/live-show/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/orchestrator/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
