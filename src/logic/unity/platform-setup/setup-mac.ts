@@ -1,6 +1,6 @@
-import { fsSync as fs } from '../../../dependencies.ts';
-import type { Options } from '../../../dependencies.ts';
-import { System } from '../../../model/system/system.ts';
+import { fsSync as fs } from "../../../dependencies.ts";
+import type { Options } from "../../../dependencies.ts";
+import { System } from "../../../model/system/system.ts";
 
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
@@ -23,7 +23,7 @@ class SetupMac {
         await SetupMac.installUnity(options);
       } else {
         throw new Error(String.dedent`Unity Editor ${options.engineVersion} is not installed at the default location.
-        Please install Unity Editor ${options.engineVersion} at the default location with the necessary modules and try again.`)
+        Please install Unity Editor ${options.engineVersion} at the default location with the necessary modules and try again.`);
       }
     }
 
@@ -31,13 +31,12 @@ class SetupMac {
   }
 
   private static async installUnityHub(options: Options, silent = false) {
-
-    const targetHubVersion =
-      options.unityHubVersionOnMac !== ''
-        ? options.unityHubVersionOnMac
-        : await SetupMac.getLatestUnityHubVersion();
-
-    const command = `brew install unity-hub@${targetHubVersion}`;
+    // Unity Hub is distributed on Homebrew as a cask, not a formula, so it has no `@version`
+    // formula-style pinning by default. Install the unversioned cask (always the latest available)
+    // unless the caller explicitly pinned a version, in which case we pass through the
+    // `<cask>@<version>` token Homebrew uses for casks that publish versioned taps.
+    const versionSuffix = options.unityHubVersionOnMac !== "" ? `@${options.unityHubVersionOnMac}` : "";
+    const command = `brew install --cask unity-hub${versionSuffix}`;
 
     if (!fs.existsSync(this.unityHubBasePath)) {
       try {
@@ -48,36 +47,23 @@ class SetupMac {
     }
   }
 
-  /**
-   * Gets the latest version of Unity Hub available on brew
-   */
-  private static async getLatestUnityHubVersion(): Promise<string> {
-    const hubVersionCommand = `/bin/bash -c "brew info unity-hub | grep -o '[0-9]\\+\\.[0-9]\\+\\.[0-9]\\+'"`;
-    const result = await System.run(hubVersionCommand, undefined, { silent: true });
-    if (result.status?.code === 0 && result.output !== '') {
-      return result.output;
-    }
-
-    return '';
-  }
-
   private static getModuleParametersForTargetPlatform(targetPlatform: string): string {
-    let moduleArgument = '';
+    let moduleArgument = "";
     switch (targetPlatform) {
-      case 'iOS':
+      case "iOS":
         moduleArgument += `--module ios `;
         break;
-      case 'tvOS':
-        moduleArgument += '--module tvos ';
+      case "tvOS":
+        moduleArgument += "--module tvos ";
         break;
-      case 'StandaloneOSX':
+      case "StandaloneOSX":
         moduleArgument += `--module mac-il2cpp `;
         break;
-      case 'Android':
+      case "Android":
         moduleArgument += `--module android `;
         break;
-      case 'WebGL':
-        moduleArgument += '--module webgl ';
+      case "WebGL":
+        moduleArgument += "--module webgl ";
         break;
       default:
         throw new Error(`Unsupported module for target platform: ${targetPlatform}.`);
