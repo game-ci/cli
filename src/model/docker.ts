@@ -84,6 +84,7 @@ class Docker {
       dockerMemoryLimit,
       dockerShmSize,
       engineLaunchWrapper,
+      runTests,
     } = options as Options & { commands?: string };
 
     const home = homeDir;
@@ -125,6 +126,16 @@ class Docker {
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : "",
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
       isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
+      // --testPlatforms=standalone copies these Editor/Player helper scripts
+      // into the project before building the standalone test player. Without
+      // this mount, test.sh's `cp -R "/UnityTestRunnerAction/Assets/..."`
+      // fails outright, so standalone was silently unrunnable in Docker mode.
+      // The original unity-test-runner action mounted the same directory (as
+      // /UnityStandaloneScripts) - only the mount was lost in the port to the
+      // CLI, not the scripts themselves.
+      isUnityDefaultFlow && runTests
+        ? `--volume "${cliDistPath}/test-standalone-scripts:/UnityTestRunnerAction:z"`
+        : "",
       sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
       sshAgent && !sshPublicKeysDirectoryPath ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
       sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : "",
@@ -151,6 +162,7 @@ class Docker {
       dockerShmSize,
       dockerIsolationMode,
       engineLaunchWrapper,
+      runTests,
     } = options as Options & { commands?: string };
 
     // Same "don't force Unity's flow onto a non-Unity engine" fix as
@@ -208,6 +220,12 @@ class Docker {
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : "",
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : "",
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : "",
+      // Windows counterpart of getLinuxCommand's own
+      // /UnityTestRunnerAction mount - see the comment there. Consumed by
+      // platforms/windows/steps/test.ps1's $TestRunnerActionDir fallback.
+      isUnityDefaultFlow && runTests
+        ? `  --volume="${cliDistPath}/test-standalone-scripts":"c:/UnityTestRunnerAction" \``
+        : "",
       `  ${image} \``,
       isUnityDefaultFlow ? "  powershell c:/steps/entrypoint.ps1" : `  ${wrappedCommands}`,
     ]
