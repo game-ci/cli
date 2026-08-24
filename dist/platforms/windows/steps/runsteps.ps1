@@ -5,8 +5,13 @@
 # HostRunner (src/model/host-runner.ts, see its class doc comment) against
 # a self-hosted Windows machine with Unity already installed via Unity Hub
 # - NOT the dist/platforms/windows/*.ps1 Docker-container script set one
-# directory up, which assumes a container-baked $Env:UNITY_PATH and has no
-# RUN_TESTS support at all.
+# directory up, which assumes a container-baked $Env:UNITY_PATH.
+#
+# Note that test.ps1 in this directory is shared with that container set:
+# entrypoint.ps1's RUN_TESTS branch dot-sources it directly rather than
+# duplicating the test flow, since $Env:UNITY_PATH is precisely what
+# resolve_unity_path.ps1's Get-UnityEditorRoot checks first. Keep it free
+# of host-only assumptions.
 #
 # $PSScriptRoot is this script's own directory, so sibling steps are always
 # resolved correctly regardless of where dist/ was copied to - STEPS_DIR is

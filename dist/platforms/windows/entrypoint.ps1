@@ -39,10 +39,64 @@ if ($Env:ACTIVATE_ONLY -eq "true") {
   exit $LASTEXITCODE
 }
 
-# Build the project
-& "c:\steps\build.ps1"
+# RUN_TESTS=true (used by `game-ci test --docker`, see game-ci/cli's
+# UnityTestCommand) runs the classic batchmode test flow instead of a build -
+# same activation/license-return steps either way, only the middle step
+# differs. Mirrors ubuntu/steps/runsteps.sh's own RUN_TESTS branch.
+#
+# The test implementation is deliberately NOT duplicated into this
+# container script set. steps/test.ps1 (the native-host set, one directory
+# down) is already container-safe: the only container/host difference that
+# ever mattered is how the Unity Editor is located, and its
+# resolve_unity_path.ps1 already honours the image-baked $Env:UNITY_PATH
+# as-is (see Get-UnityEditorRoot) before falling back to the Unity Hub
+# default. Docker.getWindowsCommand mounts the whole
+# dist/platforms/windows directory at c:\steps, so that script is already
+# present at c:\steps\steps\test.ps1 - no extra volume needed. The doubled
+# "steps\steps" path is that mount's artifact, not a typo.
+#
+# Dot-sourced rather than called with & so the $global:TEST_RUNNER_EXIT_CODE
+# it sets is visible here; build.ps1 communicates via $Env: instead, which
+# crosses the & call boundary on its own.
+if ($Env:RUN_TESTS -eq "true") {
+  . "c:\steps\steps\test.ps1"
+  $StepExitCode = [int]$global:TEST_RUNNER_EXIT_CODE
+} else {
+  & "c:\steps\build.ps1"
+  $StepExitCode = [int]$Env:BUILD_EXIT_CODE
+}
 
 # Free the seat for the activated license
 if ($Env:SKIP_ACTIVATION -ne "true") {
   & "c:\steps\return_license.ps1"
 }
+
+#
+# Instructions for debugging - matches ubuntu/steps/runsteps.sh's own block.
+#
+
+if ($StepExitCode -gt 0) {
+  Write-Host ""
+  Write-Host "###########################"
+  Write-Host "#         Failure         #"
+  Write-Host "###########################"
+  Write-Host ""
+  Write-Host "Please note that the exit code is not very descriptive."
+  Write-Host "Most likely it will not help you solve the issue."
+  Write-Host ""
+  Write-Host "To find the reason for failure: please search for errors in the log above."
+  Write-Host ""
+}
+
+#
+# Exit with the code from the build/test step.
+#
+# Previously this script just fell off the end, so the container's exit code
+# was whatever the last command (return_license.ps1) happened to leave
+# behind - a build/test failure could therefore surface as a *successful*
+# container run. Builds were saved from that by
+# UnityBuildValidation.validateBuild parsing the log output, but a test run
+# has no equivalent output check, so propagate the real code explicitly.
+#
+
+exit $StepExitCode

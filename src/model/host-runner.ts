@@ -25,12 +25,16 @@ import { path, fsSync as fs } from '../dependencies.ts';
  * Windows note: dist/platforms/windows/*.ps1 (activate.ps1, build.ps1,
  * entrypoint.ps1, ...) are the *Docker container* scripts for
  * `unityci/editor` Windows images - they assume a baked-in $Env:UNITY_PATH
- * and container-only setup, and have no RUN_TESTS support at all. This
- * class instead uses a separate, genuinely native script set under
- * dist/platforms/windows/steps/ (mirroring dist/platforms/ubuntu/steps/),
- * which resolve Unity's install location dynamically from Unity Hub's
- * default install directory (or $Env:UNITY_PATH if set) rather than
- * assuming a container-baked path.
+ * and container-only setup. This class instead uses a separate, genuinely
+ * native script set under dist/platforms/windows/steps/ (mirroring
+ * dist/platforms/ubuntu/steps/), which resolve Unity's install location
+ * dynamically from Unity Hub's default install directory (or
+ * $Env:UNITY_PATH if set) rather than assuming a container-baked path.
+ *
+ * The two sets are not fully disjoint: entrypoint.ps1's RUN_TESTS branch
+ * deliberately reuses steps/test.ps1 rather than duplicating it, since
+ * $Env:UNITY_PATH is exactly the case Get-UnityEditorRoot already handles
+ * first. Only the build/activate halves remain genuinely separate.
  */
 class HostRunner {
   private static buildEnv(options: Options): Record<string, string> {

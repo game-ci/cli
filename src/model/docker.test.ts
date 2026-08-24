@@ -38,6 +38,32 @@ describe("Docker", () => {
     expect(validateBuildMock).not.toHaveBeenCalled();
   });
 
+  // Real bug (game-ci/unity-test-runner#310): a test run produces NUnit
+  // results, never a "# Build results #" section, so validateBuild turned a
+  // fully passing suite into "There was an error building the project".
+  it("skips build-output validation for test runs", async () => {
+    System.run = mock(() =>
+      Promise.resolve({ output: '<test-run id="2" result="Passed" total="5" passed="5"/>', error: "" }),
+    );
+    const validateBuildMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateBuildMock;
+
+    await Docker.run("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      hostPlatform: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      runTests: true,
+    } as any);
+
+    expect(validateBuildMock).not.toHaveBeenCalled();
+  });
+
   it("still validates build output for real (non-activate-only) builds", async () => {
     System.run = mock(() => Promise.resolve({ output: "# Build results #\nErrors: 0\nSize:", error: "" }));
     const validateBuildMock = mock(() => {});
@@ -339,6 +365,80 @@ describe("Docker", () => {
     fs.existsSync = originalExistsSync;
 
     expect(command).not.toContain('"C:/Program Files/Microsoft Visual Studio"');
+  });
+
+  // Regression test for a real bug: dist/test-standalone-scripts holds the
+  // Editor/Player helper scripts that --testPlatforms=standalone copies into
+  // the project, and ubuntu/steps/test.sh reads them from
+  // /UnityTestRunnerAction - but nothing ever mounted them there, so a
+  // standalone Docker test run died on `cp -R`. The original
+  // unity-test-runner action mounted the same directory; only the mount was
+  // lost in the port to this CLI.
+  it("mounts the standalone test helper scripts for a Linux test run", () => {
+    const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      runTests: true,
+    });
+
+    expect(command).toContain(
+      '--volume "/home/runner/work/cli/cli/dist/test-standalone-scripts:/UnityTestRunnerAction:z"',
+    );
+  });
+
+  it("does not mount the standalone test helper scripts for a plain Linux build", () => {
+    const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+    });
+
+    expect(command).not.toContain("UnityTestRunnerAction");
+  });
+
+  it("mounts the standalone test helper scripts for a Windows test run", () => {
+    const command = (Docker as any).getWindowsCommand("game-ci/unity-editor-stub:latest", {
+      currentWorkDir: "C:/work/cli",
+      homeDir: "C:/Users/runner",
+      cliDistPath: "C:/work/cli/dist",
+      cliStoragePath: "C:/work/.game-ci",
+      unitySerial: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      runTests: true,
+    });
+
+    expect(command).toContain('--volume="C:/work/cli/dist/test-standalone-scripts":"c:/UnityTestRunnerAction"');
+    // The whole platforms/windows tree is mounted at c:/steps, which is what
+    // puts the shared steps/test.ps1 entrypoint.ps1 dot-sources in reach.
+    expect(command).toContain('--volume="C:/work/cli/dist/platforms/windows":"c:/steps"');
+  });
+
+  it("does not mount the standalone test helper scripts for a plain Windows build", () => {
+    const command = (Docker as any).getWindowsCommand("game-ci/unity-editor-stub:latest", {
+      currentWorkDir: "C:/work/cli",
+      homeDir: "C:/Users/runner",
+      cliDistPath: "C:/work/cli/dist",
+      cliStoragePath: "C:/work/.game-ci",
+      unitySerial: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+    });
+
+    expect(command).not.toContain("UnityTestRunnerAction");
   });
 
   it.skip("runs", async () => {

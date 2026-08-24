@@ -1,5 +1,14 @@
-# Native Windows host-mode equivalent of ../../ubuntu/steps/test.sh - see
-# runsteps.ps1's doc comment.
+# Windows equivalent of ../../ubuntu/steps/test.sh - see runsteps.ps1's doc
+# comment.
+#
+# Shared by BOTH Windows test paths, deliberately: HostRunner's native
+# host mode (via runsteps.ps1) and the Docker container flow (via
+# ../entrypoint.ps1's RUN_TESTS branch, which dot-sources this file at
+# c:\steps\steps\test.ps1). Everything container-specific is already
+# handled by environment: resolve_unity_path.ps1 returns the image-baked
+# $Env:UNITY_PATH when set, and $TestRunnerActionDir below falls back to
+# the c:\UnityTestRunnerAction mount. Do not add host-only assumptions
+# here without giving the container an equivalent.
 #
 # Standalone sub-flow: the Linux version wraps the built standalone test
 # player in `xvfb-run` to give it a virtual X display. Windows has a real
@@ -165,7 +174,21 @@ foreach ($Platform in $Platforms) {
     New-Item -ItemType Directory -Force -Path $EditorDir | Out-Null
     New-Item -ItemType Directory -Force -Path $PlayerDir | Out-Null
 
-    $TestRunnerActionDir = if ($Env:TEST_RUNNER_ACTION_DIR) { $Env:TEST_RUNNER_ACTION_DIR } else { Join-Path $Env:ACTION_FOLDER 'test-standalone-scripts' }
+    # Host mode (HostRunner) sets TEST_RUNNER_ACTION_DIR outright; the mac
+    # script set sets ACTION_FOLDER instead. In Docker mode neither is set,
+    # and Docker.getWindowsCommand mounts dist/test-standalone-scripts at
+    # c:\UnityTestRunnerAction - the Windows counterpart of the
+    # /UnityTestRunnerAction that ubuntu/steps/test.sh already defaults to.
+    $TestRunnerActionDir =
+      if ($Env:TEST_RUNNER_ACTION_DIR) { $Env:TEST_RUNNER_ACTION_DIR }
+      elseif ($Env:ACTION_FOLDER) { Join-Path $Env:ACTION_FOLDER 'test-standalone-scripts' }
+      else { 'c:\UnityTestRunnerAction' }
+
+    if (-not (Test-Path $TestRunnerActionDir)) {
+      Write-Host "Standalone test scripts not found at `"$TestRunnerActionDir`". Set TEST_RUNNER_ACTION_DIR to the directory containing Assets\Editor and Assets\Player."
+      $global:TEST_RUNNER_EXIT_CODE = 1
+      return
+    }
     Copy-Item -Path (Join-Path $TestRunnerActionDir 'Assets\Editor\*') -Destination $EditorDir -Recurse -Force
     Copy-Item -Path (Join-Path $TestRunnerActionDir 'Assets\Player\*') -Destination $PlayerDir -Recurse -Force
 

@@ -47,6 +47,10 @@ function defaultTestTargetPlatform(hostPlatform: string = process.platform): str
  *    container, for self-hosted runners with Unity already installed (see
  *    HostRunner) - mirrors orchestrator's own local (host) provider vs its
  *    docker provider.
+ *
+ *    Supported on Linux and Windows containers alike; macOS has no Unity
+ *    Editor Docker images to run in, so it is rejected (use --local, or the
+ *    default `unity test` CLI path, there).
  */
 export class UnityTestCommand extends CommandBase implements CommandInterface {
   public async execute(options: Options): Promise<boolean> {
@@ -97,25 +101,24 @@ export class UnityTestCommand extends CommandBase implements CommandInterface {
       return true;
     }
 
-    // Docker (container) test mode is currently only wired up for Linux
-    // containers - dist/platforms/ubuntu/steps/test.sh + runsteps.sh's
-    // RUN_TESTS branch. Windows' entrypoint.ps1 (the unityci/editor
-    // Windows *container* image's entrypoint - see HostRunner's doc comment
-    // for why that's a different script set from HostRunner's own native
-    // dist/platforms/windows/steps/) doesn't know about RUN_TESTS yet (it
-    // always runs build.ps1), so running this on a Windows host today would
-    // silently attempt a BUILD instead of a test rather than failing
-    // loudly - reject it explicitly instead. macOS has no Unity Editor
-    // Docker images at all. Checked before PlatformSetup.setup runs, so
-    // this fails fast instead of after prompting for credentials.
-    if (hostPlatform !== 'linux') {
+    // Docker (container) test mode is wired up for Linux containers
+    // (dist/platforms/ubuntu/steps/test.sh, via runsteps.sh's RUN_TESTS
+    // branch) and for Windows containers (dist/platforms/windows/
+    // entrypoint.ps1's own RUN_TESTS branch, which reuses steps/test.ps1 -
+    // container-safe because its resolve_unity_path.ps1 honours the
+    // image-baked $Env:UNITY_PATH).
+    //
+    // macOS is still rejected, and always will be for this flow: there are
+    // no Unity Editor Docker images for macOS at all, so there is nothing
+    // to run the container-side scripts in. Checked before
+    // PlatformSetup.setup runs, so this fails fast instead of after
+    // prompting for credentials.
+    if (hostPlatform === 'darwin') {
       throw new Error(
-        `--docker's classic batchmode test flow is currently only supported on Linux hosts/containers ` +
-          `(got hostPlatform=${hostPlatform}). ${
-            hostPlatform === 'darwin'
-              ? 'No Unity Editor Docker images exist for macOS - omit --docker to use the native `unity test` CLI instead.'
-              : 'Windows Docker test support is tracked separately (the container-side scripts only handle builds so far).'
-          }`,
+        `--docker's classic batchmode test flow is not supported on macOS hosts ` +
+          `(got hostPlatform=${hostPlatform}). No Unity Editor Docker images exist for macOS - omit ` +
+          '--docker to use the native `unity test` CLI instead, or add --local to run the same batchmode ' +
+          'flow directly against a locally installed Unity.',
       );
     }
 

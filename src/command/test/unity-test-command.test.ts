@@ -113,4 +113,30 @@ describe('UnityTestCommand', () => {
       command.execute({ docker: true, hostPlatform: 'darwin', engineVersion: '2022.3.20f1' } as any),
     ).rejects.toThrow(/macOS/i);
   });
+
+  // Windows Docker test runs used to be rejected outright, because the
+  // container entrypoint.ps1 had no RUN_TESTS branch and would silently run
+  // a BUILD instead. It has one now (reusing the shared steps/test.ps1), so
+  // the flow is allowed through the same way Linux is.
+  it('--docker on Windows runs the batchmode flow instead of being rejected', async () => {
+    PlatformSetup.setup = mock(() => Promise.resolve());
+    const dockerRunMock = mock(() => Promise.resolve());
+    Docker.run = dockerRunMock;
+
+    const command = new UnityTestCommand('test');
+    const result = await command.execute({
+      docker: true,
+      hostPlatform: 'win32',
+      hostOS: 'windows',
+      engineVersion: '2022.3.20f1',
+    } as any);
+
+    expect(result).toBe(true);
+    expect(dockerRunMock).toHaveBeenCalledTimes(1);
+    const [image, options] = dockerRunMock.mock.calls[0] as unknown as [string, any];
+    // Windows' own native Standalone target, which can only resolve to the
+    // windows-il2cpp module (see RunnerImageTag) - never the Linux one.
+    expect(image).toContain('windows-il2cpp');
+    expect(options.runTests).toBe(true);
+  });
 });
