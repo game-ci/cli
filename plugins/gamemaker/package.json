@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/gamemaker",
   "version": "0.0.1",
-  "description": "GameMaker Studio engine plugin (draft). Wraps GameMaker's official Igor CLI for project builds.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): GameMaker Studio engine plugin (draft). Wraps GameMaker's official Igor CLI for project builds.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

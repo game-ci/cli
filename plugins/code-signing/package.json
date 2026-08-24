@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/code-signing",
   "version": "0.0.1",
-  "description": "Code-signing and notarization plugin (draft). macOS notarization (xcrun notarytool + stapling) and Windows Authenticode signing for built players.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Code-signing and notarization plugin (draft). macOS notarization (xcrun notarytool + stapling) and Windows Authenticode signing for built players.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

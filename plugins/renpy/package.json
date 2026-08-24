@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/renpy",
   "version": "0.0.1",
-  "description": "Ren'Py engine plugin (draft). Wraps Ren'Py's distribute command for cross-platform archive builds.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Ren'Py engine plugin (draft). Wraps Ren'Py's distribute command for cross-platform archive builds.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

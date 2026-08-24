@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/save-data-compat",
   "version": "0.0.1",
-  "description": "Save-Data Cross-Version Compatibility plugin (draft). Verifies new builds can still load a maintained corpus of historical save files.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Save-Data Cross-Version Compatibility plugin (draft). Verifies new builds can still load a maintained corpus of historical save files.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

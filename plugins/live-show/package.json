@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/live-show",
   "version": "0.0.1",
-  "description": "Live Show / Automated Demo plugin (draft). Scripted or AI-driven attract-mode playthrough that auto-restarts on crash and can stream output; doubles as an unattended soak test.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Live Show / Automated Demo plugin (draft). Scripted or AI-driven attract-mode playthrough that auto-restarts on crash and can stream output; doubles as an unattended soak test.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

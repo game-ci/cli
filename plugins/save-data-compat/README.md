@@ -1,3 +1,8 @@
+> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
+> shape is real, but its domain logic is not written. Any command it claims will
+> throw. It is not published to npm and is never loaded unless you pass
+> `--plugin @game-ci/save-data-compat` explicitly.
+
 # @game-ci/save-data-compat (draft)
 
 Verifies new builds can still load a maintained corpus of historical save

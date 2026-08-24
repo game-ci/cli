@@ -1,3 +1,8 @@
+> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
+> shape is real, but its domain logic is not written. Any command it claims will
+> throw. It is not published to npm and is never loaded unless you pass
+> `--plugin @game-ci/live-show` explicitly.
+
 # @game-ci/live-show (draft)
 
 Scripted/AI-driven attract-mode playthrough that auto-restarts on crash
