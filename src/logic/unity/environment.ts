@@ -16,6 +16,13 @@ const UnityEnvironment = {
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
       { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
+      // Not a documented core CLI option (core build/test/activate stay
+      // lean) - this is Orchestrator's advanced-ops surface
+      // (--engineLaunchWrapper on `orchestrate`). Reading the raw env var
+      // directly here still lets it reach Docker.run's non-Unity branch for
+      // Godot/Unreal, since Orchestrator has no equivalent script chain for
+      // those engines to own this instead.
+      { name: 'ENGINE_LAUNCH_WRAPPER', value: options.engineLaunchWrapper || process.env.ENGINE_LAUNCH_WRAPPER },
       { name: 'UNITY_VERSION', value: options.engineVersion },
       { name: 'USYM_UPLOAD_AUTH_TOKEN', value: options.uploadAuthToken },
       { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },
@@ -35,6 +42,22 @@ const UnityEnvironment = {
       { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
       { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
       { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },
+      // Consumed by dist/platforms/*/steps/runsteps.sh + test.sh (`game-ci
+      // test --docker`, see UnityTestCommand) - a no-op for build/activate
+      // since these are all empty/undefined there and getEnvVarString drops
+      // empty values.
+      { name: 'RUN_TESTS', value: options.runTests ? 'true' : '' },
+      { name: 'TEST_PLATFORMS', value: options.testPlatforms },
+      { name: 'ARTIFACTS_PATH', value: options.artifactsPath },
+      { name: 'COVERAGE_RESULTS_PATH', value: options.coverageResultsPath },
+      { name: 'COVERAGE_OPTIONS', value: options.coverageOptions },
+      { name: 'COVERAGE_ENABLED', value: options.coverageEnabled === false ? 'false' : 'true' },
+      { name: 'PACKAGE_MODE', value: options.packageMode ? 'true' : '' },
+      { name: 'PACKAGE_NAME', value: options.packageName },
+      { name: 'SCOPED_REGISTRY_URL', value: options.scopedRegistryUrl },
+      { name: 'REGISTRY_SCOPES', value: options.registryScopes },
+      { name: 'PRIVATE_REGISTRY_TOKEN', value: options.privateRegistryToken },
+      { name: 'PRIVATE_REGISTRY_USER', value: options.privateRegistryUser },
     ] as DockerParameter[];
   },
 };

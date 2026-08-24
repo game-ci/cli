@@ -230,6 +230,67 @@ describe('LocalCacheService', () => {
     });
   });
 
+  describe('saveEngineCache gating (skipOnCorruptionEvidence / skipOnCrashEvidence)', () => {
+    function mockCompleteLibraryFolder(): void {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockImplementation((dirPath: string) => {
+        if (String(dirPath).includes('Library') && !String(dirPath).includes('cache')) {
+          return ['file1.asset', 'file2.asset'];
+        }
+        return [];
+      });
+      (mockFs.statSync as vi.Mock).mockReturnValue({ mtimeMs: Date.now(), size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+    }
+
+    it('skips unconditionally when skipOnCorruptionEvidence is true, even with importCompleted true', async () => {
+      mockCompleteLibraryFolder();
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        skipOnCorruptionEvidence: true,
+        skipOnCrashEvidence: true,
+        diagnostics: { importCompleted: true, crashEvidenceFound: false },
+      });
+
+      expect(OrchestratorSystem.Run).not.toHaveBeenCalled();
+    });
+
+    it('skips when skipOnCrashEvidence is true and importCompleted is false', async () => {
+      mockCompleteLibraryFolder();
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        skipOnCrashEvidence: true,
+        diagnostics: { importCompleted: false, crashEvidenceFound: true },
+      });
+
+      expect(OrchestratorSystem.Run).not.toHaveBeenCalled();
+    });
+
+    it('saves when skipOnCrashEvidence is true but importCompleted is true and not corruption-specific', async () => {
+      mockCompleteLibraryFolder();
+      OrchestratorSystem.Run.mockResolvedValue('');
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        skipOnCrashEvidence: true,
+        diagnostics: { importCompleted: true, crashEvidenceFound: true },
+      });
+
+      expect(OrchestratorSystem.Run).toHaveBeenCalledWith(expect.stringContaining('tar -cf'), true);
+    });
+
+    it('the success path (no skipOnCrashEvidence/skipOnCorruptionEvidence set) saves exactly as before', async () => {
+      mockCompleteLibraryFolder();
+      OrchestratorSystem.Run.mockResolvedValue('');
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'tar',
+        maxCacheEntries: 2,
+      });
+
+      expect(OrchestratorSystem.Run).toHaveBeenCalledWith(expect.stringContaining('tar -cf'), true);
+    });
+  });
+
   describe('restoreLfsCache', () => {
     it('should return false on cache miss', async () => {
       (mockFs.existsSync as vi.Mock).mockReturnValue(false);

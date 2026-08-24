@@ -4,11 +4,18 @@ import { OrchestratorStepParameters } from '../options/orchestrator-step-paramet
 import { WorkflowInterface } from './workflow-interface';
 import { CommandHookService } from '../services/hooks/command-hook-service';
 import path from 'node:path';
+import fs from 'node:fs';
 import Orchestrator from '../orchestrator';
 import { ContainerHookService } from '../services/hooks/container-hook-service';
+import { MiddlewareService } from '../services/hooks/middleware-service';
 import { CacheCheckpointService } from '../services/cache/cache-checkpoint-service';
 import { PreflightService } from '../services/preflight';
 import { getEngine } from '../../engine';
+import {
+  UnityBuildDiagnosticsService,
+  UnityFailureCategory,
+  UnityRunDiagnostics,
+} from '../services/reliability/unity-build-diagnostics-service';
 
 export class BuildAutomationWorkflow implements WorkflowInterface {
   async run(orchestratorStepState: OrchestratorStepParameters) {
@@ -39,16 +46,42 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     OrchestratorLogger.logLine(` `);
     OrchestratorLogger.logLine('Starting build automation job');
 
-    output += await Orchestrator.Provider.runTaskInWorkflow(
-      Orchestrator.buildParameters.buildGuid,
-      baseImage.toString(),
-      BuildAutomationWorkflow.BuildWorkflow,
-      `/${OrchestratorFolders.buildVolumeFolder}`,
-      `/${OrchestratorFolders.buildVolumeFolder}/`,
-      orchestratorStepState.environment,
-      orchestratorStepState.secrets,
-    );
-    OrchestratorLogger.logWithTime('Build time');
+    // Local Library/LFS caching for the bare-host `local`/`local-system`
+    // provider strategy -- mirrors the restore step plugin-lifecycle.ts runs
+    // in beforeLocalBuild() for the unity-builder integration surface, but
+    // calls LocalCacheService directly instead of going through that surface
+    // (this code path is the standalone `game-ci orchestrate` CLI command).
+    const localCacheState = await BuildAutomationWorkflow.restoreLocalCacheIfEnabled();
+
+    try {
+      output += await Orchestrator.Provider.runTaskInWorkflow(
+        Orchestrator.buildParameters.buildGuid,
+        baseImage.toString(),
+        BuildAutomationWorkflow.BuildWorkflow,
+        `/${OrchestratorFolders.buildVolumeFolder}`,
+        `/${OrchestratorFolders.buildVolumeFolder}/`,
+        orchestratorStepState.environment,
+        orchestratorStepState.secrets,
+      );
+      OrchestratorLogger.logWithTime('Build time');
+
+      // Save step mirrors plugin-lifecycle.ts's afterLocalBuild() handling.
+      // Only reached if runTaskInWorkflow above resolved rather than
+      // throwing, i.e. Unity actually ran to completion. Success-path
+      // behavior is unchanged by the failure-path addition below.
+      await BuildAutomationWorkflow.saveLocalCacheIfEnabled(localCacheState);
+    } catch (error) {
+      // runTaskInWorkflow threw -- Unity's build/test run failed. Previously
+      // saveLocalCacheIfEnabled was structurally unreachable from here (it
+      // sat after this call, on the success-only path), so a crash *after*
+      // import already completed discarded a Library that was otherwise
+      // fine to keep. Evaluate an opt-in "cache floor" save before
+      // re-throwing -- this never swallows or replaces the original
+      // failure, it only banks a cache alongside it.
+      await BuildAutomationWorkflow.saveLocalCacheOnFailureIfEnabled(localCacheState);
+
+      throw error;
+    }
 
     output += await ContainerHookService.RunPostBuildSteps(orchestratorStepState);
     OrchestratorLogger.logWithTime('Configurable post build step(s) time');
@@ -89,17 +122,380 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
     }
   }
 
-  private static get BuildWorkflow() {
-    const setupHooks = CommandHookService.getHooks(
-      Orchestrator.buildParameters.commandHooks,
-    ).filter((x) => x.step?.includes(`setup`));
-    const buildHooks = CommandHookService.getHooks(
-      Orchestrator.buildParameters.commandHooks,
-    ).filter((x) => x.step?.includes(`build`));
+  /**
+   * True for game-ci/orchestrator's bare-host `local`/`local-system` provider
+   * strategy (both backed by LocalOrchestrator -- see
+   * plugins/orchestrator/src/cli-plugin/index.ts). Non-containerized like
+   * aws/k8s/local-docker's remote-dispatch cousins (test, gcp-cloud-run,
+   * github-actions, ...), but unlike those it actually needs to invoke Unity
+   * directly on this machine.
+   */
+  private static get isBareLocalProvider(): boolean {
     const isContainerized =
       Orchestrator.buildParameters.providerStrategy === 'aws' ||
       Orchestrator.buildParameters.providerStrategy === 'k8s' ||
       Orchestrator.buildParameters.providerStrategy === 'local-docker';
+
+    return (
+      !isContainerized &&
+      (Orchestrator.buildParameters.providerStrategy === 'local' ||
+        Orchestrator.buildParameters.providerStrategy === 'local-system')
+    );
+  }
+
+  /**
+   * Restore Library/LFS caches via LocalCacheService before Unity runs, for
+   * the bare-host `local`/`local-system` provider strategy only. Mirrors
+   * plugin-lifecycle.ts's beforeLocalBuild() local-cache-restore block.
+   *
+   * LocalCacheService's restore methods already catch and log their own
+   * errors internally (a cache miss or restore failure returns
+   * false/void rather than throwing), so a first run with no cache yet is
+   * expected to log a miss and fall through -- not fail the build. The
+   * try/catch here is an extra safety net around resolveCacheRoot /
+   * generateCacheKey / generateCacheKeyCandidates, which are cheap sync
+   * calls but are still wrapped so that any unexpected error here can never
+   * abort the build.
+   */
+  private static async restoreLocalCacheIfEnabled(): Promise<
+    { cacheRoot: string; cacheKey: string } | undefined
+  > {
+    const bp = Orchestrator.buildParameters;
+    if (!BuildAutomationWorkflow.isBareLocalProvider || !bp.localCacheEnabled) {
+      return undefined;
+    }
+
+    try {
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const cacheRoot = LocalCacheService.resolveCacheRoot(bp as any) || '';
+      const cacheKey =
+        LocalCacheService.generateCacheKey(bp.targetPlatform, bp.editorVersion, bp.branch || '') ||
+        '';
+
+      // GITHUB_WORKSPACE for the bare-local provider is process.cwd() (see
+      // the isBareLocalProvider branch of BuildWorkflow below); the project
+      // itself lives at process.cwd()/<projectPath> underneath that.
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLfs) {
+        await LocalCacheService.restoreLfsCache(workspacePath, cacheRoot, cacheKey);
+      }
+
+      if (bp.localCacheLibrary) {
+        const fallbackKeys = bp.localCacheFallback
+          ? LocalCacheService.generateCacheKeyCandidates(
+              cacheRoot,
+              bp.targetPlatform,
+              bp.editorVersion,
+              bp.branch || '',
+              String(bp.localCacheFallbackKeys || '')
+                .split(',')
+                .map((key: string) => key.trim())
+                .filter(Boolean),
+            ).filter((key) => key !== cacheKey)
+          : [];
+
+        await LocalCacheService.restoreEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          fallbackKeys,
+          restoreMode: bp.localCacheMode as any,
+        });
+      }
+
+      return { cacheRoot, cacheKey };
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Restore step failed, continuing without cache: ${error.message}`,
+      );
+
+      return undefined;
+    }
+  }
+
+  /**
+   * Save Library/LFS caches via LocalCacheService after Unity finishes, for
+   * the bare-host `local`/`local-system` provider strategy only. Mirrors
+   * plugin-lifecycle.ts's afterLocalBuild() local-cache-save block.
+   *
+   * LocalCacheService's save methods already catch and log their own errors
+   * internally and never throw, so this can never mask a build that
+   * otherwise completed successfully. The try/catch is an extra safety net,
+   * matching restoreLocalCacheIfEnabled() above.
+   */
+  private static async saveLocalCacheIfEnabled(
+    cacheState: { cacheRoot: string; cacheKey: string } | undefined,
+  ): Promise<void> {
+    const bp = Orchestrator.buildParameters;
+    if (!BuildAutomationWorkflow.isBareLocalProvider || !bp.localCacheEnabled || !cacheState) {
+      return;
+    }
+
+    try {
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const { cacheRoot, cacheKey } = cacheState;
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLibrary) {
+        await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          saveMode: bp.localCacheMode as any,
+          skipOnLfsPointerPoisoning: true,
+          maxCacheEntries: bp.maxCacheEntries,
+        });
+      }
+
+      if (bp.localCacheLfs) {
+        await LocalCacheService.saveLfsCache(
+          workspacePath,
+          cacheRoot,
+          cacheKey,
+          bp.maxCacheEntries,
+        );
+      }
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Save step failed after a successful build: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * UnityFailureCategory values that indicate the Library/PackageCache
+   * content itself may be broken, not just that the process crashed after a
+   * clean import -- conceptually the same class of risk as a corruption
+   * poison sentinel, distinct from a generic process-level failure:
+   *
+   * - COMPILE: compile errors can indicate a broken/incomplete import that
+   *   still looks import-complete but fails downstream.
+   * - PACKAGE: PackageCache/GUID corruption (categorizeFailure's guidErrors
+   *   check, itself detecting `error CS0246` under Library/PackageCache) --
+   *   a corrupted cache subsystem specifically, not a crashed process.
+   *
+   * CRASH, LICENSE, EXIT_NEG1 and GENERIC are process/environment-level
+   * failures unrelated to Library content, so they remain bankable as long
+   * as diagnostics.importCompleted is true. SKIP/SUCCESS are not reachable
+   * here -- this is only ever called on the failure path.
+   *
+   * This default is configurable, not hardcoded policy: --localCacheFloor
+   * -CorruptionCategories overrides it with a caller-supplied comma-separated
+   * UnityFailureCategory list (e.g. an environment that's confident PACKAGE
+   * failures never actually indicate corruption for its own project can
+   * narrow this to just "COMPILE"). Unrecognized category names in an
+   * override are ignored with a warning rather than silently mismatching.
+   */
+  private static readonly DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES: readonly UnityFailureCategory[] =
+    ['COMPILE', 'PACKAGE'];
+
+  private static isCorruptionSpecificCategory(category: UnityFailureCategory): boolean {
+    return BuildAutomationWorkflow.corruptionSpecificCategories().includes(category);
+  }
+
+  private static corruptionSpecificCategories(): readonly UnityFailureCategory[] {
+    const override = Orchestrator.buildParameters?.localCacheFloorCorruptionCategories;
+    if (!override) {
+      return BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
+    }
+
+    const knownCategories = new Set<UnityFailureCategory>([
+      'LICENSE',
+      'CRASH',
+      'COMPILE',
+      'PACKAGE',
+      'SKIP',
+      'EXIT_NEG1',
+      'GENERIC',
+      'SUCCESS',
+    ]);
+
+    const parsed: UnityFailureCategory[] = [];
+    for (const raw of override.split(',')) {
+      const category = raw.trim().toUpperCase() as UnityFailureCategory;
+      if (!category) continue;
+      if (knownCategories.has(category)) {
+        parsed.push(category);
+      } else {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Ignoring unrecognized category "${raw.trim()}" in --localCacheFloorCorruptionCategories`,
+        );
+      }
+    }
+
+    // An override that resolves to nothing usable (e.g. all-unrecognized
+    // input) falls back to the default rather than silently treating every
+    // failure as bankable -- an empty corruption list is a meaningful,
+    // security-relevant choice that should be explicit, not accidental.
+    return parsed.length > 0
+      ? parsed
+      : BuildAutomationWorkflow.DEFAULT_CORRUPTION_SPECIFIC_CATEGORIES;
+  }
+
+  /**
+   * Re-read the same $LOG_FILE convention BuildWorkflow exports for the bare
+   * `local`/`local-system` provider (`$(pwd)/temp/job-log.txt`) and the exit
+   * code the bare-local BuildCommands branch writes into it
+   * (`RUNSTEPS_EXIT_CODE:$?`, appended right after runsteps.sh exits -- see
+   * BuildCommands' isBareLocalProvider branch), then classify the failed run
+   * via UnityBuildDiagnosticsService. Mirrors LocalOrchestrator.runWithRetry's
+   * own log-resolution approach (providers/local/index.ts) so this failure
+   * path and the retry feature agree on where the real Editor log content
+   * lives.
+   *
+   * Returns undefined (never throws) if the log can't be read/parsed --
+   * callers must treat that as "cannot classify this failure" and therefore
+   * not bank anything.
+   */
+  private static analyzeRunForCacheFloor(): UnityRunDiagnostics | undefined {
+    try {
+      const bp = Orchestrator.buildParameters;
+      const projectPath = path.isAbsolute(bp.projectPath || '')
+        ? bp.projectPath
+        : path.join(process.cwd(), bp.projectPath || '.');
+      const logFilePath = path.join(process.cwd(), 'temp', 'job-log.txt');
+      const logText = BuildAutomationWorkflow.readEditorLogForCacheFloor(logFilePath);
+
+      const exitCodeMatch = logText.match(/RUNSTEPS_EXIT_CODE:(-?\d+)/);
+      // A failure with no recovered exit code still needs a nonzero
+      // placeholder -- categorizeFailure() has an exitCode === 0 branch
+      // (SUCCESS) that must never be hit here, since this is only invoked
+      // once runTaskInWorkflow has already thrown.
+      const exitCode = exitCodeMatch ? Number(exitCodeMatch[1]) : 1;
+
+      return UnityBuildDiagnosticsService.analyzeRun({
+        exitCode,
+        logText,
+        projectPath,
+      });
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Failure-path diagnostics analysis failed, skipping cache floor save: ${error.message}`,
+      );
+
+      return undefined;
+    }
+  }
+
+  private static readEditorLogForCacheFloor(logFilePath: string): string {
+    try {
+      return fs.readFileSync(logFilePath, 'utf8');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Opt-in (--localCacheSaveOnFailure, default off) "cache floor" save: on
+   * the bare-host `local`/`local-system` provider strategy, when Unity's
+   * build/test run has just thrown, attempt a best-effort Library/LFS save
+   * anyway if diagnostics show the failure occurred after asset import
+   * already completed and is not corruption-specific (see
+   * isCorruptionSpecificCategory above). Mirrors the shape of
+   * saveLocalCacheIfEnabled but is only ever reached from the failure path
+   * (see the catch block in standardBuildAutomation) -- never called on
+   * success.
+   *
+   * Must never throw: any error here is logged and swallowed exactly like
+   * saveLocalCacheIfEnabled's own try/catch, so a failed cache-floor save can
+   * never mask or replace the real build failure the caller re-throws right
+   * after this returns.
+   */
+  private static async saveLocalCacheOnFailureIfEnabled(
+    cacheState: { cacheRoot: string; cacheKey: string } | undefined,
+  ): Promise<void> {
+    const bp = Orchestrator.buildParameters;
+    if (
+      !BuildAutomationWorkflow.isBareLocalProvider ||
+      !bp.localCacheEnabled ||
+      !bp.localCacheSaveOnFailure ||
+      !cacheState
+    ) {
+      return;
+    }
+
+    try {
+      const diagnostics = BuildAutomationWorkflow.analyzeRunForCacheFloor();
+      if (!diagnostics) {
+        return;
+      }
+
+      const isCorruptionSpecific = BuildAutomationWorkflow.isCorruptionSpecificCategory(
+        diagnostics.failureCategory,
+      );
+      const shouldBankAsFloor = diagnostics.importCompleted && !isCorruptionSpecific;
+
+      OrchestratorLogger.log(
+        `[LocalCache] Cache floor evaluation: category=${diagnostics.failureCategory} ` +
+          `importCompleted=${diagnostics.importCompleted} corruptionSpecific=${isCorruptionSpecific} ` +
+          `-> ${shouldBankAsFloor ? 'eligible to bank as floor' : 'not eligible'}`,
+      );
+
+      const { LocalCacheService } = await import('../services/cache/local-cache-service');
+      const { cacheRoot, cacheKey } = cacheState;
+      const workspacePath = process.cwd();
+      const projectFullPath = path.join(workspacePath, bp.projectPath);
+
+      if (bp.localCacheLibrary) {
+        // LocalCacheService.saveCacheFolder is the final arbiter: it enforces
+        // both the unconditional corruption-specific block and the
+        // import-completed requirement itself (see LocalCacheSaveOptions),
+        // so this is defense-in-depth alongside the shouldBankAsFloor log
+        // line above, not a second independent decision.
+        await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
+          saveMode: bp.localCacheMode as any,
+          skipOnLfsPointerPoisoning: true,
+          maxCacheEntries: bp.maxCacheEntries,
+          diagnostics: {
+            crashEvidenceFound: diagnostics.crashEvidenceFound,
+            importCompleted: diagnostics.importCompleted,
+          },
+          skipOnCrashEvidence: true,
+          skipOnCorruptionEvidence: isCorruptionSpecific,
+        });
+      }
+
+      // saveLfsCache has no diagnostics-aware gate (LFS content isn't
+      // Library-corruption-specific and its save mechanics are intentionally
+      // left untouched here), so gate it directly with the same decision.
+      if (bp.localCacheLfs && shouldBankAsFloor) {
+        await LocalCacheService.saveLfsCache(
+          workspacePath,
+          cacheRoot,
+          cacheKey,
+          bp.maxCacheEntries,
+        );
+      }
+    } catch (error: any) {
+      OrchestratorLogger.logWarning(`[LocalCache] Cache floor save failed: ${error.message}`);
+    }
+  }
+
+  private static get BuildWorkflow() {
+    // Load middleware once per build (not once per phase/timing slot) and
+    // merge its resolved command hooks in with the legacy command-hook list.
+    // Merge order is legacy-first so a project not using middleware gets a
+    // byte-identical hook list to before this change (resolveCommandHooks
+    // returns [] when no middleware matches).
+    const middlewareDefinitions = MiddlewareService.getMiddleware(
+      Orchestrator.buildParameters.middlewarePipeline || '',
+    );
+    const legacyCommandHooks = CommandHookService.getHooks(
+      Orchestrator.buildParameters.commandHooks,
+    );
+    const setupHooks = [
+      ...legacyCommandHooks.filter((x) => x.step?.includes(`setup`)),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'setup', 'before'),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'setup', 'after'),
+    ];
+    const buildHooks = [
+      ...legacyCommandHooks.filter((x) => x.step?.includes(`build`)),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'build', 'before'),
+      ...MiddlewareService.resolveCommandHooks(middlewareDefinitions, 'build', 'after'),
+    ];
+    const isContainerized =
+      Orchestrator.buildParameters.providerStrategy === 'aws' ||
+      Orchestrator.buildParameters.providerStrategy === 'k8s' ||
+      Orchestrator.buildParameters.providerStrategy === 'local-docker';
+
+    const isBareLocalProvider = BuildAutomationWorkflow.isBareLocalProvider;
 
     const builderPath = isContainerized
       ? OrchestratorFolders.ToLinuxFolder(
@@ -124,14 +520,17 @@ export class BuildAutomationWorkflow implements WorkflowInterface {
         Orchestrator.buildParameters.providerStrategy === 'local-docker'
           ? `export GITHUB_WORKSPACE="${Orchestrator.buildParameters.dockerWorkspacePath}"
       echo "Using docker workspace: $GITHUB_WORKSPACE"`
-          : `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.repoPathAbsolute)}"`
+          : isBareLocalProvider
+            ? `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(process.cwd())}"
+      echo "Using local workspace: $GITHUB_WORKSPACE"`
+            : `export GITHUB_WORKSPACE="${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.repoPathAbsolute)}"`
       }
       ${isContainerized ? 'df -H /data/' : '# skipping df on /data in non-container provider'}
       export LOG_FILE=${isContainerized ? '/home/job-log.txt' : '$(pwd)/temp/job-log.txt'}
       ${BuildAutomationWorkflow.setupCommands(builderPath, isContainerized)}
       ${setupHooks.filter((x) => x.hook.includes(`after`)).map((x) => x.commands) || ' '}
       ${buildHooks.filter((x) => x.hook.includes(`before`)).map((x) => x.commands) || ' '}
-      ${BuildAutomationWorkflow.BuildCommands(builderPath, isContainerized)}
+      ${BuildAutomationWorkflow.BuildCommands(builderPath, isContainerized, isBareLocalProvider)}
       ${buildHooks.filter((x) => x.hook.includes(`after`)).map((x) => x.commands) || ' '}`;
   }
 
@@ -172,7 +571,11 @@ export CACHE_KEY="${Orchestrator.buildParameters.cacheKey}"
 echo "CACHE_KEY=$CACHE_KEY"`;
   }
 
-  private static BuildCommands(builderPath: string, isContainerized: boolean) {
+  private static BuildCommands(
+    builderPath: string,
+    isContainerized: boolean,
+    isBareLocalProvider = false,
+  ) {
     const distFolder = path.join(OrchestratorFolders.builderPathAbsolute, 'dist');
     const ubuntuPlatformsFolder = path.join(
       OrchestratorFolders.builderPathAbsolute,
@@ -284,6 +687,52 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     # Write end markers to both stdout and log file (builder might be cleaned up by post-build)
     echo "end of orchestrator job" | tee -a /home/job-log.txt
     echo "---${Orchestrator.buildParameters.logId}" | tee -a /home/job-log.txt`;
+    }
+
+    if (isBareLocalProvider) {
+      const bp = Orchestrator.buildParameters;
+      // Same step-script chain game-ci/cli's own HostRunner (src/model/host-runner.ts)
+      // drives for `game-ci build/test --local`: runsteps.sh -> activate.sh ->
+      // build.sh/test.sh -> return_license.sh, run directly against this host's
+      // Unity install. Deliberately skips entrypoint.sh (container-only setup:
+      // /etc/machine-id randomization, useradd/groupadd) for the same reason
+      // HostRunner does -- see the comment on HostRunner for why that would be
+      // dangerous to run against a real, persistent self-hosted machine.
+      //
+      // No repo clone / LFS pull here (unlike the aws/k8s/local-docker branches
+      // above): the `local` provider is for a self-hosted runner where the
+      // project is assumed already checked out and hydrated at GITHUB_WORKSPACE
+      // (set to process.cwd() above), so there is nothing to clone or hydrate.
+      const stepsDir = OrchestratorFolders.ToLinuxFolder(
+        path.join(process.cwd(), 'dist', 'platforms', 'ubuntu', 'steps'),
+      );
+
+      // prettier-ignore
+      return `
+    echo "game ci start"
+    echo "game ci start" >> "$LOG_FILE"
+    export STEPS_DIR="${stepsDir}"
+    export PROJECT_PATH="${bp.projectPath || ''}"
+    export BUILD_TARGET="${bp.targetPlatform || ''}"
+    export BUILD_NAME="${bp.buildName || ''}"
+    export BUILD_PATH="${bp.buildPath || ''}"
+    export BUILD_FILE="${bp.buildFile || ''}"
+    export BUILD_METHOD="${bp.buildMethod || ''}"
+    export VERSION="${bp.buildVersion || ''}"
+    export ANDROID_VERSION_CODE="${bp.androidVersionCode || ''}"
+    export CHOWN_FILES_TO="${bp.chownFilesTo || ''}"
+    export MANUAL_EXIT="${bp.manualExit ? 'true' : ''}"
+    export BUILD_PROFILE="${bp.buildProfile || ''}"
+    export SKIP_ACTIVATION="${bp.skipActivation ? 'true' : ''}"
+    export ENGINE_LAUNCH_WRAPPER="${bp.engineLaunchWrapper || ''}"
+    # entrypoint.sh normally creates this before sourcing runsteps.sh; replicated
+    # here since we bypass entrypoint.sh entirely (see HostRunner.buildEnv).
+    export ACTIVATE_LICENSE_PATH="$GITHUB_WORKSPACE/_activate-license~"
+    mkdir -p "$ACTIVATE_LICENSE_PATH"
+    mkdir -p "$GITHUB_WORKSPACE/$BUILD_PATH"
+    # Pipe runsteps.sh output through log stream to capture Unity build/activation output
+    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | node ${builderPath} -m remote-cli-log-stream --logFile "$LOG_FILE"
+    node ${builderPath} -m remote-cli-post-build`;
     }
 
     // prettier-ignore

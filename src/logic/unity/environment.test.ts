@@ -31,4 +31,22 @@ describe('UnityEnvironment', () => {
       expect(byName.GIT_CONFIG_EXTENSIONS).toBe('http.sslVerify=false');
     });
   });
+
+  describe('engineLaunchWrapper (ENGINE_LAUNCH_WRAPPER)', () => {
+    it('omits ENGINE_LAUNCH_WRAPPER when unset, byte-identical to before this option existed', () => {
+      const vars = UnityEnvironment.getVariables({} as any);
+      const byName = Object.fromEntries(vars.map((v) => [v.name, v.value]));
+
+      expect(byName.ENGINE_LAUNCH_WRAPPER).toBeUndefined();
+    });
+
+    it('passes engineLaunchWrapper through as ENGINE_LAUNCH_WRAPPER when set', () => {
+      const vars = UnityEnvironment.getVariables({
+        engineLaunchWrapper: 'flock /tmp/unity.lock --',
+      } as any);
+      const byName = Object.fromEntries(vars.map((v) => [v.name, v.value]));
+
+      expect(byName.ENGINE_LAUNCH_WRAPPER).toBe('flock /tmp/unity.lock --');
+    });
+  });
 });

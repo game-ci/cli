@@ -123,6 +123,78 @@ describe('Docker', () => {
     expect(command).not.toContain('should-not-be-used');
   });
 
+  it('leaves the Godot commands string byte-identical when engineLaunchWrapper is unset', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/godot:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      runnerTempPath: '/home/runner/work/_temp',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'godot',
+      projectPath: 'test-project',
+      commands: 'godot --headless --export-release "Linux" build/output',
+    });
+
+    expect(command).toContain('game-ci/godot:latest godot --headless --export-release "Linux" build/output');
+  });
+
+  it('prefixes the Godot commands string with engineLaunchWrapper when set (Linux)', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/godot:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      runnerTempPath: '/home/runner/work/_temp',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'godot',
+      projectPath: 'test-project',
+      commands: 'godot --headless --export-release "Linux" build/output',
+      engineLaunchWrapper: 'flock /tmp/engine.lock --',
+    });
+
+    expect(command).toContain(
+      'game-ci/godot:latest flock /tmp/engine.lock -- godot --headless --export-release "Linux" build/output',
+    );
+  });
+
+  it('prefixes the Godot commands string with engineLaunchWrapper when set (Windows)', () => {
+    const command = (Docker as any).getWindowsCommand('game-ci/godot:latest', {
+      currentWorkDir: 'C:/work/cli',
+      homeDir: 'C:/Users/runner',
+      cliDistPath: 'C:/work/cli/dist',
+      cliStoragePath: 'C:/work/.game-ci',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'godot',
+      commands: 'godot --headless --export-release "Windows" build/output',
+      engineLaunchWrapper: 'flock /tmp/engine.lock --',
+    });
+
+    expect(command).toContain('flock /tmp/engine.lock -- godot --headless --export-release "Windows" build/output');
+  });
+
+  it('does not affect the Unity entrypoint flow even when engineLaunchWrapper is set (wrapping happens per-call-site inside the scripts instead)', () => {
+    const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
+      hostOS: 'linux',
+      currentWorkDir: '/home/runner/work/cli/cli',
+      homeDir: '/home/runner',
+      cliDistPath: '/home/runner/work/cli/cli/dist',
+      sshAgent: '',
+      gitPrivateToken: '',
+      dockerWorkspacePath: '/github/workspace',
+      engine: 'unity',
+      engineLaunchWrapper: 'flock /tmp/engine.lock --',
+    });
+
+    expect(command).toContain('/bin/bash /entrypoint.sh');
+    expect(command).toContain('--env ENGINE_LAUNCH_WRAPPER="flock /tmp/engine.lock --"');
+  });
+
   it('applies docker resource limits and host networking when set', () => {
     const command = (Docker as any).getLinuxCommand('game-ci/unity-editor-stub:latest', {
       hostOS: 'linux',

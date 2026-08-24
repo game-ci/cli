@@ -58,6 +58,15 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.finalHooks = options.finalHooks ? String(options.finalHooks).split(',') : [];
   bp.skipLfs = options.skipLfs === true || options.skipLfs === 'true';
   bp.skipCache = options.skipCache === true || options.skipCache === 'true';
+  // Skip Unity license activation/return for the local/local-system provider's
+  // generated build script (sets SKIP_ACTIVATION for runsteps.sh) -- for
+  // self-hosted runners with an already-licensed, long-lived Unity Hub
+  // session, distinct from `game-ci activate`'s per-run activation.
+  bp.skipActivation = options.skipActivation === true || options.skipActivation === 'true';
+  // Command to prefix the engine's process invocation with, for the local/local-system
+  // provider's generated build script (sets ENGINE_LAUNCH_WRAPPER for runsteps.sh) --
+  // e.g. a self-hosted runner's own launch-serialization lock. Empty by default.
+  bp.engineLaunchWrapper = options.engineLaunchWrapper || process.env.ENGINE_LAUNCH_WRAPPER || '';
   bp.skipInContainerClone =
     options.skipInContainerClone === true || options.skipInContainerClone === 'true';
   bp.repoPathOverride = options.repoPathOverride || '';
@@ -106,6 +115,14 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.localCacheEnabled = options.localCacheEnabled === true || options.localCacheEnabled === 'true';
   bp.localCacheLibrary = options.localCacheLibrary === true || options.localCacheLibrary === 'true';
   bp.localCacheLfs = options.localCacheLfs === true || options.localCacheLfs === 'true';
+  bp.localCacheRoot = options.localCacheRoot || '';
+  bp.localCacheFallback =
+    options.localCacheFallback === true || options.localCacheFallback === 'true';
+  bp.localCacheFallbackKeys = options.localCacheFallbackKeys || '';
+  bp.localCacheMode = options.localCacheMode || 'tar';
+  bp.localCacheSaveOnFailure =
+    options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
+  bp.localCacheFloorCorruptionCategories = options.localCacheFloorCorruptionCategories || '';
   bp.childWorkspacesEnabled =
     options.childWorkspacesEnabled === true || options.childWorkspacesEnabled === 'true';
   bp.childWorkspaceName = options.childWorkspaceName || '';
@@ -143,6 +160,7 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   // ── reliability ───────────────────────────────────────────────────
   bp.gitIntegrityCheck = options.gitIntegrityCheck === true || options.gitIntegrityCheck === 'true';
   bp.gitAutoRecover = options.gitAutoRecover === true || options.gitAutoRecover === 'true';
+  bp.enableBuildRetry = options.enableBuildRetry === true || options.enableBuildRetry === 'true';
   bp.cleanReservedFilenames =
     options.cleanReservedFilenames === true || options.cleanReservedFilenames === 'true';
   bp.buildArchiveEnabled =

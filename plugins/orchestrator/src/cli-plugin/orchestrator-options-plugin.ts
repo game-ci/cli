@@ -337,6 +337,34 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: false,
   });
 
+  yargs.option('skipActivation', {
+    description:
+      'Skip Unity license activation/return -- for self-hosted runners with an already-licensed, ' +
+      'long-lived Unity Hub session. Only meaningful for providerStrategy=local(-system). Distinct ' +
+      'from `game-ci activate`, which activates a license per-run and leaves it active for a later step.',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('engineLaunchWrapper', {
+    description:
+      "Command to prefix the engine's process invocation with (e.g. a self-hosted runner's own " +
+      'launch-serialization lock). Applied precisely around the engine launch itself, not the ' +
+      'surrounding build step. Only meaningful for providerStrategy=local(-system). Empty by default.',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('enableBuildRetry', {
+    description:
+      'Enable automatic classify/decide/retry recovery for failed Unity builds on the bare-host ' +
+      '`local`/`local-system` provider strategy (UnityRetryService, budget-gated). Default off: a ' +
+      'single failed attempt still throws exactly as before -- retry can back up or nuke the Library ' +
+      'folder as a recovery action, which is a meaningful behavior change existing users must opt into.',
+    type: 'boolean',
+    default: false,
+  });
+
   yargs.option('skipInContainerClone', {
     description:
       'Skip the in-container git clone and reuse a pre-hydrated workspace bind-mounted by the caller. ' +
@@ -422,6 +450,73 @@ export function configureOrchestratorOptions(yargs: any): void {
     description: 'Minimum cache entries to keep during age-based GC (floor)',
     type: 'number',
     default: 0,
+  });
+
+  // --- Local cache (Library/LFS, bare-host `local`/`local-system` providers) ---
+  yargs.option('localCacheEnabled', {
+    description: 'Enable local filesystem Library/LFS caching (local/local-system providers)',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheLibrary', {
+    description: 'Cache the engine Library folder locally (requires localCacheEnabled)',
+    type: 'boolean',
+    default: true,
+  });
+
+  yargs.option('localCacheLfs', {
+    description: 'Cache .git/lfs locally (requires localCacheEnabled)',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheRoot', {
+    description:
+      'Root directory for the local cache (default: RUNNER_TEMP/game-ci-cache or .game-ci/cache)',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('localCacheSaveOnFailure', {
+    description:
+      'Bank a "cache floor" Library/LFS save even when the build/test FAILS, for the bare-host ' +
+      '`local`/`local-system` provider strategy (requires localCacheEnabled). A save is only ' +
+      'attempted if UnityBuildDiagnosticsService reports asset import completed and the failure is ' +
+      'not corruption-specific (COMPILE/PACKAGE); a plain crash/license/generic failure after a ' +
+      'clean import still banks. Default off: previously a failed build never touched the cache at ' +
+      'all -- this is a meaningful behavior change existing users must opt into, matching the ' +
+      'caution shown for enableBuildRetry.',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheFloorCorruptionCategories', {
+    description:
+      'Comma-separated UnityFailureCategory list that blocks a --localCacheSaveOnFailure "cache ' +
+      'floor" save unconditionally, even when asset import completed (default: COMPILE,PACKAGE -- ' +
+      'categories: LICENSE, CRASH, COMPILE, PACKAGE, SKIP, EXIT_NEG1, GENERIC). Only meaningful ' +
+      'together with localCacheSaveOnFailure.',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('localCacheFallback', {
+    description: 'Allow restoring from a fallback cache key when the exact key misses',
+    type: 'boolean',
+    default: false,
+  });
+
+  yargs.option('localCacheFallbackKeys', {
+    description: 'Comma-separated explicit fallback cache keys to try, in order',
+    type: 'string',
+    default: '',
+  });
+
+  yargs.option('localCacheMode', {
+    description: 'Local cache save/restore mode: tar, move-directory, or copy-directory',
+    type: 'string',
+    default: 'tar',
   });
 
   yargs.option('gcTimeoutMinutes', {

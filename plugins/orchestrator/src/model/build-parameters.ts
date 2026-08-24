@@ -66,6 +66,16 @@ class BuildParameters {
   finalHooks!: string[];
   skipLfs!: boolean;
   skipCache!: boolean;
+  // Skip Unity license activation/return (SKIP_ACTIVATION env var consumed by
+  // dist/platforms/ubuntu/steps/runsteps.sh). Distinct from `game-ci activate`'s
+  // per-run ACTIVATE_ONLY flow -- this is for the `local`/`local-system`
+  // provider's self-hosted-runner use case, where Unity is already licensed via
+  // a long-lived Unity Hub session and per-run activation/return is unwanted.
+  skipActivation!: boolean;
+  // Command to prefix the engine's process invocation with (ENGINE_LAUNCH_WRAPPER
+  // env var consumed by dist/platforms/*/steps/*.sh|ps1 and, for the local/local-system
+  // provider, threaded into the generated script below). Empty by default: no wrapper.
+  engineLaunchWrapper!: string;
   skipInContainerClone!: boolean;
   repoPathOverride!: string;
   lockedWorkspace!: string;
@@ -111,6 +121,26 @@ class BuildParameters {
   localCacheEnabled!: boolean;
   localCacheLibrary!: boolean;
   localCacheLfs!: boolean;
+  localCacheRoot!: string;
+  localCacheFallback!: boolean;
+  localCacheFallbackKeys!: string;
+  localCacheMode!: string;
+  // Opt-in (default false) "cache floor" save: when a build/test on the
+  // bare-host `local`/`local-system` provider FAILS, still attempt a
+  // best-effort Library/LFS cache save if diagnostics show asset import
+  // completed and the failure isn't corruption-specific (see
+  // UnityBuildDiagnosticsService / isCorruptionSpecificCategory in
+  // BuildAutomationWorkflow). Off by default: previously a failed build
+  // never touched the cache at all, so this is a meaningful behavior
+  // change existing users must opt into -- same caution as
+  // enableBuildRetry. Requires localCacheEnabled to also be on.
+  localCacheSaveOnFailure!: boolean;
+  // Overrides which UnityFailureCategory values block a cache-floor save
+  // unconditionally (see BuildAutomationWorkflow.corruptionSpecificCategories).
+  // Comma-separated, e.g. "COMPILE,PACKAGE". Empty/unset uses the built-in
+  // default (COMPILE, PACKAGE) -- this only needs setting to override that
+  // default for a specific environment's known failure characteristics.
+  localCacheFloorCorruptionCategories!: string;
   childWorkspacesEnabled!: boolean;
   childWorkspaceName!: string;
   childWorkspaceCacheRoot!: string;
@@ -140,6 +170,12 @@ class BuildParameters {
   // ── reliability ─────────────────────────────────────────────────────
   gitIntegrityCheck!: boolean;
   gitAutoRecover!: boolean;
+  // Opt-in (default false) automatic classify -> decide -> retry loop for
+  // failed Unity runs on the bare-host `local`/`local-system` provider's
+  // build path only (see UnityRetryService). Off by default because retry
+  // can nuke/backup the Library folder as a recovery action -- a meaningful
+  // behavior change that must not silently activate for existing users.
+  enableBuildRetry!: boolean;
   cleanReservedFilenames!: boolean;
   buildArchiveEnabled!: boolean;
   buildArchivePath!: string;
@@ -242,6 +278,12 @@ class BuildParameters {
     p.finalHooks = [];
     p.skipLfs = false;
     p.skipCache = false;
+    p.skipActivation = Cli.options?.skipActivation ?? Input.getInput('skipActivation') === 'true';
+    p.engineLaunchWrapper =
+      Cli.options?.engineLaunchWrapper ??
+      Input.getInput('engineLaunchWrapper') ??
+      process.env.ENGINE_LAUNCH_WRAPPER ??
+      '';
     p.skipInContainerClone =
       Cli.options?.skipInContainerClone ?? Input.getInput('skipInContainerClone') === 'true';
     p.repoPathOverride = Cli.options?.repoPathOverride ?? Input.getInput('repoPathOverride') ?? '';

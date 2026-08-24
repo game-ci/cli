@@ -100,12 +100,18 @@ describe('Cli env var option mapping', () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'game-ci-cli-'));
     try {
       await fs.mkdir(path.join(tempDir, 'ProjectSettings'), { recursive: true });
-      await fs.writeFile(path.join(tempDir, 'ProjectSettings', 'ProjectVersion.txt'), 'm_EditorVersion: 2022.3.20f1\n', 'utf8');
+      await fs.writeFile(
+        path.join(tempDir, 'ProjectSettings', 'ProjectVersion.txt'),
+        'm_EditorVersion: 2022.3.20f1\n',
+        'utf8',
+      );
       // vcsDetection shells out to git and throws if the project path isn't a repo.
       await new Promise((resolve, reject) => {
         const child = spawn('git', ['init', tempDir]);
         child.on('error', reject);
-        child.on('exit', (code) => (code === 0 ? resolve(undefined) : reject(new Error(`git init exited with ${code}`))));
+        child.on('exit', (code) =>
+          code === 0 ? resolve(undefined) : reject(new Error(`git init exited with ${code}`)),
+        );
       });
 
       const previousEmail = process.env.UNITY_EMAIL;
@@ -122,6 +128,206 @@ describe('Cli env var option mapping', () => {
         if (previousEmail === undefined) delete process.env.UNITY_EMAIL;
         else process.env.UNITY_EMAIL = previousEmail;
       }
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Cli config profiles', () => {
+  // Mirrors the ProjectSettings + git-init setup used in the env-var
+  // mapping tests above - `activate` needs a real-looking Unity project
+  // dir, and vcsDetection shells out to git and throws if it isn't a repo.
+  async function makeProjectDir() {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'game-ci-cli-profiles-'));
+    await fs.mkdir(path.join(tempDir, 'ProjectSettings'), { recursive: true });
+    await fs.writeFile(
+      path.join(tempDir, 'ProjectSettings', 'ProjectVersion.txt'),
+      'm_EditorVersion: 2022.3.20f1\n',
+      'utf8',
+    );
+    await new Promise((resolve, reject) => {
+      const child = spawn('git', ['init', tempDir]);
+      child.on('error', reject);
+      child.on('exit', (code) => (code === 0 ? resolve(undefined) : reject(new Error(`git init exited with ${code}`))));
+    });
+
+    return tempDir;
+  }
+
+  async function parseOptions(tempDir: string, configPath: string, extraArgs: string[] = []) {
+    const cli = new Cli(['activate', tempDir, '--config', configPath, ...extraArgs], process.cwd());
+    await cli.setup();
+    await cli.registerCommands();
+    await cli.registerSchemaForChosenCommand();
+    const { options } = await cli.validateAndParseArguments();
+
+    return options;
+  }
+
+  it('applies the selected profile on top of base cliOptions (YAML)', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: false
+
+profiles:
+  loud:
+    verbose: true
+`,
+        'utf8',
+      );
+
+      const options = await parseOptions(tempDir, configPath, ['--profile', 'loud']);
+
+      expect(options.logLevel).toBe(1); // verbose: true from the profile
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('applies the selected profile on top of base cliOptions (JSON)', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.json');
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          cliOptions: { verbose: false },
+          profiles: { loud: { verbose: true } },
+        }),
+        'utf8',
+      );
+
+      const options = await parseOptions(tempDir, configPath, ['--profile', 'loud']);
+
+      expect(options.logLevel).toBe(1); // verbose: true from the profile
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('profile options win over base cliOptions on key conflicts', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: true
+
+profiles:
+  quiet-profile:
+    verbose: false
+`,
+        'utf8',
+      );
+
+      const withoutProfile = await parseOptions(tempDir, configPath);
+      expect(withoutProfile.logLevel).toBe(1); // base cliOptions.verbose: true
+
+      const withProfile = await parseOptions(tempDir, configPath, ['--profile', 'quiet-profile']);
+      expect(withProfile.logLevel).toBe(0); // profile's verbose: false wins over base
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('explicit CLI flags still win over the selected profile', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: false
+
+profiles:
+  loud:
+    verbose: true
+`,
+        'utf8',
+      );
+
+      // --profile loud sets verbose: true, but the explicit --verbose=false
+      // flag on the command line must win over both the profile and base cliOptions.
+      const options = await parseOptions(tempDir, configPath, ['--profile', 'loud', '--verbose=false']);
+
+      expect(options.logLevel).toBe(0);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails with a clear, actionable error listing available profiles for an unknown --profile name', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: false
+
+profiles:
+  webgl-demo:
+    verbose: true
+  windows-release:
+    verbose: true
+`,
+        'utf8',
+      );
+
+      await expect(parseOptions(tempDir, configPath, ['--profile', 'does-not-exist'])).rejects.toThrow(
+        /Unknown profile "does-not-exist".*webgl-demo.*windows-release/s,
+      );
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('is a zero behavior change when no --profile flag is passed (regression check)', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: true
+
+profiles:
+  loud:
+    verbose: false
+`,
+        'utf8',
+      );
+
+      const options = await parseOptions(tempDir, configPath);
+
+      // Only base cliOptions applies - the profiles: block is ignored entirely.
+      expect(options.logLevel).toBe(1);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('is a zero behavior change for configs that have no profiles: block at all', async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const configPath = path.join(tempDir, '.game-ci.yml');
+      await fs.writeFile(
+        configPath,
+        `cliOptions:
+  verbose: true
+`,
+        'utf8',
+      );
+
+      const options = await parseOptions(tempDir, configPath);
+
+      expect(options.logLevel).toBe(1);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
