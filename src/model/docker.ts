@@ -1,13 +1,13 @@
-import { ImageEnvironmentFactory } from './image-environment-factory.ts';
-import { path, fsSync as fs } from '../dependencies.ts';
-import type { Options } from '../dependencies.ts';
-import { System } from './system/system.ts';
-import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
-import { UnityEnvironment } from '../logic/unity/environment.ts';
+import { ImageEnvironmentFactory } from "./image-environment-factory.ts";
+import { path, fsSync as fs } from "../dependencies.ts";
+import type { Options } from "../dependencies.ts";
+import { System } from "./system/system.ts";
+import { UnityBuildValidation } from "./unity/build-validation/unity-build-validation.ts";
+import { UnityEnvironment } from "../logic/unity/environment.ts";
 
 /** UNITY_LICENSE/ANDROID_* etc. only make sense inside a Unity container. */
 function engineEnvVars(options: Options) {
-  return options.engine === 'unity' ? UnityEnvironment.getVariables(options) : [];
+  return options.engine === "unity" ? UnityEnvironment.getVariables(options) : [];
 }
 
 class Docker {
@@ -16,15 +16,15 @@ class Docker {
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
 
-    let command = '';
+    let command = "";
     switch (hostOS) {
-      case 'windows': {
+      case "windows": {
         // Todo: check if docker daemon is set for Windows or Linux containers.
         command = await this.getWindowsCommand(image, options);
         break;
       }
-      case 'linux':
-      case 'darwin': {
+      case "linux":
+      case "darwin": {
         command = await this.getLinuxCommand(image, options);
         break;
       }
@@ -41,7 +41,7 @@ class Docker {
       // "There was an error building the project" on every successful
       // activation, because there's no build to validate in the first place.
       switch (engine) {
-        case 'unity':
+        case "unity":
           if (!activateOnly) {
             UnityBuildValidation.validateBuild(dockerRun.output);
           }
@@ -87,14 +87,17 @@ class Docker {
     } = options as Options & { commands?: string };
 
     const home = homeDir;
-    const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(/ \\\n/g, ' ');
+    const envVarString = ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options)).replace(
+      / \\\n/g,
+      " ",
+    );
 
     // Non-Unity engines (Godot, Unreal) supply their own container command
     // via `commands` instead of Unity's license-activate-build-return
     // entrypoint.sh flow — this used to be silently ignored here, so any
     // build with `engine !== 'unity'` always ran Unity's entrypoint instead
     // of the command the engine plugin actually asked for.
-    const isUnityDefaultFlow = !commands || engine === 'unity';
+    const isUnityDefaultFlow = !commands || engine === "unity";
 
     // Non-Unity engines' `commands` is already just the engine invocation
     // itself (no surrounding activate/build/return-license lifecycle), so a
@@ -104,32 +107,32 @@ class Docker {
     const wrappedCommands = engineLaunchWrapper && commands ? `${engineLaunchWrapper} ${commands}` : commands;
 
     return [
-      'docker run',
-      '--rm',
+      "docker run",
+      "--rm",
       `--workdir ${dockerWorkspacePath}`,
       envVarString,
-      isUnityDefaultFlow ? '--env UNITY_SERIAL' : '',
+      isUnityDefaultFlow ? "--env UNITY_SERIAL" : "",
       `--env GITHUB_WORKSPACE=${dockerWorkspacePath}`,
-      gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : '',
-      sshAgent ? '--env SSH_AUTH_SOCK=/ssh-agent' : '',
-      dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : '',
-      dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : '',
-      dockerShmSize ? `--shm-size=${dockerShmSize}` : '',
-      useHostNetwork ? '--net=host' : '',
+      gitPrivateToken ? `--env GIT_PRIVATE_TOKEN="${gitPrivateToken}"` : "",
+      sshAgent ? "--env SSH_AUTH_SOCK=/ssh-agent" : "",
+      dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : "",
+      dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : "",
+      dockerShmSize ? `--shm-size=${dockerShmSize}` : "",
+      useHostNetwork ? "--net=host" : "",
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
-      isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : '',
-      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : '',
-      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : '',
-      isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : '',
-      sshAgent ? `--volume ${sshAgent}:/ssh-agent` : '',
-      sshAgent && !sshPublicKeysDirectoryPath ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro' : '',
-      sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : '',
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
+      isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
+      sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
+      sshAgent && !sshPublicKeysDirectoryPath ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
+      sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : "",
       image,
-      isUnityDefaultFlow ? '/bin/bash /entrypoint.sh' : wrappedCommands!,
+      isUnityDefaultFlow ? "/bin/bash /entrypoint.sh" : wrappedCommands!,
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(" ");
   }
 
   private static getWindowsCommand(image: string, options: Options): string {
@@ -155,44 +158,61 @@ class Docker {
     // Windows Docker build path other than Unity, but guard it the same way
     // for consistency and so a future one isn't silently broken like this
     // was.
-    const isUnityDefaultFlow = !commands || engine === 'unity';
+    const isUnityDefaultFlow = !commands || engine === "unity";
 
     // See getLinuxCommand's own comment - same single top-level wrap,
     // byte-identical to today when engineLaunchWrapper is unset.
     const wrappedCommands = engineLaunchWrapper && commands ? `${engineLaunchWrapper} ${commands}` : commands;
 
+    // Visual Studio 2022 installs to "Program Files" (it's the first native
+    // 64-bit VS release), not "Program Files (x86)" where every earlier VS
+    // version lived - and where the container mount below still points.
+    // GitHub-hosted windows-2022/windows-latest runners only have VS2022, so
+    // that mount silently carries no real compiler toolchain into the
+    // container: IL2CPP's "Could not set up a toolchain for Architecture x64"
+    // failure is this, not a genuinely missing VS install on the runner.
+    // Guarded by existsSync (like the registry-keys fix) so hosts without a
+    // VS2022-generation install at this path aren't handed a Docker bind
+    // mount for a source path that doesn't exist.
+    const vs2022Path = "C:/Program Files/Microsoft Visual Studio";
+    const vs2022Mount =
+      isUnityDefaultFlow && fs.existsSync(vs2022Path) ? `  --volume="${vs2022Path}":"${vs2022Path}" \`` : "";
+
     // Note: the equals sign (=) is needed in Powershell.
     // Note: homedir is currently not configured for windows (yet).
     return [
-      'docker run `',
-      '  --rm `',
+      "docker run `",
+      "  --rm `",
       `  --workdir="c:${dockerWorkspacePath}" \``,
       `  ${ImageEnvironmentFactory.getEnvVarString(options, engineEnvVars(options))} \``,
-      isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : '',
+      isUnityDefaultFlow ? `  --env UNITY_SERIAL="${unitySerial}" \`` : "",
       `  --env GITHUB_WORKSPACE=c:${dockerWorkspacePath} \``,
       `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
-      dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : '',
-      dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : '',
-      dockerShmSize ? `  --shm-size=${dockerShmSize} \`` : '',
-      dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : '',
+      dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : "",
+      dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : "",
+      dockerShmSize ? `  --shm-size=${dockerShmSize} \`` : "",
+      dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : "",
       `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
-      isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : '',
+      isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : "",
       isUnityDefaultFlow
         ? '  --volume="C:/Program Files (x86)/Microsoft Visual Studio":"C:/Program Files (x86)/Microsoft Visual Studio" `'
-        : '',
-      isUnityDefaultFlow ? '  --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" `' : '',
+        : "",
+      vs2022Mount,
+      isUnityDefaultFlow
+        ? '  --volume="C:/Program Files (x86)/Windows Kits":"C:/Program Files (x86)/Windows Kits" `'
+        : "",
       isUnityDefaultFlow
         ? '  --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" `'
-        : '',
-      isUnityDefaultFlow ? `  --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`` : '',
-      isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : '',
-      isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : '',
-      isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : '',
+        : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : "",
+      isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : "",
       `  ${image} \``,
-      isUnityDefaultFlow ? '  powershell c:/steps/entrypoint.ps1' : `  ${wrappedCommands}`,
+      isUnityDefaultFlow ? "  powershell c:/steps/entrypoint.ps1" : `  ${wrappedCommands}`,
     ]
       .filter(Boolean)
-      .join('\n');
+      .join("\n");
   }
 }
 
