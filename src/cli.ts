@@ -1,16 +1,15 @@
-import { yaml, yargs, getHomeDir, __dirname, isCompiledBinary, path, process, fs } from './dependencies.ts';
-import type { YargsInstance, YargsArguments } from './dependencies.ts';
-import { CommandInterface } from './command/command-interface.ts';
-import { configureLogger } from './middleware/logger-verbosity/index.ts';
-import { CommandFactory } from './command/command-factory.ts';
-import { NonExistentCommand } from './command/null/non-existent-command.ts';
-import { CliCommands } from './cli-commands.ts';
-import { PluginRegistry } from './plugin/plugin-registry.ts';
-import { PluginLoader } from './plugin/plugin-loader.ts';
-import { unityPlugin } from './plugin/builtin/unity-plugin.ts';
-import { godotPlugin } from './plugin/builtin/godot-plugin.ts';
-import { unrealPlugin } from './plugin/builtin/unreal-plugin.ts';
-import { orchestratorPlugin } from '../plugins/orchestrator/src/cli-plugin/index.ts';
+import { yaml, yargs, getHomeDir, __dirname, isCompiledBinary, path, process, fs } from "./dependencies.ts";
+import type { YargsInstance, YargsArguments } from "./dependencies.ts";
+import { CommandInterface } from "./command/command-interface.ts";
+import { configureLogger } from "./middleware/logger-verbosity/index.ts";
+import { CommandFactory } from "./command/command-factory.ts";
+import { NonExistentCommand } from "./command/null/non-existent-command.ts";
+import { CliCommands } from "./cli-commands.ts";
+import { PluginRegistry } from "./plugin/plugin-registry.ts";
+import { PluginLoader } from "./plugin/plugin-loader.ts";
+import { unityPlugin } from "./plugin/builtin/unity-plugin.ts";
+import { godotPlugin } from "./plugin/builtin/godot-plugin.ts";
+import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -31,22 +30,22 @@ export class Cli {
     this.yargs = yargs(args);
     this.rawArgs = args;
     this.currentWorkDir = cwd;
-    this.configFileName = '.game-ci.yml';
+    this.configFileName = ".game-ci.yml";
 
-    this.homeDir = getHomeDir() || '';
+    this.homeDir = getHomeDir() || "";
     this.cliStoragePath = `${this.homeDir}/.game-ci`;
-    this.cliStorageCanonicalPath = '~/.game-ci';
+    this.cliStorageCanonicalPath = "~/.game-ci";
     this.isRunningLocally = !Boolean(process.env.CI);
-    this.command = new NonExistentCommand('non-existent');
+    this.command = new NonExistentCommand("non-existent");
     this.hostPlatform = process.platform;
-    this.hostOS = process.platform === 'win32' ? 'windows' : process.platform;
+    this.hostOS = process.platform === "win32" ? "windows" : process.platform;
 
     this.cliPath = __dirname;
     // Dev mode: __dirname is <repo>/src, so dist/ is a sibling of its parent
     // (<repo>/dist). Compiled binary: __dirname is wherever the standalone
     // executable itself sits on disk (no src/ nesting) - dist/ must be
     // shipped as its direct sibling instead. See game-ci/cli#73.
-    this.cliDistPath = isCompiledBinary ? path.join(__dirname, 'dist') : path.join(path.dirname(__dirname), 'dist');
+    this.cliDistPath = isCompiledBinary ? path.join(__dirname, "dist") : path.join(path.dirname(__dirname), "dist");
   }
 
   public async setup() {
@@ -60,7 +59,17 @@ export class Cli {
     await PluginRegistry.registerOnce(unityPlugin);
     await PluginRegistry.registerOnce(godotPlugin);
     await PluginRegistry.registerOnce(unrealPlugin);
-    await PluginRegistry.registerOnce(orchestratorPlugin);
+
+    // Orchestrator is a genuinely separate package (plugins/orchestrator),
+    // not core-internal like unity/godot/unreal above (which live inside
+    // src/plugin/builtin/ itself). It's loaded the same way any other
+    // plugin is - through PluginLoader's dynamic import - so core has no
+    // compile-time dependency on a plugin's internals. "Built-in" here
+    // just means "always in the default load list", not "statically
+    // imported": the package is still resolved by its public name/exports
+    // (@game-ci/orchestrator/cli-plugin), never a relative path into its
+    // src/ tree.
+    await PluginLoader.load("@game-ci/orchestrator/cli-plugin");
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);
@@ -88,8 +97,8 @@ export class Cli {
     const options = await this.finalParse();
 
     if (log.isVeryVerbose) {
-      console.log('cliPath', this.cliPath);
-      console.log('distPath', this.cliDistPath);
+      console.log("cliPath", this.cliPath);
+      console.log("distPath", this.cliDistPath);
     }
 
     return {
@@ -101,35 +110,35 @@ export class Cli {
   private async configureLogger() {
     await this.nonStrict(async () => {
       await this.yargs
-        .options('quiet', {
-          alias: 'q',
-          description: 'Suppress all output',
-          type: 'boolean',
+        .options("quiet", {
+          alias: "q",
+          description: "Suppress all output",
+          type: "boolean",
           demandOption: false,
           default: false,
         })
-        .options('verbose', {
-          alias: 'v',
-          description: 'Enable verbose logging',
-          type: 'boolean',
+        .options("verbose", {
+          alias: "v",
+          description: "Enable verbose logging",
+          type: "boolean",
           demandOption: false,
           default: false,
         })
-        .options('veryVerbose', {
-          alias: 'vv',
-          description: 'Enable very verbose logging',
-          type: 'boolean',
+        .options("veryVerbose", {
+          alias: "vv",
+          description: "Enable very verbose logging",
+          type: "boolean",
           demandOption: false,
           default: false,
         })
-        .options('maxVerbose', {
-          alias: 'vvv',
-          description: 'Enable debug logging',
+        .options("maxVerbose", {
+          alias: "vvv",
+          description: "Enable debug logging",
           demandOption: false,
-          type: 'boolean',
+          type: "boolean",
           default: false,
         })
-        .default([{ logLevel: 'placeholder' }, { logLevelName: 'placeholder' }])
+        .default([{ logLevel: "placeholder" }, { logLevelName: "placeholder" }])
         .middleware([configureLogger], true)
         .parseAsync();
     });
@@ -140,17 +149,17 @@ export class Cli {
 
     this.yargs
       .parserConfiguration({
-        'dot-notation': false,
-        'duplicate-arguments-array': false,
-        'negation-prefix': false,
-        'strip-aliased': true,
-        'strip-dashed': true,
+        "dot-notation": false,
+        "duplicate-arguments-array": false,
+        "negation-prefix": false,
+        "strip-aliased": true,
+        "strip-dashed": true,
       })
       .fail(Cli.handleFailure)
       .help(false) // Fixes broken `_handle` in yargs 17.0.0
       .version(false) // Fixes broken `_handle` in yargs 17.0.0
       .showHelpOnFail(false) // Fixes broken `_handle` in yargs 17.0.0
-      .epilogue('for more information, find our manual at https://game.ci/docs/cli')
+      .epilogue("for more information, find our manual at https://game.ci/docs/cli")
       .middleware([])
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
       .strict(true);
@@ -165,36 +174,36 @@ export class Cli {
   protected configureGlobalOptions() {
     const defaultAbsolutePath = `${this.cliStoragePath}/${this.configFileName}`;
     this.yargs
-      .option('plugin', {
-        description: 'Load an external plugin from npm, a local path, github:<repo>, or executable:<path>',
-        type: 'string',
+      .option("plugin", {
+        description: "Load an external plugin from npm, a local path, github:<repo>, or executable:<path>",
+        type: "string",
         array: true,
       })
-      .option('plugins', {
-        description: 'Alias for --plugin to support config-driven plugin arrays',
-        type: 'string',
+      .option("plugins", {
+        description: "Alias for --plugin to support config-driven plugin arrays",
+        type: "string",
         array: true,
       })
-      .option('profile', {
-        description: 'Select a named build profile from the profiles: map in the config file',
-        type: 'string',
+      .option("profile", {
+        description: "Select a named build profile from the profiles: map in the config file",
+        type: "string",
         demandOption: false,
       })
-      .config('config', `default: .game-ci.yml`, (override: string) => {
+      .config("config", `default: .game-ci.yml`, (override: string) => {
         // Todo - remove hardcoded. Yargs override seems to be bugged though.
         //const configPath = `${this.currentWorkDir}/.game-ci.yml`;
         const configPath = override || defaultAbsolutePath;
 
         return this.loadConfig(configPath);
       })
-      .default('homeDir', this.homeDir)
-      .default('currentWorkDir', this.currentWorkDir)
-      .default('cliPath', this.cliPath)
-      .default('cliDistPath', this.cliDistPath)
-      .default('cliStoragePath', this.cliStoragePath)
-      .default('isRunningLocally', this.isRunningLocally)
-      .default('hostPlatform', this.hostPlatform)
-      .default('hostOS', this.hostOS);
+      .default("homeDir", this.homeDir)
+      .default("currentWorkDir", this.currentWorkDir)
+      .default("cliPath", this.cliPath)
+      .default("cliDistPath", this.cliDistPath)
+      .default("cliStoragePath", this.cliStoragePath)
+      .default("isRunningLocally", this.isRunningLocally)
+      .default("hostPlatform", this.hostPlatform)
+      .default("hostOS", this.hostOS);
   }
 
   private async getPreCommandOptions() {
@@ -220,20 +229,20 @@ export class Cli {
   }
 
   private getConfigOptions(options: Record<string, unknown>): Record<string, unknown> {
-    const explicitConfigPath = typeof options.config === 'string' ? options.config : '';
+    const explicitConfigPath = typeof options.config === "string" ? options.config : "";
     const configPath = explicitConfigPath || path.join(this.currentWorkDir, this.configFileName);
 
     return this.loadConfig(configPath);
   }
 
   private normalizePluginOption(value: unknown): string[] {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       return value.trim() ? [value.trim()] : [];
     }
 
     if (Array.isArray(value)) {
       return value
-        .filter((entry): entry is string => typeof entry === 'string')
+        .filter((entry): entry is string => typeof entry === "string")
         .map((entry) => entry.trim())
         .filter(Boolean);
     }
@@ -250,7 +259,7 @@ export class Cli {
   protected async finalParse() {
     const { _, $0, ...options } = await this.yargs.parseAsync();
 
-    if (log.isVeryVerbose) log.info('parsed:', _, $0, options);
+    if (log.isVeryVerbose) log.info("parsed:", _, $0, options);
 
     return options;
   }
@@ -266,18 +275,18 @@ export class Cli {
     let rootConfig: any;
 
     try {
-      const { readFileSync } = require('node:fs');
-      const configFile = readFileSync(configPath, 'utf-8');
+      const { readFileSync } = require("node:fs");
+      const configFile = readFileSync(configPath, "utf-8");
 
       try {
         rootConfig = JSON.parse(configFile);
-        if (log.isMaxVerbose) log.debug('jsonConfig', rootConfig?.cliOptions);
+        if (log.isMaxVerbose) log.debug("jsonConfig", rootConfig?.cliOptions);
       } catch {
         rootConfig = yaml.parse(configFile) as any;
-        if (log.isMaxVerbose) log.debug('yamlConfig', rootConfig?.cliOptions);
+        if (log.isMaxVerbose) log.debug("yamlConfig", rootConfig?.cliOptions);
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return {};
       }
 
@@ -303,7 +312,7 @@ export class Cli {
 
     if (!Object.prototype.hasOwnProperty.call(profiles, profileName)) {
       const availableProfiles = Object.keys(profiles);
-      const availableList = availableProfiles.length > 0 ? availableProfiles.join(', ') : '(no profiles defined)';
+      const availableList = availableProfiles.length > 0 ? availableProfiles.join(", ") : "(no profiles defined)";
 
       throw new Error(
         `Unknown profile "${profileName}" passed via --profile. ` +
@@ -325,12 +334,12 @@ export class Cli {
     for (let index = 0; index < this.rawArgs.length; index++) {
       const arg = this.rawArgs[index];
 
-      if (arg === '--profile') {
+      if (arg === "--profile") {
         return this.rawArgs[index + 1];
       }
 
-      if (arg?.startsWith('--profile=')) {
-        return arg.slice('--profile='.length);
+      if (arg?.startsWith("--profile=")) {
+        return arg.slice("--profile=".length);
       }
     }
 
