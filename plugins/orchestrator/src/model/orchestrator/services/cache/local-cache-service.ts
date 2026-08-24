@@ -49,6 +49,7 @@ export interface LocalCacheSaveOptions {
 
 /** Marker file written during background cache saves, contains the PID. */
 const BACKGROUND_LOCK_FILE = '.game-ci-cache-save.lock';
+const BACKGROUND_LOCK_GRACE_MS = 300_000;
 
 export class LocalCacheService {
   /**
@@ -938,7 +939,9 @@ export class LocalCacheService {
   /**
    * Proactively sweep orphaned background-save lock files across every cache-key
    * directory under cacheRoot. A lock is orphaned when its recorded PID is no
-   * longer alive (or unreadable/unparseable).
+   * longer alive, or when an incomplete/unparseable lock is older than the
+   * background-save timeout. Fresh incomplete locks are preserved because the
+   * writer briefly stores "pending" before replacing it with the child PID.
    *
    * waitForBackgroundLock() only self-heals reactively -- it checks a lock file
    * when a later save/restore call happens to target that exact cache key. A
@@ -972,15 +975,22 @@ export class LocalCacheService {
       if (!fs.existsSync(lockPath)) continue;
 
       try {
-        const pid = Number.parseInt(fs.readFileSync(lockPath, 'utf8').trim(), 10);
+        const lockContents = fs.readFileSync(lockPath, 'utf8').trim();
+        const pid = /^\d+$/.test(lockContents) ? Number(lockContents) : 0;
         if (pid > 0) {
           try {
             process.kill(pid, 0); // Signal 0 = existence check
             // Owning process is still alive -- a save is genuinely in progress.
             continue;
-          } catch {
-            // Process is gone; fall through to remove the stale lock.
+          } catch (error: any) {
+            if (error?.code !== 'ESRCH') {
+              // EPERM means the process exists but is owned by another user;
+              // unknown errors are likewise not proof that the lock is stale.
+              continue;
+            }
           }
+        } else if (Date.now() - fs.statSync(lockPath).mtimeMs < BACKGROUND_LOCK_GRACE_MS) {
+          continue;
         }
 
         fs.unlinkSync(lockPath);
@@ -1016,11 +1026,17 @@ export class LocalCacheService {
     while (fs.existsSync(lockPath) && Date.now() - start < timeoutMs) {
       // Check if the PID is still alive
       try {
-        const pid = Number.parseInt(fs.readFileSync(lockPath, 'utf8').trim(), 10);
+        const lockContents = fs.readFileSync(lockPath, 'utf8').trim();
+        const pid = /^\d+$/.test(lockContents) ? Number(lockContents) : 0;
         if (pid > 0) {
           try {
             process.kill(pid, 0); // Signal 0 = existence check
-          } catch {
+          } catch (error: any) {
+            if (error?.code !== 'ESRCH') {
+              // Lack of permission is evidence that the process exists, not
+              // that the lock is stale. Keep waiting in that case.
+              continue;
+            }
             // Process is gone, remove stale lock
             OrchestratorLogger.log(
               '[LocalCache] Background save process exited, removing stale lock',

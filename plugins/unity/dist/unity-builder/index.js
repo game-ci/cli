@@ -62,12 +62,12 @@ async function runMain() {
                 ? await runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin)
                 : result.exitCode;
         }
-        else if (buildParameters.providerStrategy === 'local') {
+        else if (buildParameters.providerStrategy === "local") {
             exitCode = await runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin);
         }
         else {
             throw new Error(`Provider strategy "${buildParameters.providerStrategy}" requires @game-ci/orchestrator. ` +
-                'Install it via the game-ci/orchestrator action, or use providerStrategy=local.');
+                "Install it via the game-ci/orchestrator action, or use providerStrategy=local.");
         }
         // Set core outputs
         await model_1.Output.setBuildVersion(buildParameters.buildVersion);
@@ -84,7 +84,6 @@ async function runMain() {
     }
 }
 async function runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin) {
-    await plugin?.beforeLocalBuild(workspace);
     // beforeLocalBuild() may have restored the local cache via a filesystem MOVE
     // (localCacheMode=move-directory), which removes it from the cache root rather
     // than copying it. afterLocalBuild() must always run to move the cache back,
@@ -92,10 +91,12 @@ async function runLocalBuild(buildParameters, baseImage, workspace, actionFolder
     // the cache is lost with no surviving copy anywhere. See plugins/orchestrator
     // LocalCacheService / ChildWorkspaceService for the move-based cache services.
     let exitCode = -1;
+    let buildError;
     try {
+        await plugin?.beforeLocalBuild(workspace);
         await platform_setup_1.default.setup(buildParameters, actionFolder);
         exitCode =
-            process.platform === 'darwin'
+            process.platform === "darwin"
                 ? await mac_builder_1.default.run(actionFolder)
                 : await model_1.Docker.run(baseImage.toString(), {
                     workspace,
@@ -103,14 +104,25 @@ async function runLocalBuild(buildParameters, baseImage, workspace, actionFolder
                     ...buildParameters,
                 });
     }
+    catch (error) {
+        buildError = error;
+        throw error;
+    }
     finally {
         try {
             await plugin?.afterLocalBuild(workspace, exitCode);
         }
         catch (afterBuildError) {
-            // Don't let a cache save-back failure mask a build error that may
-            // already be propagating out of the try block above.
-            core.warning(`afterLocalBuild failed: ${afterBuildError.message ?? afterBuildError}`);
+            if (buildError) {
+                // Preserve the primary setup/build failure while still surfacing the
+                // independent cleanup failure in the log.
+                core.warning(`afterLocalBuild failed: ${afterBuildError.message ?? afterBuildError}`);
+            }
+            else {
+                // A successful build with a failed move-directory save-back can leave
+                // the cache without a durable copy. Treat that as a real failure.
+                throw afterBuildError;
+            }
         }
     }
     return exitCode;

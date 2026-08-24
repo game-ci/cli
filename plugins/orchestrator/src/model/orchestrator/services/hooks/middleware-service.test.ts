@@ -419,5 +419,60 @@ after:
       expect(result[1].name).toBe('medium');
       expect(result[2].name).toBe('high');
     });
+
+    it.each([
+      ['command middleware on a container phase', 'command', '[pre-build]', 'cannot use phase'],
+      ['container middleware on a command phase', 'container', '[build]', 'cannot use phase'],
+      [
+        'middleware spanning incompatible phase kinds',
+        'command',
+        '[build, post-build]',
+        'cannot use phase',
+      ],
+    ])('should reject %s', (_description, type, phases, expectedMessage) => {
+      const yaml = `
+name: invalid-phase
+type: ${type}
+trigger:
+  phase: ${phases}
+before: echo "test"
+`;
+
+      expect(() => MiddlewareService.getMiddleware(yaml)).toThrow(expectedMessage);
+    });
+
+    it('should reject allowFailure on command middleware', () => {
+      const yaml = `
+name: invalid-allow-failure
+type: command
+allowFailure: true
+trigger:
+  phase: [build]
+before: echo "test"
+`;
+
+      expect(() => MiddlewareService.getMiddleware(yaml)).toThrow(
+        'allowFailure, which is supported only for container middleware',
+      );
+    });
+
+    it('should reject middleware with no phase or commands', () => {
+      expect(() =>
+        MiddlewareService.getMiddleware(`
+name: missing-phase
+type: command
+before: echo "test"
+`),
+      ).toThrow('must declare at least one trigger phase');
+
+      expect(() =>
+        MiddlewareService.getMiddleware(`
+name: missing-commands
+type: command
+trigger:
+  phase: [build]
+`),
+      ).toThrow('must declare before and/or after commands');
+    });
   });
 });

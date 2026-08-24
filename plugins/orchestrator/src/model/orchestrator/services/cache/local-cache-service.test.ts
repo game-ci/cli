@@ -381,7 +381,7 @@ describe('LocalCacheService', () => {
       (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
 
       const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
-        throw new Error('ESRCH');
+        throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
       });
 
       try {
@@ -414,10 +414,24 @@ describe('LocalCacheService', () => {
       }
     });
 
-    it('should remove a lock with unparseable PID content', () => {
+    it('should leave a fresh pending lock in place while the child PID is being written', () => {
       (mockFs.existsSync as vi.Mock).mockReturnValue(true);
       (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
       (mockFs.readFileSync as vi.Mock).mockReturnValue('pending');
+      (mockFs.statSync as vi.Mock).mockReturnValue({ mtimeMs: Date.now() });
+      (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
+
+      const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+      expect(removed).toBe(0);
+      expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('should remove an incomplete lock after the background-save timeout', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('pending');
+      (mockFs.statSync as vi.Mock).mockReturnValue({ mtimeMs: Date.now() - 300_001 });
       (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
 
       const removed = LocalCacheService.sweepStaleLocks('/cache');
@@ -426,6 +440,25 @@ describe('LocalCacheService', () => {
       expect(mockFs.unlinkSync).toHaveBeenCalledWith(
         path.join('/cache', 'key1', '.game-ci-cache-save.lock'),
       );
+    });
+
+    it('should preserve a lock when the PID check fails with EPERM', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('12345');
+
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      });
+
+      try {
+        const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+        expect(removed).toBe(0);
+        expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+      } finally {
+        killSpy.mockRestore();
+      }
     });
 
     it('should skip cache-key directories with no lock file', () => {

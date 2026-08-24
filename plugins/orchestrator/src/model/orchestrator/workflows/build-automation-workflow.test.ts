@@ -227,7 +227,7 @@ after:
     expect(buildAfterIndex).toBeGreaterThan(buildRunIndex);
   });
 
-  it('filters out middleware whose trigger phase does not match either slot', () => {
+  it('rejects command middleware configured for a container-only phase', () => {
     Orchestrator.buildParameters = makeBuildParameters({
       middlewarePipeline: `
 name: prebuild-only-mw
@@ -239,9 +239,9 @@ before:
 `,
     });
 
-    const script = getBuildWorkflow();
-
-    expect(script).not.toContain('should-not-appear');
+    expect(() => getBuildWorkflow()).toThrow(
+      'Middleware "prebuild-only-mw" of type "command" cannot use phase(s): pre-build',
+    );
   });
 
   it('filters out middleware whose trigger provider does not match providerStrategy', () => {

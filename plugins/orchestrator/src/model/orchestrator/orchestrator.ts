@@ -397,21 +397,8 @@ class Orchestrator {
 
       return new OrchestratorResult(buildParameters, output, true, true, false);
     } catch (error: any) {
-      OrchestratorLogger.log(OrchestratorLogger.stringifyError(error));
-      await GitHub.updateGitHubCheck(
-        Orchestrator.buildParameters.buildGuid,
-        `Failed - Error ${error?.message || error}`,
-        `failure`,
-        `completed`,
-      );
-      if (!Orchestrator.buildParameters.isCliMode) core.endGroup();
-
-      // Release any retained-workspace lock so a crashed/failed build doesn't
-      // permanently sequester the workspace slot. The success path above only
-      // releases after a clean run; IsWorkspaceLocked has no TTL/liveness check,
-      // so without this a thrown error here leaks the lock forever and shrinks
-      // the retained-workspace pool by one on every failure. ReleaseWorkspace is
-      // idempotent (a no-op if the workspace was never locked or already released).
+      // Release first: logging/status reporting below may itself throw, and no
+      // secondary failure should be able to strand a retained-workspace lock.
       if (
         BuildParameters.shouldUseRetainedWorkspaceMode(Orchestrator.buildParameters) &&
         Orchestrator.lockedWorkspace
@@ -430,6 +417,15 @@ class Orchestrator {
           Orchestrator.lockedWorkspace = ``;
         }
       }
+
+      OrchestratorLogger.log(OrchestratorLogger.stringifyError(error));
+      await GitHub.updateGitHubCheck(
+        Orchestrator.buildParameters.buildGuid,
+        `Failed - Error ${error?.message || error}`,
+        `failure`,
+        `completed`,
+      );
+      if (!Orchestrator.buildParameters.isCliMode) core.endGroup();
 
       await OrchestratorError.handleException(
         error,

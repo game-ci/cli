@@ -1,8 +1,8 @@
-import * as core from '@actions/core';
-import { Action, BuildParameters, Cache, Docker, ImageTag, Output } from './model';
-import MacBuilder from './model/mac-builder';
-import PlatformSetup from './model/platform-setup';
-import { Plugin, loadPlugin } from './model/plugin';
+import * as core from "@actions/core";
+import { Action, BuildParameters, Cache, Docker, ImageTag, Output } from "./model";
+import MacBuilder from "./model/mac-builder";
+import PlatformSetup from "./model/platform-setup";
+import { Plugin, loadPlugin } from "./model/plugin";
 
 // Exported so tests can drive the lifecycle directly without depending on
 // vitest's module re-loading (which changed in vitest 4).
@@ -28,12 +28,12 @@ export async function runMain() {
       exitCode = result.fallbackToLocal
         ? await runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin)
         : result.exitCode;
-    } else if (buildParameters.providerStrategy === 'local') {
+    } else if (buildParameters.providerStrategy === "local") {
       exitCode = await runLocalBuild(buildParameters, baseImage, workspace, actionFolder, plugin);
     } else {
       throw new Error(
         `Provider strategy "${buildParameters.providerStrategy}" requires @game-ci/orchestrator. ` +
-          'Install it via the game-ci/orchestrator action, or use providerStrategy=local.',
+          "Install it via the game-ci/orchestrator action, or use providerStrategy=local.",
       );
     }
 
@@ -60,8 +60,6 @@ async function runLocalBuild(
   actionFolder: string,
   plugin?: Plugin,
 ): Promise<number> {
-  await plugin?.beforeLocalBuild(workspace);
-
   // beforeLocalBuild() may have restored the local cache via a filesystem MOVE
   // (localCacheMode=move-directory), which removes it from the cache root rather
   // than copying it. afterLocalBuild() must always run to move the cache back,
@@ -69,23 +67,34 @@ async function runLocalBuild(
   // the cache is lost with no surviving copy anywhere. See plugins/orchestrator
   // LocalCacheService / ChildWorkspaceService for the move-based cache services.
   let exitCode = -1;
+  let buildError: unknown;
   try {
+    await plugin?.beforeLocalBuild(workspace);
     await PlatformSetup.setup(buildParameters, actionFolder);
     exitCode =
-      process.platform === 'darwin'
+      process.platform === "darwin"
         ? await MacBuilder.run(actionFolder)
         : await Docker.run(baseImage.toString(), {
             workspace,
             actionFolder,
             ...buildParameters,
           });
+  } catch (error) {
+    buildError = error;
+    throw error;
   } finally {
     try {
       await plugin?.afterLocalBuild(workspace, exitCode);
     } catch (afterBuildError) {
-      // Don't let a cache save-back failure mask a build error that may
-      // already be propagating out of the try block above.
-      core.warning(`afterLocalBuild failed: ${(afterBuildError as Error).message ?? afterBuildError}`);
+      if (buildError) {
+        // Preserve the primary setup/build failure while still surfacing the
+        // independent cleanup failure in the log.
+        core.warning(`afterLocalBuild failed: ${(afterBuildError as Error).message ?? afterBuildError}`);
+      } else {
+        // A successful build with a failed move-directory save-back can leave
+        // the cache without a durable copy. Treat that as a real failure.
+        throw afterBuildError;
+      }
     }
   }
 
