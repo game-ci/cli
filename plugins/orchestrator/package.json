@@ -6,10 +6,12 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./cli-plugin": {
+      "bun": "./src/cli-plugin/index.ts",
       "types": "./dist/cli-plugin/index.d.ts",
       "default": "./dist/cli-plugin/index.js"
     }
