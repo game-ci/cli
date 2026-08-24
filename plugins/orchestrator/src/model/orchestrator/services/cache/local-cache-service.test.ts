@@ -368,6 +368,112 @@ describe('LocalCacheService', () => {
     });
   });
 
+  describe('sweepStaleLocks', () => {
+    it('should return 0 when cache root does not exist', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(false);
+      expect(LocalCacheService.sweepStaleLocks('/cache')).toBe(0);
+    });
+
+    it('should remove a lock whose owning PID is no longer alive', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('99999');
+      (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
+
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
+      });
+
+      try {
+        const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+        expect(removed).toBe(1);
+        expect(mockFs.unlinkSync).toHaveBeenCalledWith(
+          path.join('/cache', 'key1', '.game-ci-cache-save.lock'),
+        );
+      } finally {
+        killSpy.mockRestore();
+      }
+    });
+
+    it('should leave a lock in place when the owning PID is still alive', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue(String(process.pid));
+      (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
+
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true as any);
+
+      try {
+        const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+        expect(removed).toBe(0);
+        expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+      } finally {
+        killSpy.mockRestore();
+      }
+    });
+
+    it('should leave a fresh pending lock in place while the child PID is being written', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('pending');
+      (mockFs.statSync as vi.Mock).mockReturnValue({ mtimeMs: Date.now() });
+      (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
+
+      const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+      expect(removed).toBe(0);
+      expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('should remove an incomplete lock after the background-save timeout', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('pending');
+      (mockFs.statSync as vi.Mock).mockReturnValue({ mtimeMs: Date.now() - 300_001 });
+      (mockFs.unlinkSync as vi.Mock).mockReturnValue(undefined);
+
+      const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+      expect(removed).toBe(1);
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith(
+        path.join('/cache', 'key1', '.game-ci-cache-save.lock'),
+      );
+    });
+
+    it('should preserve a lock when the PID check fails with EPERM', () => {
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+      (mockFs.readFileSync as vi.Mock).mockReturnValue('12345');
+
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      });
+
+      try {
+        const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+        expect(removed).toBe(0);
+        expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+      } finally {
+        killSpy.mockRestore();
+      }
+    });
+
+    it('should skip cache-key directories with no lock file', () => {
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (candidate: string) => !String(candidate).endsWith('.lock'),
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue([{ name: 'key1', isDirectory: () => true }]);
+
+      const removed = LocalCacheService.sweepStaleLocks('/cache');
+
+      expect(removed).toBe(0);
+      expect(mockFs.unlinkSync).not.toHaveBeenCalled();
+    });
+  });
+
   describe('garbageCollect', () => {
     it('should skip when cache root does not exist', async () => {
       (mockFs.existsSync as vi.Mock).mockReturnValue(false);

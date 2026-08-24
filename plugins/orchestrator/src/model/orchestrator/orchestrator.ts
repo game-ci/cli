@@ -397,6 +397,27 @@ class Orchestrator {
 
       return new OrchestratorResult(buildParameters, output, true, true, false);
     } catch (error: any) {
+      // Release first: logging/status reporting below may itself throw, and no
+      // secondary failure should be able to strand a retained-workspace lock.
+      if (
+        BuildParameters.shouldUseRetainedWorkspaceMode(Orchestrator.buildParameters) &&
+        Orchestrator.lockedWorkspace
+      ) {
+        try {
+          await SharedWorkspaceLocking.ReleaseWorkspace(
+            Orchestrator.lockedWorkspace,
+            Orchestrator.buildParameters.buildGuid,
+            Orchestrator.buildParameters,
+          );
+        } catch (releaseError: any) {
+          OrchestratorLogger.log(
+            `Failed to release workspace lock for ${Orchestrator.lockedWorkspace} after build failure: ${OrchestratorLogger.stringifyError(releaseError)}`,
+          );
+        } finally {
+          Orchestrator.lockedWorkspace = ``;
+        }
+      }
+
       OrchestratorLogger.log(OrchestratorLogger.stringifyError(error));
       await GitHub.updateGitHubCheck(
         Orchestrator.buildParameters.buildGuid,
@@ -405,6 +426,7 @@ class Orchestrator {
         `completed`,
       );
       if (!Orchestrator.buildParameters.isCliMode) core.endGroup();
+
       await OrchestratorError.handleException(
         error,
         Orchestrator.buildParameters,

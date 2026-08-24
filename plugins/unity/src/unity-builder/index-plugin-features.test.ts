@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 /**
  * Integration wiring tests for the plugin lifecycle in index.ts
  *
@@ -10,8 +10,8 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
  * - When providerStrategy is non-local without a plugin, an error is thrown
  */
 
-import { BuildParameters, Docker } from './model';
-import * as core from '@actions/core';
+import { BuildParameters, Docker } from "./model";
+import * as core from "@actions/core";
 
 // ---------------------------------------------------------------------------
 // Mock plugin
@@ -34,16 +34,16 @@ const { mockPlugin, mockLoadPlugin } = vi.hoisted(() => {
   };
 });
 
-vi.mock('./model/plugin', () => ({
+vi.mock("./model/plugin", () => ({
   loadPlugin: mockLoadPlugin,
 }));
 
-vi.mock('@actions/core');
-vi.mock('./model', () => ({
+vi.mock("@actions/core");
+vi.mock("./model", () => ({
   Action: {
     checkCompatibility: vi.fn(),
-    workspace: '/workspace',
-    actionFolder: '/action',
+    workspace: "/workspace",
+    actionFolder: "/action",
   },
   BuildParameters: {
     create: vi.fn(),
@@ -57,26 +57,26 @@ vi.mock('./model', () => ({
   // vitest 4 requires constructor mocks to use regular `function` (or
   // `class`); arrow fns aren't valid constructors.
   ImageTag: vi.fn(function () {
-    return { toString: () => 'mock-image:latest' };
+    return { toString: () => "mock-image:latest" };
   }),
   Output: {
-    setBuildVersion: vi.fn().mockResolvedValue(''),
-    setAndroidVersionCode: vi.fn().mockResolvedValue(''),
-    setEngineExitCode: vi.fn().mockResolvedValue(''),
+    setBuildVersion: vi.fn().mockResolvedValue(""),
+    setAndroidVersionCode: vi.fn().mockResolvedValue(""),
+    setEngineExitCode: vi.fn().mockResolvedValue(""),
   },
 }));
 
-vi.mock('./model/mac-builder', () => ({
+vi.mock("./model/mac-builder", () => ({
   __esModule: true,
   default: {
     run: vi.fn().mockResolvedValue(0),
   },
 }));
 
-vi.mock('./model/platform-setup', () => ({
+vi.mock("./model/platform-setup", () => ({
   __esModule: true,
   default: {
-    setup: vi.fn().mockResolvedValue(''),
+    setup: vi.fn().mockResolvedValue(""),
   },
 }));
 
@@ -84,14 +84,14 @@ const mockedBuildParametersCreate = BuildParameters.create as Mock;
 
 function createMockBuildParameters(overrides: Record<string, any> = {}) {
   return {
-    providerStrategy: 'local',
-    targetPlatform: 'StandaloneLinux64',
-    editorVersion: '2021.3.1f1',
-    buildVersion: '1.0.0',
-    androidVersionCode: '1',
-    projectPath: '.',
-    branch: 'main',
-    runnerTempPath: '/tmp',
+    providerStrategy: "local",
+    targetPlatform: "StandaloneLinux64",
+    editorVersion: "2021.3.1f1",
+    buildVersion: "1.0.0",
+    androidVersionCode: "1",
+    projectPath: ".",
+    branch: "main",
+    runnerTempPath: "/tmp",
     ...overrides,
   };
 }
@@ -103,7 +103,7 @@ async function runIndex(overrides: Record<string, any> = {}): Promise<void> {
   // top-level execution + jest's `vi.isolateModules`, but vitest 4 dropped
   // that API). Calling the exported function directly is cleaner than
   // round-tripping through dynamic imports.
-  const { runMain } = await import('./index');
+  const { runMain } = await import("./index");
   await runMain();
 }
 
@@ -111,14 +111,14 @@ async function runIndex(overrides: Record<string, any> = {}): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('index.ts plugin lifecycle wiring', () => {
+describe("index.ts plugin lifecycle wiring", () => {
   const originalPlatform = process.platform;
   const originalEnvironment = { ...process.env };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.GITHUB_WORKSPACE = '/workspace';
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    process.env.GITHUB_WORKSPACE = "/workspace";
+    Object.defineProperty(process, "platform", { value: "linux" });
 
     // Reset plugin to default behavior
     mockPlugin.canHandleBuild.mockReturnValue(false);
@@ -127,7 +127,7 @@ describe('index.ts plugin lifecycle wiring', () => {
   });
 
   afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    Object.defineProperty(process, "platform", { value: originalPlatform });
     process.env = { ...originalEnvironment };
   });
 
@@ -135,51 +135,84 @@ describe('index.ts plugin lifecycle wiring', () => {
   // Local build with plugin
   // -----------------------------------------------------------------------
 
-  describe('local build with plugin installed', () => {
-    it('should call lifecycle hooks in order: initialize -> beforeLocalBuild -> [build] -> afterLocalBuild -> handlePostBuild', async () => {
+  describe("local build with plugin installed", () => {
+    it("should call lifecycle hooks in order: initialize -> beforeLocalBuild -> [build] -> afterLocalBuild -> handlePostBuild", async () => {
       const callOrder: string[] = [];
-      mockPlugin.initialize.mockImplementation(async () => callOrder.push('initialize'));
-      mockPlugin.beforeLocalBuild.mockImplementation(async () =>
-        callOrder.push('beforeLocalBuild'),
-      );
-      mockPlugin.afterLocalBuild.mockImplementation(async () => callOrder.push('afterLocalBuild'));
-      mockPlugin.handlePostBuild.mockImplementation(async () => callOrder.push('handlePostBuild'));
+      mockPlugin.initialize.mockImplementation(async () => callOrder.push("initialize"));
+      mockPlugin.beforeLocalBuild.mockImplementation(async () => callOrder.push("beforeLocalBuild"));
+      mockPlugin.afterLocalBuild.mockImplementation(async () => callOrder.push("afterLocalBuild"));
+      mockPlugin.handlePostBuild.mockImplementation(async () => callOrder.push("handlePostBuild"));
 
       await runIndex();
 
-      expect(callOrder).toEqual([
-        'initialize',
-        'beforeLocalBuild',
-        'afterLocalBuild',
-        'handlePostBuild',
-      ]);
+      expect(callOrder).toEqual(["initialize", "beforeLocalBuild", "afterLocalBuild", "handlePostBuild"]);
     });
 
-    it('should pass buildParameters and workspace to initialize', async () => {
-      await runIndex({ targetPlatform: 'WebGL' });
+    it("should pass buildParameters and workspace to initialize", async () => {
+      await runIndex({ targetPlatform: "WebGL" });
 
       expect(mockPlugin.initialize).toHaveBeenCalledWith(
-        expect.objectContaining({ targetPlatform: 'WebGL' }),
-        '/workspace',
+        expect.objectContaining({ targetPlatform: "WebGL" }),
+        "/workspace",
       );
     });
 
-    it('should pass workspace to beforeLocalBuild', async () => {
+    it("should pass workspace to beforeLocalBuild", async () => {
       await runIndex();
 
-      expect(mockPlugin.beforeLocalBuild).toHaveBeenCalledWith('/workspace');
+      expect(mockPlugin.beforeLocalBuild).toHaveBeenCalledWith("/workspace");
     });
 
-    it('should pass workspace and exit code to afterLocalBuild', async () => {
+    it("should pass workspace and exit code to afterLocalBuild", async () => {
       await runIndex();
 
-      expect(mockPlugin.afterLocalBuild).toHaveBeenCalledWith('/workspace', 0);
+      expect(mockPlugin.afterLocalBuild).toHaveBeenCalledWith("/workspace", 0);
     });
 
-    it('should pass exit code to handlePostBuild', async () => {
+    it("should pass exit code to handlePostBuild", async () => {
       await runIndex();
 
       expect(mockPlugin.handlePostBuild).toHaveBeenCalledWith(0);
+    });
+
+    it("should still call afterLocalBuild when the build throws, so a move-directory cache save-back is not lost", async () => {
+      (Docker.run as Mock).mockRejectedValueOnce(new Error("container crashed"));
+
+      await runIndex();
+
+      // beforeLocalBuild may have MOVEd the cache into the workspace; afterLocalBuild
+      // must always run to move it back, even when the build itself throws instead
+      // of returning an exit code.
+      expect(mockPlugin.afterLocalBuild).toHaveBeenCalledWith("/workspace", -1);
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("container crashed"));
+    });
+
+    it("should not let an afterLocalBuild failure mask the original build error", async () => {
+      (Docker.run as Mock).mockRejectedValueOnce(new Error("container crashed"));
+      mockPlugin.afterLocalBuild.mockRejectedValueOnce(new Error("cache save-back failed"));
+
+      await runIndex();
+
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("container crashed"));
+      expect(core.warning).toHaveBeenCalledWith(expect.stringContaining("cache save-back failed"));
+    });
+
+    it("should fail a successful build when afterLocalBuild fails", async () => {
+      mockPlugin.afterLocalBuild.mockRejectedValueOnce(new Error("cache save-back failed"));
+
+      await runIndex();
+
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("cache save-back failed"));
+      expect(core.warning).not.toHaveBeenCalledWith(expect.stringContaining("cache save-back failed"));
+    });
+
+    it("should still call afterLocalBuild when beforeLocalBuild throws after a partial restore", async () => {
+      mockPlugin.beforeLocalBuild.mockRejectedValueOnce(new Error("restore failed"));
+
+      await runIndex();
+
+      expect(mockPlugin.afterLocalBuild).toHaveBeenCalledWith("/workspace", -1);
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("restore failed"));
     });
   });
 
@@ -187,20 +220,20 @@ describe('index.ts plugin lifecycle wiring', () => {
   // Plugin handles build entirely
   // -----------------------------------------------------------------------
 
-  describe('plugin handles build (canHandleBuild = true)', () => {
-    it('should call handleBuild instead of Docker.run', async () => {
+  describe("plugin handles build (canHandleBuild = true)", () => {
+    it("should call handleBuild instead of Docker.run", async () => {
       mockPlugin.canHandleBuild.mockReturnValue(true);
       mockPlugin.handleBuild.mockResolvedValue({ exitCode: 0 });
 
       await runIndex();
 
-      expect(mockPlugin.handleBuild).toHaveBeenCalledWith('mock-image:latest');
+      expect(mockPlugin.handleBuild).toHaveBeenCalledWith("mock-image:latest");
       expect(Docker.run).not.toHaveBeenCalled();
       expect(mockPlugin.beforeLocalBuild).not.toHaveBeenCalled();
       expect(mockPlugin.afterLocalBuild).not.toHaveBeenCalled();
     });
 
-    it('should still call handlePostBuild after handleBuild', async () => {
+    it("should still call handlePostBuild after handleBuild", async () => {
       mockPlugin.canHandleBuild.mockReturnValue(true);
       mockPlugin.handleBuild.mockResolvedValue({ exitCode: 0 });
 
@@ -214,8 +247,8 @@ describe('index.ts plugin lifecycle wiring', () => {
   // Fallback to local
   // -----------------------------------------------------------------------
 
-  describe('fallback to local build', () => {
-    it('should do a local build when handleBuild returns fallbackToLocal', async () => {
+  describe("fallback to local build", () => {
+    it("should do a local build when handleBuild returns fallbackToLocal", async () => {
       mockPlugin.canHandleBuild.mockReturnValue(true);
       mockPlugin.handleBuild.mockResolvedValue({ exitCode: -1, fallbackToLocal: true });
 
@@ -232,23 +265,21 @@ describe('index.ts plugin lifecycle wiring', () => {
   // No plugin installed
   // -----------------------------------------------------------------------
 
-  describe('no plugin installed', () => {
-    it('should build locally without errors when providerStrategy is local', async () => {
+  describe("no plugin installed", () => {
+    it("should build locally without errors when providerStrategy is local", async () => {
       mockLoadPlugin.mockResolvedValue(undefined);
 
-      await runIndex({ providerStrategy: 'local' });
+      await runIndex({ providerStrategy: "local" });
 
       expect(Docker.run).toHaveBeenCalled();
     });
 
-    it('should error when providerStrategy is non-local and no plugin', async () => {
+    it("should error when providerStrategy is non-local and no plugin", async () => {
       mockLoadPlugin.mockResolvedValue(undefined);
 
-      await runIndex({ providerStrategy: 'aws' });
+      await runIndex({ providerStrategy: "aws" });
 
-      expect(core.setFailed).toHaveBeenCalledWith(
-        expect.stringContaining('requires @game-ci/orchestrator'),
-      );
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("requires @game-ci/orchestrator"));
     });
   });
 
@@ -256,17 +287,15 @@ describe('index.ts plugin lifecycle wiring', () => {
   // canHandleBuild = false with non-local provider
   // -----------------------------------------------------------------------
 
-  describe('plugin installed but canHandleBuild returns false with non-local provider', () => {
-    it('should error when providerStrategy is non-local', async () => {
+  describe("plugin installed but canHandleBuild returns false with non-local provider", () => {
+    it("should error when providerStrategy is non-local", async () => {
       mockPlugin.canHandleBuild.mockReturnValue(false);
 
-      await runIndex({ providerStrategy: 'aws' });
+      await runIndex({ providerStrategy: "aws" });
 
       // The plugin is initialized but says it can't handle the build,
       // and providerStrategy is not local, so it falls to the error case
-      expect(core.setFailed).toHaveBeenCalledWith(
-        expect.stringContaining('requires @game-ci/orchestrator'),
-      );
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("requires @game-ci/orchestrator"));
     });
   });
 });

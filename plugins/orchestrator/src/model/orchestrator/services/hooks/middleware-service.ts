@@ -35,12 +35,61 @@ export class MiddlewareService {
     // Load file-based definitions from game-ci/middleware/
     middleware.push(...MiddlewareService.getMiddlewareFromFiles());
 
+    for (const definition of middleware) {
+      MiddlewareService.validateMiddleware(definition);
+    }
+
     // Sort by priority (lower = earlier)
     middleware.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
 
     OrchestratorLogger.log(`Middleware: loaded ${middleware.length} definition(s)`);
 
     return middleware;
+  }
+
+  /**
+   * Reject configurations that cannot be represented by the underlying hook
+   * systems. Command hooks are wired only to setup/build; container hooks are
+   * wired only to pre-build/post-build.
+   */
+  private static validateMiddleware(middleware: Middleware): void {
+    const commandPhases = new Set(['setup', 'build']);
+    const containerPhases = new Set(['pre-build', 'post-build']);
+    const phasesForType =
+      middleware.type === 'command'
+        ? commandPhases
+        : middleware.type === 'container'
+          ? containerPhases
+          : undefined;
+
+    if (!phasesForType) {
+      throw new Error(
+        `Middleware "${middleware.name}" has unsupported type "${middleware.type}"; expected "command" or "container"`,
+      );
+    }
+
+    if (!middleware.trigger.phase.length) {
+      throw new Error(`Middleware "${middleware.name}" must declare at least one trigger phase`);
+    }
+
+    const incompatiblePhases = middleware.trigger.phase.filter(
+      (phase) => !phasesForType.has(phase),
+    );
+    if (incompatiblePhases.length > 0) {
+      throw new Error(
+        `Middleware "${middleware.name}" of type "${middleware.type}" cannot use phase(s): ${incompatiblePhases.join(', ')}`,
+      );
+    }
+
+    if (!middleware.before && !middleware.after) {
+      throw new Error(`Middleware "${middleware.name}" must declare before and/or after commands`);
+    }
+
+    if (middleware.type === 'command' && middleware.allowFailure) {
+      throw new Error(
+        `Middleware "${middleware.name}" sets allowFailure, which is supported only for container middleware`,
+      );
+    }
   }
 
   /**
