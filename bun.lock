@@ -88,6 +88,15 @@
         "vitest": "^4",
       },
     },
+    "plugins/steam-workshop": {
+      "name": "@game-ci/steam-workshop",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
     "plugins/unity": {
       "name": "@game-ci/unity-engine-core",
       "version": "0.1.0",
@@ -352,6 +361,8 @@
     "@game-ci/runtime-test-framework": ["@game-ci/runtime-test-framework@workspace:plugins/runtime-test-framework"],
 
     "@game-ci/steam-deploy": ["@game-ci/steam-deploy@workspace:plugins/steam-deploy"],
+
+    "@game-ci/steam-workshop": ["@game-ci/steam-workshop@workspace:plugins/steam-workshop"],
 
     "@game-ci/unity-engine-core": ["@game-ci/unity-engine-core@workspace:plugins/unity"],
 
@@ -1582,6 +1593,8 @@
     "@game-ci/runtime-test-framework/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/steam-deploy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/steam-workshop/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/unity-engine-core/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
