@@ -17,6 +17,15 @@ export const steamDeployPlugin = {
       engine: "*",
       createCommand(command: string, subCommands: string[]) {
         if (command === "deploy" && subCommands[0] === "steam") {
+          // Warned here rather than in onLoad: this plugin is in cli.ts's
+          // default load list, so an onLoad warning would fire on every
+          // single game-ci invocation and train people to ignore warnings.
+          // This fires exactly when the experimental feature is used - and
+          // a Steam upload is irreversible once it reaches a live branch.
+          console.warn(
+            "[game-ci] WARNING: `deploy steam` is EXPERIMENTAL. Verify against a test branch " +
+              "before pointing it at a live one - a Steam upload cannot be undone.",
+          );
           return new SteamDeployCommand();
         }
         return null;

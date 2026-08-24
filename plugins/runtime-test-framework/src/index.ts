@@ -21,6 +21,15 @@ export const runtimeTestFrameworkPlugin = {
       engine: "*",
       createCommand(command: string, _subCommands: string[]) {
         if (command === "test-runtime") {
+          // Warned here rather than in onLoad: this plugin is in cli.ts's
+          // default load list, so an onLoad warning would fire on every
+          // single game-ci invocation and train people to ignore warnings.
+          // This fires exactly when the experimental feature is used.
+          console.warn(
+            "[game-ci] WARNING: `test-runtime` is EXPERIMENTAL. It is implemented, but the " +
+              "results-file contract it relies on may still change. Do not depend on it in " +
+              "production pipelines yet.",
+          );
           return new RuntimeTestCommand();
         }
         return null;

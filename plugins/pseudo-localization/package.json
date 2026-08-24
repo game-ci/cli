@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/pseudo-localization",
   "version": "0.0.1",
-  "description": "Pseudo-localization QA plugin (draft). Injects pseudo-loc strings pre-translation to catch UI overflow/truncation bugs.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Pseudo-localization QA plugin (draft). Injects pseudo-loc strings pre-translation to catch UI overflow/truncation bugs.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

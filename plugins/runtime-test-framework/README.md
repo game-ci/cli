@@ -1,3 +1,7 @@
+> **EXPERIMENTAL.** This plugin is implemented and loaded by default, but its
+> behaviour and options may still change without a major version bump.
+> Do not depend on it in a production pipeline yet.
+
 # @game-ci/runtime-test-framework
 
 GPU-free, assertion-based tests run against the actual _built player_, not

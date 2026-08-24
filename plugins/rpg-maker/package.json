@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/rpg-maker",
   "version": "0.0.1",
-  "description": "RPG Maker engine plugin (draft). Wraps RPG Maker MV/MZ's NW.js export packaging.",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): RPG Maker engine plugin (draft). Wraps RPG Maker MV/MZ's NW.js export packaging.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

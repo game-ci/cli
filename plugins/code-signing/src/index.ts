@@ -15,6 +15,19 @@ export const codeSigningPlugin = {
   name: "code-signing",
   version: "0.0.1",
 
+  /**
+   * Loaded only via an explicit --plugin flag, never by default, so
+   * reaching this point is deliberate - warn rather than fail, but make
+   * it impossible to mistake for a working integration.
+   */
+  onLoad() {
+    console.warn(
+      "[game-ci] WARNING: @game-ci/code-signing is an EXPERIMENTAL draft plugin. " +
+        "Its structure is real but its domain logic is not implemented - any command it " +
+        "claims will throw. Do not depend on it. See plugins/code-signing/README.md.",
+    );
+  },
+
   commands: [
     {
       engine: "*",

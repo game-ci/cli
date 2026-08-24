@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/steam-deploy",
   "version": "0.1.0",
-  "description": "Deploy a pre-built game output to Steam via SteamCMD. Engine-agnostic - works on any built output folder, regardless of what built it.",
+  "private": true,
+  "description": "EXPERIMENTAL: Deploy a pre-built game output to Steam via SteamCMD. Engine-agnostic - works on any built output folder, regardless of what built it.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

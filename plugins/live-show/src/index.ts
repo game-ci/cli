@@ -14,6 +14,19 @@ export const liveShowPlugin = {
   name: "live-show",
   version: "0.0.1",
 
+  /**
+   * Loaded only via an explicit --plugin flag, never by default, so
+   * reaching this point is deliberate - warn rather than fail, but make
+   * it impossible to mistake for a working integration.
+   */
+  onLoad() {
+    console.warn(
+      "[game-ci] WARNING: @game-ci/live-show is an EXPERIMENTAL draft plugin. " +
+        "Its structure is real but its domain logic is not implemented - any command it " +
+        "claims will throw. Do not depend on it. See plugins/live-show/README.md.",
+    );
+  },
+
   commands: [
     {
       engine: "*",

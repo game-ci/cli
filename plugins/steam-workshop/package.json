@@ -1,7 +1,8 @@
 {
   "name": "@game-ci/steam-workshop",
   "version": "0.0.1",
-  "description": "Steam Workshop / mod-publishing plugin (draft). Wraps SteamCMD's workshop_build_item.vdf upload path for mods/maps/asset packs - a distinct target and VDF schema from a full game build (see @game-ci/steam-deploy).",
+  "private": true,
+  "description": "EXPERIMENTAL (draft, not implemented): Steam Workshop / mod-publishing plugin (draft). Wraps SteamCMD's workshop_build_item.vdf upload path for mods/maps/asset packs - a distinct target and VDF schema from a full game build (see @game-ci/steam-deploy).",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

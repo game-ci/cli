@@ -1,3 +1,8 @@
+> **EXPERIMENTAL — NOT IMPLEMENTED.** A structural draft only: the plugin shape
+> is real, but its domain logic is not written, so any command it claims will
+> throw. Not published to npm, and never loaded unless you pass
+> `--plugin @game-ci/steam-workshop` explicitly.
+
 # @game-ci/steam-workshop (draft)
 
 Steam Workshop / mod-publishing plugin. **Not functional yet** - structural

@@ -1,3 +1,8 @@
+> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
+> shape is real, but its domain logic is not written. Any command it claims will
+> throw. It is not published to npm and is never loaded unless you pass
+> `--plugin @game-ci/rpg-maker` explicitly.
+
 # @game-ci/rpg-maker (draft)
 
 RPG Maker (MV/MZ) engine plugin. **Not functional yet** - structural skeleton
