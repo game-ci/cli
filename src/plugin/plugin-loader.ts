@@ -37,6 +37,26 @@ export class PluginLoader {
   }
 
   /**
+   * Register an already-imported plugin module. Use this for npm packages
+   * whose specifier is a source-level string literal (e.g. a default plugin
+   * imported via `await import("@game-ci/orchestrator/cli-plugin")`).
+   *
+   * `loadFromNpm` below resolves `import(packageName)` where `packageName`
+   * is a variable - Bun's `--compile` bundler can't statically trace that
+   * and the standalone binary fails at runtime with "Cannot find module"
+   * for every npm-sourced plugin (see game-ci/cli#151). A literal `import()`
+   * expression at the call site *is* traceable, so callers that know their
+   * specifier at compile time should import it themselves and pass the
+   * resolved module here instead of going through `load()`.
+   */
+  static async loadModule(mod: any, source: string): Promise<GameCIPlugin> {
+    const plugin: GameCIPlugin = mod.default || mod;
+    PluginLoader.validate(plugin, source);
+    await PluginRegistry.registerOnce(plugin);
+    return plugin;
+  }
+
+  /**
    * Load multiple plugins from an array of sources.
    */
   static async loadAll(sources: string[]): Promise<GameCIPlugin[]> {
