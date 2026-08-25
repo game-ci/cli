@@ -49,7 +49,16 @@ class RunnerImageTag {
   }
 
   static get versionPattern() {
-    return /^20\d{2}\.\d\.\w{3,4}|3$/;
+    // Matches both the legacy YYYY.M.PPl# scheme (e.g. "2021.3.45f1") and
+    // Unity 6's "6000.M.PPl#" scheme (e.g. "6000.0.36f1") - previously only
+    // the former was accepted, which silently never mattered while
+    // engineVersion could only ever come from auto-detected
+    // ProjectVersion.txt (itself always a real installed version), but
+    // surfaced as "Invalid version" once an explicit --engineVersion
+    // override became possible (see game-ci/cli#154) and unity-builder's
+    // Unity 6 Build Profile matrix cell (game-ci/unity-builder#847) tried
+    // to pass "6000.0.36f1" through.
+    return /^\d{4}\.\d+\.\w{1,6}$/;
   }
 
   static get targetPlatformSuffixes() {
