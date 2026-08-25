@@ -76,8 +76,15 @@ class SetupMac {
     // Note: getUnityChangeset was removed as a dependency - install by version only
     const moduleArgument = SetupMac.getModuleParametersForTargetPlatform(options.targetPlatform);
 
+    // `Options` has no real `editorVersion` field - only `engineVersion` is
+    // ever populated (see engineDetection middleware / #154). The version
+    // passed here was silently "undefined" on every single macOS build,
+    // which is exactly what Unity Hub CLI's "Provided editor version does
+    // not match to any known Unity Editor versions" meant all along -
+    // Options being loosely typed let this typo through with no compiler
+    // error. See game-ci/cli#844 investigation.
     const command = `${this.unityHubExecPath} -- --headless install \
-                                          --version ${options.editorVersion} \
+                                          --version ${options.engineVersion} \
                                           ${moduleArgument} \
                                           --childModules `;
 
@@ -90,7 +97,7 @@ class SetupMac {
 
   private static setEnvironmentVariables(options: Options) {
     process.env.ACTION_FOLDER = options.cliPath;
-    process.env.UNITY_VERSION = options.editorVersion;
+    process.env.UNITY_VERSION = options.engineVersion;
     process.env.UNITY_SERIAL = options.unitySerial;
     process.env.UNITY_LICENSING_SERVER = options.unityLicensingServer;
     process.env.PROJECT_PATH = options.projectPath;

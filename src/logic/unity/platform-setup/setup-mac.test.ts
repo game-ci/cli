@@ -59,4 +59,36 @@ describe("SetupMac", () => {
 
     expect(capturedCommand).toBe("brew install --cask unity-hub@3.19.5");
   });
+
+  // Regression test for a real bug: installUnity's --version flag read
+  // options.editorVersion, a field nothing ever assigns (only
+  // engineVersion is populated - see the engineDetection middleware /
+  // game-ci/cli#154). Options is loosely typed, so this typo compiled
+  // clean and silently sent "--version undefined" to Unity Hub CLI on
+  // every macOS build, producing Hub's own "Provided editor version does
+  // not match to any known Unity Editor versions" - confirmed live in
+  // game-ci/unity-builder#844's CI across every release from v0.1.17
+  // through v0.1.22.
+  it("installUnity passes the real engineVersion, not the nonexistent editorVersion field", async () => {
+    // Hub path exists so setup() skips installUnityHub and goes straight to
+    // installUnity, which is what we're testing here.
+    fs.existsSync = mock((path: string) => path.includes("Hub.app")) as any;
+    let capturedCommand = "";
+    const systemRunMock = mock((command: string) => {
+      capturedCommand = command;
+
+      return Promise.resolve({ status: { code: 0 }, output: "" });
+    });
+    System.run = systemRunMock as any;
+
+    await SetupMac.setup({
+      isRunningLocally: false,
+      unityHubVersionOnMac: "",
+      engineVersion: "2021.3.45f2",
+      targetPlatform: "StandaloneOSX",
+    } as any);
+
+    expect(capturedCommand).toContain("--version 2021.3.45f2");
+    expect(capturedCommand).not.toContain("undefined");
+  });
 });
