@@ -72,6 +72,17 @@ class SetupMac {
     return moduleArgument;
   }
 
+  private static getArchitectureArgument(): string {
+    switch (process.arch) {
+      case "x64":
+        return "--architecture x86_64";
+      case "arm64":
+        return "--architecture arm64";
+      default:
+        throw new Error(`Unsupported architecture: ${process.arch}.`);
+    }
+  }
+
   private static async installUnity(options: Options, silent = false) {
     // Note: getUnityChangeset was removed as a dependency - install by version only
     const moduleArgument = SetupMac.getModuleParametersForTargetPlatform(options.targetPlatform);
@@ -83,12 +94,18 @@ class SetupMac {
     // not match to any known Unity Editor versions" meant all along -
     // Options being loosely typed let this typo through with no compiler
     // error. See game-ci/cli#844 investigation.
+    //
+    // --architecture was also missing entirely: confirmed via debug logging
+    // (#170/v0.1.24) that with a genuinely correct --version, Unity Hub CLI
+    // on a macos-26-arm64 (Apple Silicon) runner still rejected the install
+    // without an explicit architecture - matching the pattern already used
+    // (and proven working there) by the separate, GH-Action-native
+    // plugins/unity/.../setup-mac.ts.
     const command = `${this.unityHubExecPath} -- --headless install \
                                           --version ${options.engineVersion} \
                                           ${moduleArgument} \
+                                          ${SetupMac.getArchitectureArgument()} \
                                           --childModules `;
-
-    log.error(`[DEBUG-844] installUnity resolved command: ${command}`);
 
     try {
       await System.run(command, undefined, { silent });
