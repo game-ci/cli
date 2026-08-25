@@ -5,6 +5,20 @@ import { restoreCache, saveCache } from '@actions/cache';
 
 import fs from 'node:fs';
 
+// `log` is a real runtime global set up by src/cli.ts's configureLogger
+// before any command runs - plugins/unity's own tsconfig just doesn't know
+// its type, since this plugin normally uses @actions/core instead. Declared
+// locally rather than switching to core.info/core.warning: console.log's
+// output has been confirmed (game-ci/cli#844 investigation) to go missing
+// in this exact macOS/compiled-binary context, while `log.info`/`log.warning`
+// output (used elsewhere, e.g. mac-builder.ts) reliably appears - unclear
+// yet whether @actions/core's plain stdout writes would fare the same as
+// console.log's, so this sticks to the mechanism already proven to work.
+declare const log: {
+  info: (...args: unknown[]) => void;
+  warning: (...args: unknown[]) => void;
+};
+
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
   static unityHubExecPath = `${SetupMac.unityHubBasePath}/Contents/MacOS/"Unity Hub"`;
@@ -145,12 +159,12 @@ class SetupMac {
     // -activeBuildProfile's value getting word-split on the bash side
     // (see game-ci/cli#159), unrelated to this flag.
     let unityChangeset: { changeset: string };
-    console.log(`[SetupMac] Resolving changeset for editorVersion="${buildParameters.editorVersion}"...`);
+    log.info(`[SetupMac] Resolving changeset for editorVersion="${buildParameters.editorVersion}"...`);
     try {
       unityChangeset = await getUnityChangeset(buildParameters.editorVersion);
-      console.log(`[SetupMac] Resolved changeset: ${unityChangeset.changeset}`);
+      log.info(`[SetupMac] Resolved changeset: ${unityChangeset.changeset}`);
     } catch (changesetError) {
-      console.log(`[SetupMac] getUnityChangeset FAILED: ${changesetError}`);
+      log.info(`[SetupMac] getUnityChangeset FAILED: ${changesetError}`);
       throw changesetError;
     }
     const moduleArguments = SetupMac.getModuleParametersForTargetPlatform(
@@ -174,16 +188,16 @@ class SetupMac {
     // for this exact call - switching to getExecOutput so we capture and
     // print stdout/stderr ourselves, independent of whatever's suppressing
     // exec()'s own listener-based echo in this compiled-binary context.
-    console.log(
+    log.info(
       `[SetupMac] Running: ${this.unityHubExecPath} ${execArguments.map((a) => JSON.stringify(a)).join(' ')}`,
     );
     const result = await getExecOutput(this.unityHubExecPath, execArguments, {
       silent,
       ignoreReturnCode: true,
     });
-    console.log(`[SetupMac] Unity Hub install exit code: ${result.exitCode}`);
-    console.log(`[SetupMac] Unity Hub install stdout:\n${result.stdout}`);
-    console.log(`[SetupMac] Unity Hub install stderr:\n${result.stderr}`);
+    log.info(`[SetupMac] Unity Hub install exit code: ${result.exitCode}`);
+    log.info(`[SetupMac] Unity Hub install stdout:\n${result.stdout}`);
+    log.info(`[SetupMac] Unity Hub install stderr:\n${result.stderr}`);
     if (result.exitCode) {
       throw new Error(
         `There was an error installing the Unity Editor. See logs above for details.`,

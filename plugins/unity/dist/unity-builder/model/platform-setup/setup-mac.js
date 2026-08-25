@@ -122,13 +122,13 @@ class SetupMac {
         // -activeBuildProfile's value getting word-split on the bash side
         // (see game-ci/cli#159), unrelated to this flag.
         let unityChangeset;
-        console.log(`[SetupMac] Resolving changeset for editorVersion="${buildParameters.editorVersion}"...`);
+        log.info(`[SetupMac] Resolving changeset for editorVersion="${buildParameters.editorVersion}"...`);
         try {
             unityChangeset = await (0, unity_changeset_1.getUnityChangeset)(buildParameters.editorVersion);
-            console.log(`[SetupMac] Resolved changeset: ${unityChangeset.changeset}`);
+            log.info(`[SetupMac] Resolved changeset: ${unityChangeset.changeset}`);
         }
         catch (changesetError) {
-            console.log(`[SetupMac] getUnityChangeset FAILED: ${changesetError}`);
+            log.info(`[SetupMac] getUnityChangeset FAILED: ${changesetError}`);
             throw changesetError;
         }
         const moduleArguments = SetupMac.getModuleParametersForTargetPlatform(buildParameters.targetPlatform);
@@ -148,14 +148,14 @@ class SetupMac {
         // for this exact call - switching to getExecOutput so we capture and
         // print stdout/stderr ourselves, independent of whatever's suppressing
         // exec()'s own listener-based echo in this compiled-binary context.
-        console.log(`[SetupMac] Running: ${this.unityHubExecPath} ${execArguments.map((a) => JSON.stringify(a)).join(' ')}`);
+        log.info(`[SetupMac] Running: ${this.unityHubExecPath} ${execArguments.map((a) => JSON.stringify(a)).join(' ')}`);
         const result = await (0, exec_1.getExecOutput)(this.unityHubExecPath, execArguments, {
             silent,
             ignoreReturnCode: true,
         });
-        console.log(`[SetupMac] Unity Hub install exit code: ${result.exitCode}`);
-        console.log(`[SetupMac] Unity Hub install stdout:\n${result.stdout}`);
-        console.log(`[SetupMac] Unity Hub install stderr:\n${result.stderr}`);
+        log.info(`[SetupMac] Unity Hub install exit code: ${result.exitCode}`);
+        log.info(`[SetupMac] Unity Hub install stdout:\n${result.stdout}`);
+        log.info(`[SetupMac] Unity Hub install stderr:\n${result.stderr}`);
         if (result.exitCode) {
             throw new Error(`There was an error installing the Unity Editor. See logs above for details.`);
         }
