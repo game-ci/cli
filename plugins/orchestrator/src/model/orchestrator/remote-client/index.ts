@@ -16,7 +16,7 @@ import { Cli } from '../../cli/cli';
 import OrchestratorOptions from '../options/orchestrator-options';
 import ResourceTracking from '../services/core/resource-tracking';
 import { IncrementalSyncService } from '../services/sync';
-import { SyncStrategy } from '../services/sync/sync-state';
+import type { SyncStrategy } from '../services/sync/sync-state';
 
 export class RemoteClient {
   @CliFunction(`remote-cli-pre-build`, `sets up a repository, usually before a game-ci build`)

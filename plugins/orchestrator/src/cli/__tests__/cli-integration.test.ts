@@ -23,9 +23,18 @@ function runCli(
   });
 }
 
-// Per-test timeout configured via vitest options at the file/describe level.
-
-describe('CLI integration', () => {
+// Each test spawns a real `node --require ts-node/register/transpile-only`
+// process, which has to transpile and load this package's full CLI
+// dependency graph before it can even start parsing argv - genuinely slow,
+// and slower still under CI's parallel test-shard contention. runCli's own
+// execFile already allows up to 60s for that, but vitest's default per-test
+// timeout is 5000ms regardless, so the wrapping `it()` was timing out (and
+// failing the whole run under `set -e`-equivalent CI gating) long before the
+// child process's own generous budget was ever exhausted - not a real
+// failure, just a mismatched timeout. A 30s per-test timeout here comfortably
+// covers real CI contention without masking a genuine hang (which would
+// still exceed even that).
+describe('CLI integration', { timeout: 30_000 }, () => {
   it('exits 0 and shows all commands for --help', async () => {
     const result = await runCli(['--help']);
 

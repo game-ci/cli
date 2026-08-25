@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OrchestratorSystem } from '../core/orchestrator-system';
 import OrchestratorLogger from '../core/orchestrator-logger';
-import { SyncState, SyncStrategy } from './sync-state';
+import type { SyncState, SyncStrategy } from './sync-state';
 import { SyncStateManager } from './sync-state-manager';
 
 /**

@@ -559,7 +559,7 @@ echo "log start" >> /home/job-log.txt
 echo "CACHE_KEY=$CACHE_KEY"
 ${
   Orchestrator.buildParameters.providerStrategy !== 'local-docker'
-    ? `node ${builderPath} -m remote-cli-pre-build`
+    ? `node ${builderPath} remote-cli-pre-build`
     : `# skipping remote-cli-pre-build in local-docker`
 }`;
     }
@@ -623,7 +623,7 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     if ! command -v yarn > /dev/null 2>&1; then printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/yarn && chmod +x /usr/local/bin/yarn; fi
     ${Orchestrator.buildParameters.cacheSaveOnFailure ? CacheCheckpointService.generateFailureTrapScript('/data/cache/$CACHE_KEY', Orchestrator.buildParameters.cacheSaveOnFailureFilter) : ''}
     # Pipe entrypoint.sh output through log stream to capture Unity build output (including "Build succeeded")
-    { echo "game ci start"; echo "game ci start" >> /home/job-log.txt; echo "CACHE_KEY=$CACHE_KEY"; echo "$CACHE_KEY"; if [ -n "$LOCKED_WORKSPACE" ]; then echo "Retained Workspace: true"; fi; if [ -n "$LOCKED_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE/.git" ]; then echo "Retained Workspace Already Exists!"; fi; /entrypoint.sh; } | node ${builderPath} -m remote-cli-log-stream --logFile /home/job-log.txt
+    { echo "game ci start"; echo "game ci start" >> /home/job-log.txt; echo "CACHE_KEY=$CACHE_KEY"; echo "$CACHE_KEY"; if [ -n "$LOCKED_WORKSPACE" ]; then echo "Retained Workspace: true"; fi; if [ -n "$LOCKED_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE/.git" ]; then echo "Retained Workspace Already Exists!"; fi; /entrypoint.sh; } | node ${builderPath} remote-cli-log-stream --logFile /home/job-log.txt
     ${BuildAutomationWorkflow.engineCacheCommands()}
     # Ensure cache directories exist for post-build and S3 upload hooks.
     # Do NOT create empty placeholder tars — they waste S3 storage and on next
@@ -640,7 +640,7 @@ echo "CACHE_KEY=$CACHE_KEY"`;
       # Use tee to write to both stdout and log file, ensuring output is captured
       # For K8s, kubectl logs reads from stdout, so we need stdout
       # For local-docker, the log file is read directly
-      node ${builderPath} -m remote-cli-post-build 2>&1 | tee -a /home/job-log.txt || echo "Post-build command completed with warnings" | tee -a /home/job-log.txt
+      node ${builderPath} remote-cli-post-build 2>&1 | tee -a /home/job-log.txt || echo "Post-build command completed with warnings" | tee -a /home/job-log.txt
     else
       # Builder doesn't exist, skip post-build (shouldn't happen, but handle gracefully)
       echo "Builder path not found, skipping post-build" | tee -a /home/job-log.txt
@@ -670,13 +670,13 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     cp -r "${OrchestratorFolders.ToLinuxFolder(path.join(ubuntuPlatformsFolder, 'steps'))}" "/steps"
     chmod -R +x "/entrypoint.sh"
     chmod -R +x "/steps"
-    { echo "game ci start"; echo "game ci start" >> /home/job-log.txt; echo "CACHE_KEY=$CACHE_KEY"; echo "$CACHE_KEY"; if [ -n "$LOCKED_WORKSPACE" ]; then echo "Retained Workspace: true"; fi; if [ -n "$LOCKED_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE/.git" ]; then echo "Retained Workspace Already Exists!"; fi; /entrypoint.sh; } | node ${builderPath} -m remote-cli-log-stream --logFile /home/job-log.txt
+    { echo "game ci start"; echo "game ci start" >> /home/job-log.txt; echo "CACHE_KEY=$CACHE_KEY"; echo "$CACHE_KEY"; if [ -n "$LOCKED_WORKSPACE" ]; then echo "Retained Workspace: true"; fi; if [ -n "$LOCKED_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE/.git" ]; then echo "Retained Workspace Already Exists!"; fi; /entrypoint.sh; } | node ${builderPath} remote-cli-log-stream --logFile /home/job-log.txt
     # Run post-build and capture output to both stdout (for kubectl logs) and log file
     # Note: Post-build may clean up the builder directory, so write output directly
     set +e
     if [ -f "${builderPath}" ]; then
       # Use tee to write to both stdout and log file for K8s kubectl logs
-      node ${builderPath} -m remote-cli-post-build 2>&1 | tee -a /home/job-log.txt || echo "Post-build command completed with warnings" | tee -a /home/job-log.txt
+      node ${builderPath} remote-cli-post-build 2>&1 | tee -a /home/job-log.txt || echo "Post-build command completed with warnings" | tee -a /home/job-log.txt
     else
       echo "Builder path not found, skipping post-build" | tee -a /home/job-log.txt
     fi
@@ -731,16 +731,16 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     mkdir -p "$ACTIVATE_LICENSE_PATH"
     mkdir -p "$GITHUB_WORKSPACE/$BUILD_PATH"
     # Pipe runsteps.sh output through log stream to capture Unity build/activation output
-    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | node ${builderPath} -m remote-cli-log-stream --logFile "$LOG_FILE"
-    node ${builderPath} -m remote-cli-post-build`;
+    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | node ${builderPath} remote-cli-log-stream --logFile "$LOG_FILE"
+    node ${builderPath} remote-cli-post-build`;
     }
 
     // prettier-ignore
     return `
     echo "game ci start"
     echo "game ci start" >> "$LOG_FILE"
-    timeout 3s node ${builderPath} -m remote-cli-log-stream --logFile "$LOG_FILE" || true
-    node ${builderPath} -m remote-cli-post-build`;
+    timeout 3s node ${builderPath} remote-cli-log-stream --logFile "$LOG_FILE" || true
+    node ${builderPath} remote-cli-post-build`;
   }
 
   /**
