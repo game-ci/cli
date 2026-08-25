@@ -68,5 +68,10 @@ function isModuleNotFoundError(error) {
         }
     }
     return (typeof error?.message === 'string' &&
-        /cannot find module/i.test(error.message));
+        // Node/Bun's own resolver throws "Cannot find module"; Vite's (used by
+        // vitest, including this file's own tests when @game-ci/orchestrator's
+        // dist/ isn't built) throws a differently-worded "Failed to resolve
+        // entry for package" for the same "package genuinely isn't there"
+        // situation - both mean the same thing to this optional-plugin loader.
+        /cannot find module|failed to resolve entry for package/i.test(error.message));
 }
