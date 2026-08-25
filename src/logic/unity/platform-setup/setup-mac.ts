@@ -88,6 +88,8 @@ class SetupMac {
                                           ${moduleArgument} \
                                           --childModules `;
 
+    log.error(`[DEBUG-844] installUnity resolved command: ${command}`);
+
     try {
       await System.run(command, undefined, { silent });
     } catch (error) {
