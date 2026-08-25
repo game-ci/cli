@@ -45,8 +45,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, unlike this repo's other bun-version: latest workflows:
+      # v0.1.15's release build failed on all three "Verify binary
+      # (native only)" runners (windows-x64, linux-x64, macos-arm64) with
+      # `error: Cannot find module './src/cat' from '.../game-ci[.exe]'`
+      # under Bun v1.4.0's --compile bundler - a transitive dependency's
+      # dynamic-require pattern that v1.4.0 no longer resolves correctly
+      # inside a standalone binary (no `./src/cat` exists anywhere in this
+      # repo's own source, so this isn't a game-ci/cli bug to fix here).
+      # 1.3.13 is the last version confirmed to compile cleanly. Bump this
+      # deliberately once a Bun release is confirmed to build clean again,
+      # not by drifting back to `latest` and re-breaking every release.
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install
