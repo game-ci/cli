@@ -62,16 +62,28 @@ export class Cli {
 
     // Orchestrator is a genuinely separate package (plugins/orchestrator),
     // not core-internal like unity/godot/unreal above (which live inside
-    // src/plugin/builtin/ itself). It's loaded the same way any other
-    // plugin is - through PluginLoader's dynamic import - so core has no
-    // compile-time dependency on a plugin's internals. "Built-in" here
-    // just means "always in the default load list", not "statically
-    // imported": the package is still resolved by its public name/exports
-    // (@game-ci/orchestrator/cli-plugin), never a relative path into its
-    // src/ tree.
-    await PluginLoader.load("@game-ci/orchestrator/cli-plugin");
-    await PluginLoader.load("@game-ci/steam-deploy");
-    await PluginLoader.load("@game-ci/runtime-test-framework");
+    // src/plugin/builtin/ itself). "Built-in" here just means "always in
+    // the default load list", not "statically imported": the package is
+    // still resolved by its public name/exports (@game-ci/orchestrator/cli-plugin),
+    // never a relative path into its src/ tree.
+    //
+    // These use literal `import()` expressions (not PluginLoader.load's
+    // string-parameter path) because Bun's --compile bundler can only trace
+    // a dynamic import whose specifier is a source-level string literal at
+    // the call site - `import(variable)` inside a shared helper resolves
+    // fine under `bun run`/`bun test` but throws "Cannot find module" in
+    // the compiled standalone binary the moment a real command needs a
+    // plugin (never during --help, which doesn't reach this code path).
+    // See game-ci/cli#151.
+    await PluginLoader.loadModule(
+      await import("@game-ci/orchestrator/cli-plugin"),
+      "@game-ci/orchestrator/cli-plugin",
+    );
+    await PluginLoader.loadModule(await import("@game-ci/steam-deploy"), "@game-ci/steam-deploy");
+    await PluginLoader.loadModule(
+      await import("@game-ci/runtime-test-framework"),
+      "@game-ci/runtime-test-framework",
+    );
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);
