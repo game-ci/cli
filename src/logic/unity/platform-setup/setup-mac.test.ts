@@ -91,4 +91,35 @@ describe("SetupMac", () => {
     expect(capturedCommand).toContain("--version 2021.3.45f2");
     expect(capturedCommand).not.toContain("undefined");
   });
+
+  // Regression test: installUnity never passed --architecture at all.
+  // Confirmed via live debug logging (#170/v0.1.24) that Unity Hub CLI on a
+  // macos-26-arm64 (Apple Silicon) runner still rejects a genuinely correct
+  // --version without an explicit --architecture.
+  it("installUnity passes --architecture matching process.arch", async () => {
+    const originalArch = process.arch;
+    Object.defineProperty(process, "arch", { value: "arm64", configurable: true });
+
+    fs.existsSync = mock((path: string) => path.includes("Hub.app")) as any;
+    let capturedCommand = "";
+    const systemRunMock = mock((command: string) => {
+      capturedCommand = command;
+
+      return Promise.resolve({ status: { code: 0 }, output: "" });
+    });
+    System.run = systemRunMock as any;
+
+    try {
+      await SetupMac.setup({
+        isRunningLocally: false,
+        unityHubVersionOnMac: "",
+        engineVersion: "2021.3.45f2",
+        targetPlatform: "StandaloneOSX",
+      } as any);
+    } finally {
+      Object.defineProperty(process, "arch", { value: originalArch, configurable: true });
+    }
+
+    expect(capturedCommand).toContain("--architecture arm64");
+  });
 });
