@@ -1,6 +1,6 @@
 {
   "name": "@game-ci/cli",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "GameCI CLI - automation for game engines",
   "license": "MIT",
   "repository": {
