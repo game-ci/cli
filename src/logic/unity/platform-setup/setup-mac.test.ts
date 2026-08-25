@@ -90,6 +90,10 @@ describe("SetupMac", () => {
 
     expect(capturedCommand).toContain("--version 2021.3.45f2");
     expect(capturedCommand).not.toContain("undefined");
+    // --changeset is required alongside --version: confirmed via live debug
+    // logging that Unity Hub CLI on Apple Silicon rejects an otherwise
+    // objectively-real version without it.
+    expect(capturedCommand).toContain("--changeset 88f88f591b2e");
   });
 
   // Regression test: installUnity never passed --architecture at all.

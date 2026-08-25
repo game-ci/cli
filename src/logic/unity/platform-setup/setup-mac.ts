@@ -1,6 +1,7 @@
 import { fsSync as fs } from "../../../dependencies.ts";
 import type { Options } from "../../../dependencies.ts";
 import { System } from "../../../model/system/system.ts";
+import { getUnityChangeset } from "unity-changeset";
 
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
@@ -84,9 +85,6 @@ class SetupMac {
   }
 
   private static async installUnity(options: Options, silent = false) {
-    // Note: getUnityChangeset was removed as a dependency - install by version only
-    const moduleArgument = SetupMac.getModuleParametersForTargetPlatform(options.targetPlatform);
-
     // `Options` has no real `editorVersion` field - only `engineVersion` is
     // ever populated (see engineDetection middleware / #154). The version
     // passed here was silently "undefined" on every single macOS build,
@@ -95,14 +93,22 @@ class SetupMac {
     // Options being loosely typed let this typo through with no compiler
     // error. See game-ci/cli#844 investigation.
     //
-    // --architecture was also missing entirely: confirmed via debug logging
-    // (#170/v0.1.24) that with a genuinely correct --version, Unity Hub CLI
-    // on a macos-26-arm64 (Apple Silicon) runner still rejected the install
-    // without an explicit architecture - matching the pattern already used
-    // (and proven working there) by the separate, GH-Action-native
-    // plugins/unity/.../setup-mac.ts.
+    // --architecture was also missing entirely (fixed in #172), and even
+    // --version + --architecture together still weren't enough: confirmed
+    // via debug logging that Unity Hub CLI on a macos-26-arm64 (Apple
+    // Silicon) runner still rejects an objectively-real version
+    // (2021.3.45f2 - verified resolvable via getUnityChangeset itself)
+    // without an explicit --changeset pinning the exact build. Restoring
+    // --changeset here (previously "removed as a dependency" per the old
+    // comment this replaces) matches the exact invocation shape proven
+    // working by the separate, GH-Action-native plugins/unity/.../setup-mac.ts
+    // (confirmed via main's own successful CI logs).
+    const unityChangeset = await getUnityChangeset(options.engineVersion);
+    const moduleArgument = SetupMac.getModuleParametersForTargetPlatform(options.targetPlatform);
+
     const command = `${this.unityHubExecPath} -- --headless install \
                                           --version ${options.engineVersion} \
+                                          --changeset ${unityChangeset.changeset} \
                                           ${moduleArgument} \
                                           ${SetupMac.getArchitectureArgument()} \
                                           --childModules `;
