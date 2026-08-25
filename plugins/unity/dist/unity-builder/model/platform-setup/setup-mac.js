@@ -121,7 +121,16 @@ class SetupMac {
         // a real passing CI log. Restored. The actual #844 root cause was
         // -activeBuildProfile's value getting word-split on the bash side
         // (see game-ci/cli#159), unrelated to this flag.
-        const unityChangeset = await (0, unity_changeset_1.getUnityChangeset)(buildParameters.editorVersion);
+        let unityChangeset;
+        console.log(`[SetupMac] Resolving changeset for editorVersion="${buildParameters.editorVersion}"...`);
+        try {
+            unityChangeset = await (0, unity_changeset_1.getUnityChangeset)(buildParameters.editorVersion);
+            console.log(`[SetupMac] Resolved changeset: ${unityChangeset.changeset}`);
+        }
+        catch (changesetError) {
+            console.log(`[SetupMac] getUnityChangeset FAILED: ${changesetError}`);
+            throw changesetError;
+        }
         const moduleArguments = SetupMac.getModuleParametersForTargetPlatform(buildParameters.targetPlatform);
         const architectureArguments = SetupMac.getArchitectureParameters();
         const execArguments = [
@@ -134,13 +143,20 @@ class SetupMac {
             ...architectureArguments,
             '--childModules',
         ];
-        // Ignoring return code because the log seems to overflow the internal buffer which triggers
-        // a false error
-        const errorCode = await (0, exec_1.exec)(this.unityHubExecPath, execArguments, {
+        // Debug instrumentation (game-ci/cli#844 investigation): exec()'s normal
+        // [command] echo + live output has been mysteriously absent from CI logs
+        // for this exact call - switching to getExecOutput so we capture and
+        // print stdout/stderr ourselves, independent of whatever's suppressing
+        // exec()'s own listener-based echo in this compiled-binary context.
+        console.log(`[SetupMac] Running: ${this.unityHubExecPath} ${execArguments.map((a) => JSON.stringify(a)).join(' ')}`);
+        const result = await (0, exec_1.getExecOutput)(this.unityHubExecPath, execArguments, {
             silent,
             ignoreReturnCode: true,
         });
-        if (errorCode) {
+        console.log(`[SetupMac] Unity Hub install exit code: ${result.exitCode}`);
+        console.log(`[SetupMac] Unity Hub install stdout:\n${result.stdout}`);
+        console.log(`[SetupMac] Unity Hub install stderr:\n${result.stderr}`);
+        if (result.exitCode) {
             throw new Error(`There was an error installing the Unity Editor. See logs above for details.`);
         }
         if (buildParameters.cacheUnityInstallationOnMac) {
