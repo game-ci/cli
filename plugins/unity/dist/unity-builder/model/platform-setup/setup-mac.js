@@ -3,7 +3,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const unity_changeset_1 = require("unity-changeset");
 const exec_1 = require("@actions/exec");
 const cache_1 = require("@actions/cache");
 const node_fs_1 = __importDefault(require("node:fs"));
@@ -114,7 +113,10 @@ class SetupMac {
                 return;
             }
         }
-        const unityChangeset = await (0, unity_changeset_1.getUnityChangeset)(buildParameters.editorVersion);
+        // No --changeset: passing it here has previously caused Unity Hub CLI to
+        // reject known-good versions with "Provided editor version does not
+        // match to any known Unity Editor versions" (see game-ci/cli#153).
+        // --version alone is what the legacy setup-mac.ts relied on for years.
         const moduleArguments = SetupMac.getModuleParametersForTargetPlatform(buildParameters.targetPlatform);
         const architectureArguments = SetupMac.getArchitectureParameters();
         const execArguments = [
@@ -122,7 +124,6 @@ class SetupMac {
             '--headless',
             'install',
             ...['--version', buildParameters.editorVersion],
-            ...['--changeset', unityChangeset.changeset],
             ...moduleArguments,
             ...architectureArguments,
             '--childModules',
