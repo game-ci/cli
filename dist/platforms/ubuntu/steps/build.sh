@@ -123,13 +123,21 @@ fi
 
 # BUILD_PROFILE (Unity 6) determines the target itself, so -buildTarget is
 # omitted when one is set - matches real unity-builder's own handling.
-BUILD_TARGET_FLAG=""
+#
+# Arrays, not plain strings: BUILD_PROFILE is a path that can contain spaces
+# (e.g. "Assets/Settings/Build Profiles/Sample WebGL Build Profile.asset").
+# A plain string expanded unquoted ($BUILD_PROFILE_FLAGS) word-splits on
+# those spaces into separate argv entries, silently truncating the value
+# Unity actually receives for -activeBuildProfile to its first word - see
+# game-ci/cli#159. "${arr[@]}" preserves each element intact regardless of
+# internal whitespace, matching build.ps1's already-correct @(...) array.
+BUILD_TARGET_FLAG=()
 if [ -z "$BUILD_PROFILE" ]; then
-  BUILD_TARGET_FLAG="-buildTarget $BUILD_TARGET"
+  BUILD_TARGET_FLAG=(-buildTarget "$BUILD_TARGET")
 fi
-BUILD_PROFILE_FLAGS=""
+BUILD_PROFILE_FLAGS=()
 if [ -n "$BUILD_PROFILE" ]; then
-  BUILD_PROFILE_FLAGS="-activeBuildProfile $BUILD_PROFILE"
+  BUILD_PROFILE_FLAGS=(-activeBuildProfile "$BUILD_PROFILE")
 fi
 
 ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
@@ -137,11 +145,11 @@ ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
   $QUIT_FLAG \
   -customBuildName "$BUILD_NAME" \
   -projectPath "$UNITY_PROJECT_PATH" \
-  $BUILD_TARGET_FLAG \
+  "${BUILD_TARGET_FLAG[@]}" \
   -customBuildTarget "$BUILD_TARGET" \
   -customBuildPath "$CUSTOM_BUILD_PATH" \
   -customBuildProfile "$BUILD_PROFILE" \
-  $BUILD_PROFILE_FLAGS \
+  "${BUILD_PROFILE_FLAGS[@]}" \
   -executeMethod "$BUILD_METHOD" \
   -buildVersion "$VERSION" \
   -androidVersionCode "$ANDROID_VERSION_CODE" \
