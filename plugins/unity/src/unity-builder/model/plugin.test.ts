@@ -43,11 +43,16 @@ describe('plugin (default package installed)', () => {
 
   const mockCreatePlugin = vi.fn().mockReturnValue(fakePlugin);
 
+  const FIXTURE_MODULE = './__fixtures__/fake-orchestrator-plugin';
+
   function installDefaultPluginMock(overrides: Record<string, unknown> = {}) {
-    // The `@game-ci/orchestrator` module is intentionally optional and may not
-    // be installed. `vi.doMock` lets the dynamic import in the loader resolve
-    // through this factory before vite tries to load a real package.
-    vi.doMock('@game-ci/orchestrator', () => ({
+    // `@game-ci/orchestrator` is intentionally optional and, in this CI job,
+    // genuinely unbuilt/unresolvable (no dist/, not a real dependency here) -
+    // vi.doMock'ing that bare specifier directly fails at real module
+    // resolution before the mock factory ever runs. Mock a real, on-disk
+    // fixture file instead (its own content is irrelevant, only its
+    // resolvability matters) and pass it to loadPlugin() explicitly.
+    vi.doMock(FIXTURE_MODULE, () => ({
       createPlugin: mockCreatePlugin,
       ...overrides,
     }));
@@ -67,7 +72,7 @@ describe('plugin (default package installed)', () => {
     installDefaultPluginMock();
     const { loadPlugin } = await import('./plugin');
 
-    const plugin = await loadPlugin();
+    const plugin = await loadPlugin(FIXTURE_MODULE);
 
     expect(plugin).toBeDefined();
     expect(mockCreatePlugin).toHaveBeenCalledTimes(1);
@@ -78,7 +83,7 @@ describe('plugin (default package installed)', () => {
     installDefaultPluginMock();
     const { loadPlugin } = await import('./plugin');
 
-    const plugin = await loadPlugin();
+    const plugin = await loadPlugin(FIXTURE_MODULE);
 
     expect(typeof plugin!.initialize).toBe('function');
     expect(typeof plugin!.canHandleBuild).toBe('function');
@@ -92,7 +97,7 @@ describe('plugin (default package installed)', () => {
     installDefaultPluginMock({ createPlugin: undefined });
     const { loadPlugin } = await import('./plugin');
 
-    const plugin = await loadPlugin();
+    const plugin = await loadPlugin(FIXTURE_MODULE);
 
     expect(plugin).toBeUndefined();
     expect(mockWarning).toHaveBeenCalledWith(
@@ -111,6 +116,6 @@ describe('plugin (default package installed)', () => {
     });
     const { loadPlugin } = await import('./plugin');
 
-    await expect(loadPlugin()).rejects.toThrow('Syntax error in module');
+    await expect(loadPlugin(FIXTURE_MODULE)).rejects.toThrow('Syntax error in module');
   });
 });
