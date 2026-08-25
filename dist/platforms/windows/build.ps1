@@ -67,7 +67,13 @@ else
     }
 
     # Copy the build script of Unity Builder action
-    Copy-Item -Path "c:\UnityBuilderAction" -Destination $Env:UNITY_PROJECT_PATH\Assets\Editor -Recurse
+    # -Force: without it, a retry (e.g. after a transient Unity crash) fails
+    # outright since the destination subdirectories already exist from the
+    # first attempt - "An item with the specified name ... already exists"
+    # for every already-copied file, masking the real retry attempt behind
+    # a wall of Copy-Item errors. Matches steps/build.ps1's (the native,
+    # non-container path) already-correct -Force usage for the same copy.
+    Copy-Item -Path "c:\UnityBuilderAction" -Destination $Env:UNITY_PROJECT_PATH\Assets\Editor -Recurse -Force
 
     # Set the Build method to that of UnityBuilder Action
     $Env:BUILD_METHOD="UnityBuilderAction.Builder.BuildProject"
