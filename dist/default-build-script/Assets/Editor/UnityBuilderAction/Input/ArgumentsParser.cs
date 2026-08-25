@@ -21,15 +21,31 @@ namespace UnityBuilderAction.Input
         EditorApplication.Exit(110);
       }
 
-      string buildTarget;
-      if (!validatedOptions.TryGetValue("buildTarget", out buildTarget)) {
-        Console.WriteLine("Missing argument -buildTarget");
-        EditorApplication.Exit(120);
-      }
+      // Unity 6's Build Profiles (-activeBuildProfile) determine the target
+      // themselves, so -buildTarget is only required when one isn't given -
+      // see Builder.cs's matching branch.
+#if UNITY_6000_0_OR_NEWER
+      var buildProfileSupport = true;
+#else
+      var buildProfileSupport = false;
+#endif // UNITY_6000_0_OR_NEWER
 
-      if (!Enum.IsDefined(typeof(BuildTarget), buildTarget)) {
-        Console.WriteLine($"{buildTarget} is not a defined {nameof(BuildTarget)}");
-        EditorApplication.Exit(121);
+      string buildTarget;
+      if (buildProfileSupport && validatedOptions.TryGetValue("activeBuildProfile", out _)) {
+        if (validatedOptions.ContainsKey("buildTarget")) {
+          Console.WriteLine("Extra argument -buildTarget");
+          EditorApplication.Exit(122);
+        }
+      } else {
+        if (!validatedOptions.TryGetValue("buildTarget", out buildTarget)) {
+          Console.WriteLine("Missing argument -buildTarget");
+          EditorApplication.Exit(120);
+        }
+
+        if (!Enum.IsDefined(typeof(BuildTarget), buildTarget)) {
+          Console.WriteLine($"{buildTarget} is not a defined {nameof(BuildTarget)}");
+          EditorApplication.Exit(121);
+        }
       }
 
       string customBuildPath;
