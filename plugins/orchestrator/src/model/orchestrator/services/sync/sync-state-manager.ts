@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import OrchestratorLogger from '../core/orchestrator-logger';
-import { SyncState } from './sync-state';
+import type { SyncState } from './sync-state';
 
 /**
  * Manages persistent sync state for incremental workspace updates.

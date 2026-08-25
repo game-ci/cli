@@ -11,6 +11,9 @@ import versionCommand from './cli/commands/version';
 import updateCommand from './cli/commands/update';
 import initCommand from './cli/commands/init';
 import preflightCommand from './cli/commands/preflight';
+import remoteCliPreBuildCommand from './cli/commands/remote-cli-pre-build';
+import remoteCliLogStreamCommand from './cli/commands/remote-cli-log-stream';
+import remoteCliPostBuildCommand from './cli/commands/remote-cli-post-build';
 import * as core from '@actions/core';
 
 const cli = yargs(hideBin(process.argv))
@@ -25,6 +28,13 @@ const cli = yargs(hideBin(process.argv))
   .command(updateCommand)
   .command(initCommand)
   .command(preflightCommand)
+  // Internal commands, invoked by build-automation-workflow.ts's generated
+  // shell scripts from *inside* the remote build container (AWS/K8s) -
+  // never by a user directly. Not hidden from --help since that would make
+  // them harder to find while debugging a broken remote build.
+  .command(remoteCliPreBuildCommand)
+  .command(remoteCliLogStreamCommand)
+  .command(remoteCliPostBuildCommand)
   .demandCommand(1, 'You must specify a command. Run game-ci --help for available commands.')
   .strict()
   .alias('h', 'help')

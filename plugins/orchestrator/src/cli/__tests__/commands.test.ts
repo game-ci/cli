@@ -5,6 +5,9 @@ import orchestrateCommand from '../commands/orchestrate';
 import statusCommand from '../commands/status';
 import versionCommand from '../commands/version';
 import updateCommand from '../commands/update';
+import remoteCliPreBuildCommand from '../commands/remote-cli-pre-build';
+import remoteCliLogStreamCommand from '../commands/remote-cli-log-stream';
+import remoteCliPostBuildCommand from '../commands/remote-cli-post-build';
 
 function createFakeYargs(): { yargs: any; options: Record<string, any> } {
   const options: Record<string, any> = {};
@@ -243,6 +246,77 @@ describe('CLI commands', () => {
       expect(options['force'].default).toStrictEqual(false);
       expect(options['version']).toBeDefined();
       expect(options['version'].type).toStrictEqual('string');
+    });
+  });
+
+  // These three run inside the remote build container (AWS/K8s), dispatched
+  // by build-automation-workflow.ts's generated shell scripts. They used to
+  // be reached via a bespoke `-m <name>` flag from when this package had its
+  // own argv-based CliFunction dispatcher; that dispatcher no longer exists
+  // in either this package's yargs-based src/cli.ts or game-ci/cli's, so
+  // `-m` was rejected by strict-mode yargs as an unknown argument -
+  // silently breaking every remote build's pre-build, log-streaming and
+  // post-build steps. These commands restore real yargs entry points for
+  // them; regression tests exist so this cannot silently regress again by,
+  // say, a rename in build-automation-workflow.ts drifting out of sync with
+  // the command name registered here.
+  describe('remote-cli-pre-build command', () => {
+    it('exports the correct command name', () => {
+      expect(remoteCliPreBuildCommand.command).toStrictEqual('remote-cli-pre-build');
+    });
+
+    it('has a description', () => {
+      expect(remoteCliPreBuildCommand.describe).toBeTruthy();
+    });
+
+    it('has a handler function', () => {
+      expect(typeof remoteCliPreBuildCommand.handler).toStrictEqual('function');
+    });
+
+    it('takes no required options - the original bare invocation took none', () => {
+      expect(remoteCliPreBuildCommand.builder).toBeUndefined();
+    });
+  });
+
+  describe('remote-cli-log-stream command', () => {
+    it('exports the correct command name', () => {
+      expect(remoteCliLogStreamCommand.command).toStrictEqual('remote-cli-log-stream');
+    });
+
+    it('has a description', () => {
+      expect(remoteCliLogStreamCommand.describe).toBeTruthy();
+    });
+
+    it('has a handler function', () => {
+      expect(typeof remoteCliLogStreamCommand.handler).toStrictEqual('function');
+    });
+
+    it('requires --log-file, aliased to logFile to match the shell scripts that invoke it', () => {
+      const { yargs, options } = createFakeYargs();
+
+      (remoteCliLogStreamCommand.builder as Function)(yargs);
+
+      expect(options['log-file']).toBeDefined();
+      expect(options['log-file'].alias).toStrictEqual('logFile');
+      expect(options['log-file'].demandOption).toStrictEqual(true);
+    });
+  });
+
+  describe('remote-cli-post-build command', () => {
+    it('exports the correct command name', () => {
+      expect(remoteCliPostBuildCommand.command).toStrictEqual('remote-cli-post-build');
+    });
+
+    it('has a description', () => {
+      expect(remoteCliPostBuildCommand.describe).toBeTruthy();
+    });
+
+    it('has a handler function', () => {
+      expect(typeof remoteCliPostBuildCommand.handler).toStrictEqual('function');
+    });
+
+    it('takes no required options - the original bare invocation took none', () => {
+      expect(remoteCliPostBuildCommand.builder).toBeUndefined();
     });
   });
 });

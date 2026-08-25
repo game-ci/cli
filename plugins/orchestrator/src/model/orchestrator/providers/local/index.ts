@@ -131,7 +131,7 @@ class LocalOrchestrator implements ProviderInterface {
    * wrapper's captured stdout/stderr: dist/platforms/ubuntu/steps/runsteps.sh
    * (via build.sh/activate.sh) invokes `unity-editor -logfile /dev/stdout`,
    * and BuildAutomationWorkflow.BuildWorkflow pipes that whole pipeline
-   * through `node <builder> -m remote-cli-log-stream --logFile "$LOG_FILE"`,
+   * through `node <builder> remote-cli-log-stream --logFile "$LOG_FILE"`,
    * which appends every line to $LOG_FILE. For the bare-local provider,
    * $LOG_FILE is exported as `$(pwd)/temp/job-log.txt` (see
    * BuildAutomationWorkflow.BuildWorkflow), so that file accumulates the
