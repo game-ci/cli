@@ -1,6 +1,16 @@
 # Activates Unity
-Write-Host "Changing to `"$ACTIVATE_LICENSE_PATH`" directory."
-Push-Location $ACTIVATE_LICENSE_PATH
+#
+# $ACTIVATE_LICENSE_PATH (no $Env: prefix) is an unset local PowerShell
+# variable, not the environment variable set by the caller - always empty,
+# so Push-Location silently did nothing and every path built from it below
+# resolved wrong. Confirmed live: "Changing to "" directory." followed by
+# Unity's own "CreateDirectory ... failed" / "Unable to open log file,
+# exiting" cascade into "Unclassified error occured while trying to
+# activate license." on unity-builder#844's Windows CI (game-ci/cli#844
+# investigation). dist/platforms/windows/steps/activate.ps1 (the native,
+# non-container path) already uses $Env: correctly.
+Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
+Push-Location $Env:ACTIVATE_LICENSE_PATH
 
 if ($env:UNITY_LICENSING_SERVER) {
   #
@@ -20,11 +30,20 @@ if ($env:UNITY_LICENSING_SERVER) {
   $global:UNITY_EXIT_CODE = $LASTEXITCODE
 }
 else {
+  # -logfile needs a real path - without one, Unity has nowhere to write
+  # and exits immediately with "Unable to open log file, exiting." (compounded
+  # by $ACTIVATE_LICENSE_PATH being wrong before the fix above). Also: this
+  # branch never captured $LASTEXITCODE at all, so $global:UNITY_EXIT_CODE
+  # silently kept whatever value it already had (uninitialized/stale) rather
+  # than reflecting whether activation actually succeeded.
+  $LogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'activate.log'
   & "$Env:UNITY_PATH\Editor\Unity.exe" -batchmode -quit -nographics `
                                                                             -username $Env:UNITY_EMAIL `
                                                                             -password $Env:UNITY_PASSWORD `
                                                                             -serial $Env:UNITY_SERIAL `
-                                                                            -logfile | Out-Host
+                                                                            -logfile $LogPath | Out-Host
+  $global:UNITY_EXIT_CODE = $LASTEXITCODE
+  if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
 }
 
 #
