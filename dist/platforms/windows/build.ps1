@@ -150,6 +150,13 @@ if ($Env:BUILD_PROFILE) {
 # images/windows/editor/Dockerfile). Unity Hub's default install location
 # ("C:\Program Files\Unity\Hub\Editor\<version>") is never used - these
 # images install to C:/UnityEditor instead (game-ci/cli#77).
+#
+# -logfile needs a real path - without one, Unity has nowhere to write and
+# exits immediately with "Unable to open log file, exiting." (return code
+# 127), same root cause as activate.ps1/return_license.ps1's own -logfile
+# bug (game-ci/cli#844 investigation). Tailed to output afterwards so the
+# build log still reaches CI output the way `| Out-Host` alone used to.
+$LogPath = Join-Path $Env:UNITY_PROJECT_PATH 'build.log'
 & "$Env:UNITY_PATH\Editor\Unity.exe" @QuitArgs -batchmode -nographics `
                                                                           -projectPath $Env:UNITY_PROJECT_PATH `
                                                                           -executeMethod $Env:BUILD_METHOD `
@@ -168,10 +175,11 @@ if ($Env:BUILD_PROFILE) {
                                                                           -androidExportType $Env:ANDROID_EXPORT_TYPE `
                                                                           -androidSymbolType $Env:ANDROID_SYMBOL_TYPE `
                                                                           $customParametersArray `
-                                                                          -logfile | Out-Host
+                                                                          -logfile $LogPath | Out-Host
 
 # Catch exit code
 $Env:BUILD_EXIT_CODE=$LastExitCode
+if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
 
 # Display results
 if ($Env:BUILD_EXIT_CODE -eq 0)
