@@ -26,7 +26,21 @@ if ($Env:ENABLE_GPU -eq "true") {
 }
 
 # Activate Unity
+#
+# $Env:ACTIVATE_LICENSE_PATH was never set here at all - activate.ps1 and
+# return_license.ps1 (both -projectPath and their own "Changing to ..."
+# directory) always saw it empty, which is what "CreateDirectory ...
+# AppData/Local/Unity/Caches failed" and "Unclassified error occured while
+# trying to activate license." actually meant the whole time (confirmed
+# live on unity-builder#844's Windows CI - #180 fixed activate.ps1's own
+# missing $Env: prefix, but that alone can't help when the variable itself
+# is never populated). Mirrors mac/entrypoint.sh's own
+# ACTIVATE_LICENSE_PATH="$ACTION_FOLDER/BlankProject" + mkdir -p pattern -
+# a scratch directory Unity can use as -projectPath purely to activate/
+# return the license against, distinct from the real project.
 if ($Env:SKIP_ACTIVATION -ne "true") {
+  $Env:ACTIVATE_LICENSE_PATH = "c:\ActivateLicense"
+  New-Item -ItemType Directory -Force -Path $Env:ACTIVATE_LICENSE_PATH | Out-Null
   & "c:\steps\activate.ps1"
 } else {
   Write-Host "Skipping activation"
@@ -34,7 +48,8 @@ if ($Env:SKIP_ACTIVATION -ne "true") {
 
 # ACTIVATE_ONLY=true (used by `game-ci activate`) activates and stops here -
 # no build, and the license is deliberately left active for a later step to
-# use, so no return_license.ps1 either.
+# use, so no return_license.ps1 either (and no cleanup of
+# ACTIVATE_LICENSE_PATH, matching mac/entrypoint.sh's same carve-out).
 if ($Env:ACTIVATE_ONLY -eq "true") {
   exit $LASTEXITCODE
 }
@@ -69,6 +84,7 @@ if ($Env:RUN_TESTS -eq "true") {
 # Free the seat for the activated license
 if ($Env:SKIP_ACTIVATION -ne "true") {
   & "c:\steps\return_license.ps1"
+  Remove-Item -Recurse -Force $Env:ACTIVATE_LICENSE_PATH -ErrorAction SilentlyContinue
 }
 
 #
