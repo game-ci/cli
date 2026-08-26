@@ -25,6 +25,7 @@ jobs:
             cli:
               - 'src/**'
               - 'dist/**'
+              - 'scripts/**'
               - 'package.json'
               - 'bunfig.toml'
               - '.github/workflows/tests.yml'
@@ -64,6 +65,26 @@ jobs:
       # default, so this needs no extra setup.
       - name: Validate platform scripts (dist/platforms)
         run: bash scripts/validate-platform-scripts.sh
+      # scripts/install.sh is fetched and run directly by engine wrappers
+      # (unity-builder and future ones) - see its own header comment - so a
+      # syntax error here breaks every wrapper's CLI install step, not just
+      # something local to this repo.
+      - name: Syntax-check scripts/*.sh
+        run: |
+          for f in scripts/*.sh; do
+            bash -n "$f" || { echo "FAIL: $f has a bash syntax error"; exit 1; }
+          done
+      # Runs the actual install flow against the latest published release,
+      # not just a syntax check - install.sh isn't run by anything else in
+      # this repo's own CI (it's fetched and run by wrapper repos instead,
+      # see its header comment), so without this, a break here is only ever
+      # caught downstream, in a different repo's CI, the way the SIGPIPE bug
+      # from `grep -m1` piped straight off curl's output was.
+      - name: Smoke-test scripts/install.sh against the latest release
+        run: |
+          binary_path="$(bash scripts/install.sh latest /tmp/install-sh-smoke-test)"
+          [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
+          "$binary_path" --help
 
   # Mirrors plugins/unity/.github/workflows/integrity-check.yml, which is
   # inert (GitHub only reads root .github/workflows/) - ported here rather
