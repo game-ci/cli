@@ -155,37 +155,71 @@ if [ -n "$BUILD_PROFILE" ]; then
   BUILD_PROFILE_FLAGS=(-activeBuildProfile "$BUILD_PROFILE")
 fi
 
-/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
-  -logFile - \
-  $QUIT_FLAG \
-  -batchmode \
-  -nographics \
-  -username "$UNITY_EMAIL" \
-  -password "$UNITY_PASSWORD" \
-  -customBuildName "$BUILD_NAME" \
-  -projectPath "$UNITY_PROJECT_PATH" \
-  "${BUILD_TARGET_FLAG[@]}" \
-  -customBuildTarget "$BUILD_TARGET" \
-  -customBuildPath "$CUSTOM_BUILD_PATH" \
-  -customBuildProfile "$BUILD_PROFILE" \
-  "${BUILD_PROFILE_FLAGS[@]}" \
-  -executeMethod "$BUILD_METHOD" \
-  -buildVersion "$VERSION" \
-  -androidVersionCode "$ANDROID_VERSION_CODE" \
-  -androidKeystoreName "$ANDROID_KEYSTORE_NAME" \
-  -androidKeystorePass "$ANDROID_KEYSTORE_PASS" \
-  -androidKeyaliasName "$ANDROID_KEYALIAS_NAME" \
-  -androidKeyaliasPass "$ANDROID_KEYALIAS_PASS" \
-  -androidTargetSdkVersion "$ANDROID_TARGET_SDK_VERSION" \
-  -androidExportType "$ANDROID_EXPORT_TYPE" \
-  -androidSymbolType "$ANDROID_SYMBOL_TYPE" \
-  $CUSTOM_PARAMETERS
+run_unity_build() {
+  /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
+    -logFile - \
+    $QUIT_FLAG \
+    -batchmode \
+    -nographics \
+    -username "$UNITY_EMAIL" \
+    -password "$UNITY_PASSWORD" \
+    -customBuildName "$BUILD_NAME" \
+    -projectPath "$UNITY_PROJECT_PATH" \
+    "${BUILD_TARGET_FLAG[@]}" \
+    -customBuildTarget "$BUILD_TARGET" \
+    -customBuildPath "$CUSTOM_BUILD_PATH" \
+    -customBuildProfile "$BUILD_PROFILE" \
+    "${BUILD_PROFILE_FLAGS[@]}" \
+    -executeMethod "$BUILD_METHOD" \
+    -buildVersion "$VERSION" \
+    -androidVersionCode "$ANDROID_VERSION_CODE" \
+    -androidKeystoreName "$ANDROID_KEYSTORE_NAME" \
+    -androidKeystorePass "$ANDROID_KEYSTORE_PASS" \
+    -androidKeyaliasName "$ANDROID_KEYALIAS_NAME" \
+    -androidKeyaliasPass "$ANDROID_KEYALIAS_PASS" \
+    -androidTargetSdkVersion "$ANDROID_TARGET_SDK_VERSION" \
+    -androidExportType "$ANDROID_EXPORT_TYPE" \
+    -androidSymbolType "$ANDROID_SYMBOL_TYPE" \
+    $CUSTOM_PARAMETERS
+}
 
-# Catch exit code
-BUILD_EXIT_CODE=$?
+# Unity's own licensing client occasionally fails to reach/handshake with
+# Unity's cloud license service in time, independently of anything this
+# script controls - observed on macOS CI runners as several distinct
+# symptoms, all inside the license/entitlement handshake before any real
+# build work starts: "Code 404 ... 0 entitlement groups", "Code 408" and
+# "Code 1500 ... TimeoutPolicy did not complete within the timeout",
+# "Access token is unavailable; failed to update". These are transient -
+# a same-machine, same-license retry a few seconds later routinely
+# succeeds - so a build that fails with one of these signatures is retried
+# automatically rather than failing the whole job on what's effectively a
+# flaky network call. A build that fails for a real reason (compile error,
+# missing scene, etc.) never matches these patterns and is not retried.
+UNITY_BUILD_MAX_ATTEMPTS=3
+UNITY_BUILD_RETRY_DELAY_SECONDS=15
+UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed'
+
+BUILD_LOG="$(mktemp)"
+for ATTEMPT in $(seq 1 "$UNITY_BUILD_MAX_ATTEMPTS"); do
+  run_unity_build 2>&1 | tee "$BUILD_LOG"
+  BUILD_EXIT_CODE=${PIPESTATUS[0]}
+
+  if [ "$BUILD_EXIT_CODE" -eq 0 ]; then
+    break
+  fi
+
+  if [ "$ATTEMPT" -lt "$UNITY_BUILD_MAX_ATTEMPTS" ] && grep -qE "$UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN" "$BUILD_LOG"; then
+    echo "Unity build failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_BUILD_MAX_ATTEMPTS) - retrying in ${UNITY_BUILD_RETRY_DELAY_SECONDS}s..."
+    sleep "$UNITY_BUILD_RETRY_DELAY_SECONDS"
+    continue
+  fi
+
+  break
+done
+rm -f "$BUILD_LOG"
 
 # Display logs
-cat "$UNITY_PROJECT_PATH/out.log"
+cat "$UNITY_PROJECT_PATH/out.log" 2>/dev/null || true
 
 # Display results
 if [ $BUILD_EXIT_CODE -eq 0 ]; then
