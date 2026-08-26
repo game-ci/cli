@@ -129,7 +129,24 @@ log "Downloading game-ci CLI ${resolved_version} from ${url}"
 curl -fsSL "$url" -o "$archive_path"
 
 if [ "$platform" = "win32" ]; then
-  unzip -q -o "$archive_path" -d "$DEST_DIR"
+  # No single tool is reliably present for zip extraction across every
+  # Windows environment this runs in: GNU tar (common on git-bash/MSYS,
+  # e.g. this repo's own dev boxes) can't read zip at all, bsdtar (GitHub
+  # Actions' windows-latest runners) can, and unzip isn't guaranteed
+  # anywhere. Try each in order, falling back to PowerShell's
+  # Expand-Archive - built into every supported Windows version - as the
+  # one option guaranteed to exist everywhere else fails.
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "$archive_path" -d "$DEST_DIR"
+  elif tar -tf "$archive_path" >/dev/null 2>&1; then
+    tar -xf "$archive_path" -C "$DEST_DIR"
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "Expand-Archive -Path '$archive_path' -DestinationPath '$DEST_DIR' -Force"
+  else
+    log "No working zip extractor found (tried unzip, tar, powershell.exe)."
+    exit 1
+  fi
 else
   tar -xzf "$archive_path" -C "$DEST_DIR"
 fi
