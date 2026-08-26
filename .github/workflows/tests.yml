@@ -54,6 +54,16 @@ jobs:
       # and fail on a runner mismatch.
       - name: Unit/Integration tests
         run: bun run test
+      # dist/platforms and dist/default-build-script are hand-maintained
+      # bash/PowerShell/C# scripts the compiled binary mounts and copies at
+      # runtime (see release-cli.yml's `cp -r dist pkg/dist`) - not build
+      # outputs, and nothing else in this suite ever parses them. A single
+      # session found five real bugs hiding in exactly this class of file
+      # (#159, #176, #180) - none would have compiled, typechecked, or
+      # unit-tested their way into visibility. ubuntu-latest ships pwsh by
+      # default, so this needs no extra setup.
+      - name: Validate platform scripts (dist/platforms)
+        run: bash scripts/validate-platform-scripts.sh
 
   # Mirrors plugins/unity/.github/workflows/integrity-check.yml, which is
   # inert (GitHub only reads root .github/workflows/) - ported here rather
