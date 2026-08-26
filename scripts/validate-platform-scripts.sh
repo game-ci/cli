@@ -93,6 +93,24 @@ while IFS= read -r -d '' file; do
 done < <(find dist/platforms -type f -name '*.ps1' -print0)
 
 echo
+echo "== Checking for -logfile/-logFile with no path argument (PowerShell) =="
+# -logfile with nothing after it (immediately followed by a pipe, or by
+# nothing at all) gives Unity no path to write to, and it exits immediately
+# with "Unable to open log file, exiting." (exit code 127) - the same bug
+# hit twice: once in activate.ps1/return_license.ps1 (#180), and again in
+# build.ps1 (unity-builder#844 investigation) once activation itself was
+# fixed and the pipeline finally reached the build step for the first time.
+while IFS= read -r -d '' file; do
+  code_only=$(grep -vE '^\s*#' "$file")
+  matches=$(grep -inE -- '-logfile[[:space:]]*(\||`?[[:space:]]*$)' <<< "$code_only" || true)
+  if [ -n "$matches" ]; then
+    echo "FAIL: $file uses -logfile/-logFile with no path argument - Unity needs a real path or it exits immediately"
+    echo "$matches"
+    fail=1
+  fi
+done < <(find dist/platforms -type f -name '*.ps1' -print0)
+
+echo
 if [ "$fail" -ne 0 ]; then
   echo "One or more platform script checks failed - see FAIL lines above."
   exit 1
