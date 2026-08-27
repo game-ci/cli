@@ -4,26 +4,71 @@
 echo "Changing to \"$ACTIVATE_LICENSE_PATH\" directory."
 pushd "$ACTIVATE_LICENSE_PATH"
 
-if [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
+# Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.sh's matching retry - set
+# from the real --licenseRetryMaxAttempts CLI option (see
+# UnityEnvironment.getVariables), one knob covers all activation modes since
+# they're the same underlying flakiness. --licenseRetryMaxAttempts=1
+# disables retrying.
+ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
+ACTIVATE_RETRY_DELAY_SECONDS=20
+ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
+
+if [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; then
+  #
+  # PERSONAL LICENSE MODE
+  #
+  # mac never had this branch at all - only ubuntu/steps/activate.sh did,
+  # going all the way back to before the thin-wrapper migration (confirmed
+  # against unity-builder's own pre-migration mac script). A repo whose only
+  # configured credential is UNITY_LICENSE (no UNITY_SERIAL/EMAIL/PASSWORD -
+  # exactly game-ci/unity-test-runner's actual repo secrets) had no way to
+  # activate on mac at all: activation always fell through to serial mode
+  # with empty credentials, producing the same "License is not active"/"0
+  # entitlement groups" symptoms as genuine license-server flakiness, but
+  # persistent and 100% reproducible rather than transient - no amount of
+  # retrying a fundamentally missing credential ever helps.
+  echo "Requesting activation (personal license)"
+
+  FILE_PATH=UnityLicenseFile.ulf
+  if [[ -n "$UNITY_LICENSE" ]]; then
+    echo "$UNITY_LICENSE" | tr -d '\r' > "$FILE_PATH"
+  elif [[ -n "$UNITY_LICENSE_FILE" ]]; then
+    cat "$UNITY_LICENSE_FILE" | tr -d '\r' > "$FILE_PATH"
+  fi
+
+  ACTIVATE_LOG="$(mktemp)"
+  for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
+    # The exit code for personal activation is always 1 - success is
+    # determined from the log output instead (same as ubuntu's own personal-
+    # license branch).
+    /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
+      -logFile - \
+      -batchmode \
+      -nographics \
+      -quit \
+      -manualLicenseFile "$FILE_PATH" \
+      -projectPath "$ACTIVATE_LICENSE_PATH" 2>&1 | tee "$ACTIVATE_LOG"
+
+    if grep -q 'Next license update check is after' "$ACTIVATE_LOG"; then
+      UNITY_EXIT_CODE=0
+      break
+    fi
+    UNITY_EXIT_CODE=1
+
+    if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY_SECONDS}s..."
+      sleep "$ACTIVATE_RETRY_DELAY_SECONDS"
+      continue
+    fi
+
+    break
+  done
+  rm -f "$ACTIVATE_LOG" "$FILE_PATH"
+elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
   #
   # SERIAL LICENSE MODE
   #
   echo "Requesting activation"
-
-  # Unity's licensing client occasionally fails to reach/handshake with
-  # Unity's cloud license service in time here too, not just during the
-  # build's own Unity invocation (see build.sh's matching comment/retry) -
-  # same signatures ("Code 404/408/1500 ...", "Access token is unavailable"),
-  # same fix: retry a few times, but only on those known-transient
-  # signatures, so a genuine activation failure (bad serial, expired
-  # license, etc.) still fails immediately rather than burning retries.
-  # Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.sh's matching retry - set
-  # from the real --licenseRetryMaxAttempts CLI option (see
-  # UnityEnvironment.getVariables), one knob covers both since they're the
-  # same underlying flakiness. --licenseRetryMaxAttempts=1 disables retrying.
-  ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
-  ACTIVATE_RETRY_DELAY_SECONDS=20
-  ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
   ACTIVATE_LOG="$(mktemp)"
   for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
