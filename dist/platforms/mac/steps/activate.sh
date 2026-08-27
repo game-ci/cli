@@ -17,7 +17,11 @@ if [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
   # same fix: retry a few times, but only on those known-transient
   # signatures, so a genuine activation failure (bad serial, expired
   # license, etc.) still fails immediately rather than burning retries.
-  ACTIVATE_MAX_ATTEMPTS=4
+  # Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.sh's matching retry - set
+  # from the real --licenseRetryMaxAttempts CLI option (see
+  # UnityEnvironment.getVariables), one knob covers both since they're the
+  # same underlying flakiness. --licenseRetryMaxAttempts=1 disables retrying.
+  ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
   ACTIVATE_RETRY_DELAY_SECONDS=20
   ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 

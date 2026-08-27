@@ -64,6 +64,15 @@ export class UnityOptions implements IOptions {
           demandOption: false,
           default: '',
         },
+        licenseRetryMaxAttempts: {
+          description: String.dedent`Number of times to retry Unity activation/build on a known-transient
+          Unity licensing-server error (timeout, "0 entitlement groups", "No valid Unity Editor license
+          found", etc. - see mac/steps/activate.sh and build.sh). Set to 1 to disable retrying - e.g. if
+          a persistent license failure is being masked by retries instead of failing fast.`,
+          type: 'number',
+          demandOption: false,
+          default: 4,
+        },
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {
