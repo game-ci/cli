@@ -64,8 +64,14 @@ if [[ -z "$UNITY_SERIAL" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]] && { [[
     UNITY_EXIT_CODE=1
 
     if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
-      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY_SECONDS}s..."
-      sleep "$ACTIVATE_RETRY_DELAY_SECONDS"
+      # Exponential backoff (20s, 40s, 80s, ...): a genuine Unity license-
+      # server outage can outlast a flat delay's total retry window, seen
+      # live this session on both mac and windows - doubling the wait each
+      # attempt gives meaningfully more headroom to ride one out without
+      # slowing down the common case (most retries succeed on attempt 2).
+      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
+      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      sleep "$ACTIVATE_RETRY_DELAY"
       continue
     fi
 
@@ -97,8 +103,14 @@ elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
     fi
 
     if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
-      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY_SECONDS}s..."
-      sleep "$ACTIVATE_RETRY_DELAY_SECONDS"
+      # Exponential backoff (20s, 40s, 80s, ...): a genuine Unity license-
+      # server outage can outlast a flat delay's total retry window, seen
+      # live this session on both mac and windows - doubling the wait each
+      # attempt gives meaningfully more headroom to ride one out without
+      # slowing down the common case (most retries succeed on attempt 2).
+      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
+      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      sleep "$ACTIVATE_RETRY_DELAY"
       continue
     fi
 

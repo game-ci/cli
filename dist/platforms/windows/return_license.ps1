@@ -40,8 +40,10 @@ if ($env:UNITY_LICENSING_SERVER) {
     if ($ReturnExitCode -eq 0) { break }
 
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
-      Write-Host "Floating license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${RetryDelaySeconds}s..."
-      Start-Sleep -Seconds $RetryDelaySeconds
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "Floating license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
     break
@@ -72,8 +74,10 @@ else {
     if ($ReturnExitCode -eq 0) { break }
 
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
-      Write-Host "License return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${RetryDelaySeconds}s..."
-      Start-Sleep -Seconds $RetryDelaySeconds
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "License return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
     break

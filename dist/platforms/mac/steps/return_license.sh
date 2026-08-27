@@ -50,8 +50,10 @@ if [[ -n "$UNITY_LICENSING_SERVER" ]]; then
     fi
 
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
-      echo "Floating license return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS}s..."
-      sleep "$UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS"
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+      echo "Floating license return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_DELAY}s..."
+      sleep "$UNITY_LICENSE_RETURN_DELAY"
       continue
     fi
 
@@ -85,8 +87,10 @@ elif [[ -n "$UNITY_SERIAL" ]]; then
     fi
 
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
-      echo "License return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS}s..."
-      sleep "$UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS"
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+      echo "License return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_DELAY}s..."
+      sleep "$UNITY_LICENSE_RETURN_DELAY"
       continue
     fi
 

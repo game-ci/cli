@@ -214,8 +214,11 @@ for ATTEMPT in $(seq 1 "$UNITY_BUILD_MAX_ATTEMPTS"); do
   fi
 
   if [ "$ATTEMPT" -lt "$UNITY_BUILD_MAX_ATTEMPTS" ] && grep -qE "$UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN" "$BUILD_LOG"; then
-    echo "Unity build failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_BUILD_MAX_ATTEMPTS) - retrying in ${UNITY_BUILD_RETRY_DELAY_SECONDS}s..."
-    sleep "$UNITY_BUILD_RETRY_DELAY_SECONDS"
+    # Exponential backoff (20s, 40s, 80s, ...) - see activate.sh's matching
+    # comment.
+    UNITY_BUILD_RETRY_DELAY=$((UNITY_BUILD_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+    echo "Unity build failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_BUILD_MAX_ATTEMPTS) - retrying in ${UNITY_BUILD_RETRY_DELAY}s..."
+    sleep "$UNITY_BUILD_RETRY_DELAY"
     continue
   fi
 

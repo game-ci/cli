@@ -66,8 +66,10 @@ if [[ -z "$UNITY_SERIAL" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]] && { [[
     fi
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" <<< "$ACTIVATION_OUTPUT"; then
-      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
-      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
 
@@ -105,8 +107,10 @@ elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
     fi
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
-      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
-      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
 
@@ -130,8 +134,10 @@ elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
     fi
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
-      echo "Floating license acquisition failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
-      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+      echo "Floating license acquisition failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
 
