@@ -67,8 +67,11 @@ if ((-not $HasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE
     $global:UNITY_EXIT_CODE = 1
 
     if ($Attempt -lt $MaxAttempts -and $ActivationText -match $TransientPattern) {
-      Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${RetryDelaySeconds}s..."
-      Start-Sleep -Seconds $RetryDelaySeconds
+      # Exponential backoff (20s, 40s, 80s, ...) - see mac/steps/activate.sh's
+      # matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
     break
@@ -114,8 +117,11 @@ else {
     if ($global:UNITY_EXIT_CODE -eq 0) { break }
 
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
-      Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${RetryDelaySeconds}s..."
-      Start-Sleep -Seconds $RetryDelaySeconds
+      # Exponential backoff (20s, 40s, 80s, ...) - see mac/steps/activate.sh's
+      # matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
 
