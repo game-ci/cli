@@ -16,6 +16,13 @@ const UnityEnvironment = {
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
       { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
+      // Consumed by dist/platforms/mac/steps/activate.sh + build.sh's retry
+      // loop around known-transient licensing errors. Currently mac-only
+      // (Windows/Ubuntu build through Docker, where a container failure
+      // isn't the same class of flaky host-process license handshake), but
+      // an engine-wide env var rather than a mac-specific one since nothing
+      // about the option itself is mac-specific.
+      { name: 'UNITY_LICENSE_RETRY_MAX_ATTEMPTS', value: options.licenseRetryMaxAttempts?.toString() },
       // Not a documented core CLI option (core build/test/activate stay
       // lean) - this is Orchestrator's advanced-ops surface
       // (--engineLaunchWrapper on `orchestrate`). Reading the raw env var
