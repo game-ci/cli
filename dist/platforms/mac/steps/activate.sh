@@ -10,19 +10,44 @@ if [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
   #
   echo "Requesting activation"
 
-  # Activate license
-  /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
-    -logFile - \
-    -batchmode \
-    -nographics \
-    -quit \
-    -serial "$UNITY_SERIAL" \
-    -username "$UNITY_EMAIL" \
-    -password "$UNITY_PASSWORD" \
-    -projectPath "$ACTIVATE_LICENSE_PATH"
+  # Unity's licensing client occasionally fails to reach/handshake with
+  # Unity's cloud license service in time here too, not just during the
+  # build's own Unity invocation (see build.sh's matching comment/retry) -
+  # same signatures ("Code 404/408/1500 ...", "Access token is unavailable"),
+  # same fix: retry a few times, but only on those known-transient
+  # signatures, so a genuine activation failure (bad serial, expired
+  # license, etc.) still fails immediately rather than burning retries.
+  ACTIVATE_MAX_ATTEMPTS=4
+  ACTIVATE_RETRY_DELAY_SECONDS=20
+  ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed'
 
-  # Store the exit code from the verify command
-  UNITY_EXIT_CODE=$?
+  ACTIVATE_LOG="$(mktemp)"
+  for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
+    # Activate license
+    /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity \
+      -logFile - \
+      -batchmode \
+      -nographics \
+      -quit \
+      -serial "$UNITY_SERIAL" \
+      -username "$UNITY_EMAIL" \
+      -password "$UNITY_PASSWORD" \
+      -projectPath "$ACTIVATE_LICENSE_PATH" 2>&1 | tee "$ACTIVATE_LOG"
+    UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY_SECONDS}s..."
+      sleep "$ACTIVATE_RETRY_DELAY_SECONDS"
+      continue
+    fi
+
+    break
+  done
+  rm -f "$ACTIVATE_LOG"
 elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
   #
   # Custom Unity License Server
