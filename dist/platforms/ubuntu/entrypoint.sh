@@ -87,8 +87,15 @@ if [[ "$RUN_AS_HOST_USER" == "true" ]]; then
   # Don't stop on error when running our scripts as error handling is baked in
   set +e
 
-  # Switch to the host user so we can create files with the correct ownership
-  su $USERNAME -c "$SHELL -c 'source /steps/runsteps.sh'"
+  # Switch to the host user so we can create files with the correct ownership.
+  # Pass HOME/USER explicitly so the Unity Licensing Client (which writes to
+  # ~/.config/unity3d) resolves a real, writable home directory rather than
+  # falling back to root's environment - without this, a floating-license
+  # server build under RUN_AS_HOST_USER could silently fall through to a
+  # license lacking the requested platform support instead of raising an
+  # error (game-ci/unity-builder#739, fixed there by #838). -p preserves the
+  # rest of the env from root.
+  su -p $USERNAME -c "HOME=/home/$USERNAME USER=$USERNAME LOGNAME=$USERNAME $SHELL -c 'source /steps/runsteps.sh'"
 else
   echo "Running as root"
 
