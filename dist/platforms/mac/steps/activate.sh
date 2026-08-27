@@ -58,7 +58,16 @@ elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
   # auditing for divergence from unity-builder's real source).
   echo "Requesting floating license"
 
-  /Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/Frameworks/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client \
+  # Unity 6000.3+ moved UnityLicensingClient from Contents/Frameworks to
+  # Contents/Helpers (https://docs.unity.com/en-us/licensing-server/client-config)
+  # - a hardcoded Frameworks path 127'd ("No such file or directory") on
+  # every 6000.3+ mac build using a license server (game-ci/unity-builder#842).
+  UNITY_LICENSING_CLIENT_SUBDIR="Frameworks"
+  if [[ "$UNITY_VERSION" =~ ^6000\.([3-9]|[1-9][0-9]) ]]; then
+    UNITY_LICENSING_CLIENT_SUBDIR="Helpers"
+  fi
+
+  "/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/$UNITY_LICENSING_CLIENT_SUBDIR/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client" \
     --acquire-floating > license.txt
   UNITY_EXIT_CODE=$?
 
