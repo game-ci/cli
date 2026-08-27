@@ -3,6 +3,8 @@ import * as path from "node:path";
 import { generateAppVdf, generateDepotVdf } from "./vdf-generator";
 import { SteamCmdRunner } from "./steamcmd-runner";
 
+const MAX_EXTRA_DEPOTS = 9;
+
 export interface SteamDeployOptions {
   buildPath?: string;
   appId?: string;
@@ -13,6 +15,13 @@ export interface SteamDeployOptions {
   steamCmdPath?: string;
   steamConfigDir?: string;
   extraExclusions?: string;
+  debugBranch?: boolean;
+  /**
+   * When additional depots are used (depotNPath), the first extra depot ID
+   * defaults to depotId+1, depotId+2, ... . Set this to override where that
+   * sequence starts - matches steam-deploy's own firstDepotIdOverride input.
+   */
+  firstDepotIdOverride?: string;
   [key: string]: unknown;
 }
 
@@ -63,7 +72,29 @@ export class SteamDeployCommand {
         describe:
           "Comma-separated extra file-exclusion glob patterns for the depot, beyond the built-in defaults (*.pdb, *.log, *.vdf, Burst debug/backup folders).",
         type: "string",
+      })
+      .option("debugBranch", {
+        describe: "Ship debug symbols (*.pdb, Burst debug/backup folders) instead of excluding them.",
+        type: "boolean",
+        default: false,
+      })
+      .option("firstDepotIdOverride", {
+        describe:
+          "Depot ID to start numbering extra depots (depot1Path..depot9Path) from. Defaults to depotId+1, depotId+2, ...",
+        type: "string",
       });
+
+    for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
+      yargs
+        .option(`depot${index}Path`, {
+          describe: `Path (relative to the build) mapped by extra depot #${index}, beyond the primary --depotId depot.`,
+          type: "string",
+        })
+        .option(`depot${index}InstallScriptPath`, {
+          describe: `Install script (relative to extra depot #${index}'s content) to run after it installs.`,
+          type: "string",
+        });
+    }
   }
 
   public async execute(options: SteamDeployOptions): Promise<boolean> {
@@ -91,24 +122,44 @@ export class SteamDeployCommand {
     const extraExclusions = options.extraExclusions
       ? options.extraExclusions.split(",").map((s) => s.trim())
       : undefined;
+    const includeDebugSymbols = options.debugBranch ?? false;
 
     const absoluteBuildPath = path.resolve(buildPath);
     const contentRoot = mode === "docker" ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
-    const depotFileName = `depot_build_${depotId}.vdf`;
 
-    const depotVdf = generateDepotVdf({ depotId, extraExclusions });
-    const appVdf = generateAppVdf({ appId, depotId, branch, description, depotVdfFileName: depotFileName })
+    const extraDepots = this.collectExtraDepots(options, depotId);
+    const allDepots = [{ depotId, localPath: undefined as string | undefined, installScript: undefined as string | undefined }, ...extraDepots];
+
+    const depotEntries = allDepots.map((depot) => ({
+      depotId: depot.depotId,
+      vdfFileName: `depot_build_${depot.depotId}.vdf`,
+    }));
+
+    for (const depot of allDepots) {
+      const depotVdf = generateDepotVdf({
+        depotId: depot.depotId,
+        localPath: depot.localPath,
+        installScript: depot.installScript,
+        extraExclusions: depot.depotId === depotId ? extraExclusions : undefined,
+        includeDebugSymbols,
+      });
+      fs.writeFileSync(path.join(absoluteBuildPath, `depot_build_${depot.depotId}.vdf`), depotVdf, "utf8");
+    }
+
+    const appVdf = generateAppVdf({ appId, depots: depotEntries, branch, description })
       // generateAppVdf's contentroot/buildoutput default to "./" - override to
       // the path the running steamcmd process will actually see (an absolute
       // host path for local mode, or the container mount point for docker).
       .replace('"contentroot" "./"', `"contentroot" "${contentRoot}"`)
       .replace('"buildoutput" "./"', `"buildoutput" "${contentRoot}"`);
 
-    fs.writeFileSync(path.join(absoluteBuildPath, depotFileName), depotVdf, "utf8");
     fs.writeFileSync(path.join(absoluteBuildPath, "manifest.vdf"), appVdf, "utf8");
 
-    console.log(`Deploying ${absoluteBuildPath} to Steam app ${appId}, depot ${depotId}, branch "${branch}"`);
+    const depotIdList = depotEntries.map((d) => d.depotId).join(", ");
+    console.log(`Deploying ${absoluteBuildPath} to Steam app ${appId}, depot(s) ${depotIdList}, branch "${branch}"`);
 
+    // Steam Guard TOTP and a pre-authorized config.vdf are both credentials -
+    // env vars only, never CLI arguments (argv can leak through process listings).
     const runner = new SteamCmdRunner();
     const result = await runner.run({
       buildDir: absoluteBuildPath,
@@ -117,6 +168,8 @@ export class SteamDeployCommand {
       mode,
       steamCmdPath: options.steamCmdPath,
       steamConfigDir: options.steamConfigDir,
+      totp: process.env.STEAM_TOTP,
+      configVdfBase64: process.env.STEAM_CONFIG_VDF_BASE64,
     });
 
     if (!result.success) {
@@ -130,5 +183,33 @@ export class SteamDeployCommand {
     }
 
     return true;
+  }
+
+  /**
+   * Reads depot1Path..depot9Path (+ matching depot{n}InstallScriptPath) and
+   * assigns each a sequential depot ID after the primary --depotId, starting
+   * from --firstDepotIdOverride if given - matches steam-deploy's own
+   * up-to-9-extra-depots convention.
+   */
+  private collectExtraDepots(
+    options: SteamDeployOptions,
+    primaryDepotId: string,
+  ): Array<{ depotId: string; localPath: string; installScript?: string }> {
+    const firstExtraId = options.firstDepotIdOverride
+      ? Number.parseInt(options.firstDepotIdOverride, 10)
+      : Number.parseInt(primaryDepotId, 10) + 1;
+
+    const extras: Array<{ depotId: string; localPath: string; installScript?: string }> = [];
+    for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
+      const localPath = options[`depot${index}Path`] as string | undefined;
+      if (!localPath) continue;
+
+      extras.push({
+        depotId: String(firstExtraId + extras.length),
+        localPath: `./${localPath.replace(/^\.?\/*/, "")}/*`,
+        installScript: options[`depot${index}InstallScriptPath`] as string | undefined,
+      });
+    }
+    return extras;
   }
 }

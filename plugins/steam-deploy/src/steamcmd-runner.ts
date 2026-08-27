@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { parseSteamCmdOutput, type SteamCmdParseResult } from "./parse-steamcmd-output";
 
 export interface RunSteamCmdOptions {
@@ -13,6 +14,22 @@ export interface RunSteamCmdOptions {
   steamCmdPath?: string;
   /** Host directory containing Steam's own config.vdf, mounted into the Docker container so login sessions persist across runs. */
   steamConfigDir?: string;
+  /**
+   * Steam Guard TOTP code, passed to steamcmd via +set_steam_guard_code.
+   * Mutually exclusive with configVdfBase64 in practice (steam-deploy's own
+   * action treats them that way too - "If set, configVdf will be
+   * ignored.") - if both are given, totp takes priority.
+   */
+  totp?: string;
+  /**
+   * Base64-encoded contents of Steam's own config/config.vdf, written to
+   * steamHome/config/config.vdf before login so a previously-authorized
+   * session (SteamGuard already completed once, outside CI) can be reused
+   * without a TOTP code on every run. Ignored when totp is set.
+   */
+  configVdfBase64?: string;
+  /** Directory steamcmd treats as its home (holds config/, logs/, etc). Defaults to $STEAM_HOME or ~/Steam, matching steam-deploy's own default. */
+  steamHome?: string;
 }
 
 type SpawnFn = typeof spawn;
@@ -25,6 +42,30 @@ const LOCAL_STEAMCMD_CANDIDATES =
 function findLocalSteamCmd(explicitPath?: string): string | null {
   if (explicitPath) return fs.existsSync(explicitPath) ? explicitPath : null;
   return LOCAL_STEAMCMD_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
+function resolveSteamHome(explicit?: string): string {
+  return explicit ?? process.env.STEAM_HOME ?? path.join(process.env.HOME ?? process.env.USERPROFILE ?? ".", "Steam");
+}
+
+/**
+ * Writes a base64-encoded config.vdf to steamHome/config/config.vdf, if
+ * given - lets a session authorized once (outside CI, where an interactive
+ * SteamGuard prompt is possible) be reused on every subsequent run without
+ * a fresh TOTP code. Ported from steam-deploy's own bash implementation.
+ */
+function writeConfigVdfIfProvided(steamHome: string, configVdfBase64?: string): void {
+  if (!configVdfBase64) return;
+
+  const configDir = path.join(steamHome, "config");
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, "config.vdf"), Buffer.from(configVdfBase64, "base64"));
+}
+
+function loginArgs(options: RunSteamCmdOptions): string[] {
+  // set_steam_guard_code must precede +login for steamcmd to associate it
+  // with that login attempt.
+  return options.totp ? ["+set_steam_guard_code", options.totp, "+login", options.username, options.password] : ["+login", options.username, options.password];
 }
 
 function runProcess(spawnFn: SpawnFn, command: string, args: string[]): Promise<{ output: string; exitCode: number }> {
@@ -56,11 +97,11 @@ export class SteamCmdRunner {
       );
     }
 
+    writeConfigVdfIfProvided(resolveSteamHome(options.steamHome), options.totp ? undefined : options.configVdfBase64);
+
     const manifestPath = `${options.buildDir}/manifest.vdf`.replace(/\\/g, "/");
     const { output, exitCode } = await runProcess(this.spawnFn, localPath, [
-      "+login",
-      options.username,
-      options.password,
+      ...loginArgs(options),
       "+run_app_build",
       manifestPath,
       "+quit",
@@ -74,14 +115,20 @@ export class SteamCmdRunner {
 
     if (options.steamConfigDir) {
       dockerArgs.push("-v", `${options.steamConfigDir}:/home/steam/Steam`);
+    } else if (!options.totp && options.configVdfBase64) {
+      // No mounted config dir was given, but a config.vdf was - write it to
+      // a real host directory and mount that, so it's actually visible
+      // inside the container (writing to resolveSteamHome() alone would
+      // land on the host filesystem, not the container's).
+      const steamHome = resolveSteamHome(options.steamHome);
+      writeConfigVdfIfProvided(steamHome, options.configVdfBase64);
+      dockerArgs.push("-v", `${steamHome}:/home/steam/Steam`);
     }
 
     dockerArgs.push(
       "cm2network/steamcmd:latest",
       "/home/steam/steamcmd/steamcmd.sh",
-      "+login",
-      options.username,
-      options.password,
+      ...loginArgs(options),
       "+run_app_build",
       "/build/manifest.vdf",
       "+quit",
