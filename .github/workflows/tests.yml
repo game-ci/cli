@@ -81,8 +81,31 @@ jobs:
       # caught downstream, in a different repo's CI, the way the SIGPIPE bug
       # from `grep -m1` piped straight off curl's output was.
       - name: Smoke-test scripts/install.sh against the latest release
+        # Retries a 404 a few times: "latest" can resolve to a release whose
+        # per-platform binaries are still uploading - the release object
+        # itself is created (and "latest"-resolvable) the moment
+        # `gh release create` runs, but Release CLI Binaries (triggered by
+        # that same release: published event) takes a couple of minutes to
+        # build and attach every platform's archive. A push to main that
+        # lands in that window - e.g. this repo's own version-bump commit,
+        # created right after cutting the release it's for - hit exactly
+        # this 404 in practice, failing Tests on main itself, not just a PR.
         run: |
-          binary_path="$(bash scripts/install.sh latest /tmp/install-sh-smoke-test)"
+          for attempt in 1 2 3 4 5; do
+            # install.sh writes progress to stderr and only the final binary
+            # path to stdout (see its own header comment) - only stdout is
+            # captured here so a retry's own log noise can never end up
+            # embedded in $binary_path on a later successful attempt.
+            if binary_path="$(bash scripts/install.sh latest /tmp/install-sh-smoke-test)"; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "FAIL: scripts/install.sh still failing after 5 attempts"
+              exit 1
+            fi
+            echo "install.sh failed (attempt $attempt/5) - likely the latest release's binaries are still uploading - retrying in 30s..."
+            sleep 30
+          done
           [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
           "$binary_path" --help
 
