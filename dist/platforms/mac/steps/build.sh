@@ -197,7 +197,7 @@ run_unity_build() {
 # missing scene, etc.) never matches these patterns and is not retried.
 UNITY_BUILD_MAX_ATTEMPTS=4
 UNITY_BUILD_RETRY_DELAY_SECONDS=20
-UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed'
+UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
 BUILD_LOG="$(mktemp)"
 for ATTEMPT in $(seq 1 "$UNITY_BUILD_MAX_ATTEMPTS"); do
