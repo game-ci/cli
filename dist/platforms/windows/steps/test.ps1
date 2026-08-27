@@ -214,10 +214,34 @@ foreach ($Platform in $Platforms) {
 
   $LogPath = Join-Path $FullArtifactsPath "$Platform.log"
 
-  Invoke-UnityLaunch -ExePath $UnityExePath -batchmode -logFile $LogPath -projectPath $Env:UNITY_PROJECT_PATH @RunTestsArgs @CoverageFlags @CustomParametersArray | Out-Host
-  $TestExitCode = $LASTEXITCODE
+  # Same known-transient Unity license-server flakiness as the mac retry
+  # (see mac/steps/build.sh's matching comment) - retried a few times, but
+  # only when the exit code isn't a legitimate test-result code (0 = all
+  # passed, 2 = some tests failed - both mean real results exist and are
+  # never retried) and the log matches a known-transient signature, so a
+  # real test failure or a real license misconfiguration still fails
+  # immediately. Same --licenseRetryMaxAttempts / UNITY_LICENSE_RETRY_MAX_ATTEMPTS
+  # knob as activate.ps1 and the mac scripts.
+  $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 4 }
+  $RetryDelaySeconds = 20
+  $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
-  if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    Invoke-UnityLaunch -ExePath $UnityExePath -batchmode -logFile $LogPath -projectPath $Env:UNITY_PROJECT_PATH @RunTestsArgs @CoverageFlags @CustomParametersArray | Out-Host
+    $TestExitCode = $LASTEXITCODE
+    $LogContent = if (Test-Path $LogPath) { Get-Content $LogPath -Raw } else { '' }
+    if ($LogContent) { Get-Content $LogPath | Out-Host }
+
+    if ($TestExitCode -eq 0 -or $TestExitCode -eq 2) { break }
+
+    if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
+      Write-Host "Unity test run failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${RetryDelaySeconds}s..."
+      Start-Sleep -Seconds $RetryDelaySeconds
+      continue
+    }
+
+    break
+  }
 
   if ($TestExitCode -eq 0 -and $Platform -eq 'standalone') {
     Write-Host ''
