@@ -19,7 +19,16 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
-if ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE) {
+# Serial mode is preferred over personal-license (below) whenever both are
+# configured - see mac/steps/activate.sh's matching comment: a manually-
+# activated .ulf is bound to the machine fingerprint of whatever machine
+# originally requested it, which real CI evidence shows genuinely doesn't
+# match every runner (confirmed "Machine bindings don't match" on windows
+# specifically, with the identical .ulf activating cleanly elsewhere).
+# Serial credentials have no such constraint, so given a choice, prefer them.
+$HasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
+
+if ((-not $HasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
   #
   # PERSONAL LICENSE MODE
   #
