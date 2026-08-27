@@ -4,6 +4,14 @@
 echo "Changing to \"$ACTIVATE_LICENSE_PATH\" directory."
 pushd "$ACTIVATE_LICENSE_PATH"
 
+# Same known-transient Unity license-server flakiness as mac/windows (see
+# mac/steps/build.sh's matching comment) - retried a few times, but only on
+# those known-transient signatures, so a genuine activation failure (bad
+# serial, expired license, etc.) still fails immediately.
+UNITY_ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
+UNITY_ACTIVATE_RETRY_DELAY_SECONDS=20
+UNITY_ACTIVATE_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
+
 if [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; then
   #
   # PERSONAL LICENSE MODE
@@ -27,28 +35,39 @@ if [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; then
     cat "$UNITY_LICENSE_FILE" | tr -d '\r' > $FILE_PATH
   fi
 
-  # Activate license
-  ACTIVATION_OUTPUT=$(${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
-      -logFile /dev/stdout \
-      -quit \
-      -manualLicenseFile $FILE_PATH)
+  for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
+    # Activate license
+    ACTIVATION_OUTPUT=$(${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
+        -logFile /dev/stdout \
+        -quit \
+        -manualLicenseFile $FILE_PATH)
 
-  # Store the exit code from the verify command
-  UNITY_EXIT_CODE=$?
+    # Store the exit code from the verify command
+    UNITY_EXIT_CODE=$?
 
-  # The exit code for personal activation is always 1;
-  # Determine whether activation was successful.
-  #
-  # Successful output should include the following:
-  #
-  #   "LICENSE SYSTEM [2020120 18:51:20] Next license update check is after 2019-11-25T18:23:38"
-  #
-  ACTIVATION_SUCCESSFUL=$(echo $ACTIVATION_OUTPUT | grep 'Next license update check is after' | wc -l)
+    # The exit code for personal activation is always 1;
+    # Determine whether activation was successful.
+    #
+    # Successful output should include the following:
+    #
+    #   "LICENSE SYSTEM [2020120 18:51:20] Next license update check is after 2019-11-25T18:23:38"
+    #
+    ACTIVATION_SUCCESSFUL=$(echo "$ACTIVATION_OUTPUT" | grep 'Next license update check is after' | wc -l)
 
-  # Set exit code to 0 if activation was successful
-  if [[ $ACTIVATION_SUCCESSFUL -eq 1 ]]; then
-    UNITY_EXIT_CODE=0
-  fi;
+    # Set exit code to 0 if activation was successful
+    if [[ $ACTIVATION_SUCCESSFUL -eq 1 ]]; then
+      UNITY_EXIT_CODE=0
+      break
+    fi
+
+    if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" <<< "$ACTIVATION_OUTPUT"; then
+      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      continue
+    fi
+
+    break
+  done
 
   # Remove license file
   rm -f $FILE_PATH
@@ -63,16 +82,32 @@ elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
   #
   echo "Requesting activation (professional license)"
 
-  # Activate license
-  ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
-    -logFile /dev/stdout \
-    -quit \
-    -serial "$UNITY_SERIAL" \
-    -username "$UNITY_EMAIL" \
-    -password "$UNITY_PASSWORD"
+  ACTIVATE_LOG="$(mktemp)"
+  for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
+    # Activate license
+    ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
+      -logFile /dev/stdout \
+      -quit \
+      -serial "$UNITY_SERIAL" \
+      -username "$UNITY_EMAIL" \
+      -password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
 
-  # Store the exit code from the verify command
-  UNITY_EXIT_CODE=$?
+    # Store the exit code from the verify command
+    UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
+      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      continue
+    fi
+
+    break
+  done
+  rm -f "$ACTIVATE_LOG"
 
 elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
   #
@@ -80,15 +115,31 @@ elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
   #
   echo "Adding licensing server config"
 
-  /opt/unity/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client --acquire-floating > license.txt #is this accessible in a env variable?
+  ACTIVATE_LOG="$(mktemp)"
+  for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
+    /opt/unity/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client --acquire-floating 2>&1 | tee license.txt "$ACTIVATE_LOG" > /dev/null
+    UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
+      echo "Floating license acquisition failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY_SECONDS}s..."
+      sleep "$UNITY_ACTIVATE_RETRY_DELAY_SECONDS"
+      continue
+    fi
+
+    break
+  done
+  rm -f "$ACTIVATE_LOG"
+
   PARSEDFILE=$(grep -oP '\".*?\"' < license.txt | tr -d '"')
   export FLOATING_LICENSE
   FLOATING_LICENSE=$(sed -n 2p <<< "$PARSEDFILE")
   FLOATING_LICENSE_TIMEOUT=$(sed -n 4p <<< "$PARSEDFILE")
 
   echo "Acquired floating license: \"$FLOATING_LICENSE\" with timeout $FLOATING_LICENSE_TIMEOUT"
-  # Store the exit code from the verify command
-  UNITY_EXIT_CODE=$?
 else
   #
   # NO LICENSE ACTIVATION STRATEGY MATCHED
