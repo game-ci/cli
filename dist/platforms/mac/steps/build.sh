@@ -195,8 +195,8 @@ run_unity_build() {
 # automatically rather than failing the whole job on what's effectively a
 # flaky network call. A build that fails for a real reason (compile error,
 # missing scene, etc.) never matches these patterns and is not retried.
-UNITY_BUILD_MAX_ATTEMPTS=3
-UNITY_BUILD_RETRY_DELAY_SECONDS=15
+UNITY_BUILD_MAX_ATTEMPTS=4
+UNITY_BUILD_RETRY_DELAY_SECONDS=20
 UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed'
 
 BUILD_LOG="$(mktemp)"
