@@ -13,7 +13,15 @@ ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
 ACTIVATE_RETRY_DELAY_SECONDS=20
 ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
-if [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; then
+# Serial mode is preferred over personal-license (below) whenever both are
+# configured: a manually-activated .ulf is bound to the machine fingerprint
+# of whatever machine originally requested it, which real CI evidence shows
+# genuinely doesn't match every runner - confirmed via unity-test-runner's
+# own CI, where the identical .ulf activates cleanly through this same
+# script's ubuntu counterpart but fails windows with "Machine bindings
+# don't match" every single time. Serial credentials have no such
+# constraint, so given a choice, prefer them.
+if [[ -z "$UNITY_SERIAL" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]] && { [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; }; then
   #
   # PERSONAL LICENSE MODE
   #
