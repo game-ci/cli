@@ -68,7 +68,7 @@
     },
     "plugins/github-release-deploy": {
       "name": "@game-ci/github-release-deploy",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^17.0.23",
         "typescript": "4.7.4",
@@ -77,7 +77,7 @@
     },
     "plugins/itch-deploy": {
       "name": "@game-ci/itch-deploy",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^17.0.23",
         "typescript": "4.7.4",
@@ -163,6 +163,15 @@
     },
     "plugins/runtime-test-framework": {
       "name": "@game-ci/runtime-test-framework",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
+    "plugins/rust": {
+      "name": "@game-ci/rust",
       "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^17.0.23",
@@ -488,6 +497,8 @@
     "@game-ci/rpg-maker": ["@game-ci/rpg-maker@workspace:plugins/rpg-maker"],
 
     "@game-ci/runtime-test-framework": ["@game-ci/runtime-test-framework@workspace:plugins/runtime-test-framework"],
+
+    "@game-ci/rust": ["@game-ci/rust@workspace:plugins/rust"],
 
     "@game-ci/save-data-compat": ["@game-ci/save-data-compat@workspace:plugins/save-data-compat"],
 
@@ -1654,6 +1665,8 @@
     "@game-ci/rpg-maker/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/runtime-test-framework/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
+    "@game-ci/rust/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/save-data-compat/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
