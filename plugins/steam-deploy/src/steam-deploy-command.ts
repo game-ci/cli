@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { generateAppVdf, generateDepotVdf } from "./vdf-generator";
-import { SteamCmdRunner } from "./steamcmd-runner";
+import { SteamCmdRunner, resolveUseDocker } from "./steamcmd-runner";
 
 const MAX_EXTRA_DEPOTS = 9;
 
@@ -145,7 +145,7 @@ export class SteamDeployCommand {
     const includeDebugSymbols = options.debugBranch ?? false;
 
     const absoluteBuildPath = path.resolve(buildPath);
-    const contentRoot = mode === "docker" ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
+    const contentRoot = resolveUseDocker(mode, options.steamCmdPath) ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
 
     const extraDepots = this.collectExtraDepots(options, depotId);
     const primaryLocalPath = options.depotPath ? `./${options.depotPath.replace(/^\.?\/*/, "")}/*` : undefined;

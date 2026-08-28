@@ -52,6 +52,21 @@ function findLocalSteamCmd(explicitPath?: string): string | null {
   return LOCAL_STEAMCMD_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
+/**
+ * Exported so callers that need to know the actual execution mode ahead
+ * of time (steam-deploy-command.ts picks the manifest's contentroot/
+ * buildoutput based on this) compute it identically to run()'s own
+ * internal decision - previously duplicated ad hoc as `mode === "docker"`
+ * in the command, which silently diverged from this function's "auto"
+ * case, writing a host absolute path into the manifest for a build that
+ * then actually ran in Docker (steamcmd inside the container correctly
+ * reported "Content root folder does not exist", since only /build was
+ * mounted there, confirmed live via game-ci/steam-deploy#92's CI).
+ */
+export function resolveUseDocker(mode: "auto" | "local" | "docker", steamCmdPath?: string): boolean {
+  return mode === "docker" || (mode === "auto" && !findLocalSteamCmd(steamCmdPath));
+}
+
 function resolveSteamHome(explicit?: string): string {
   return explicit ?? process.env.STEAM_HOME ?? path.join(process.env.HOME ?? process.env.USERPROFILE ?? ".", "Steam");
 }
