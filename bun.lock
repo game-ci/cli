@@ -30,6 +30,15 @@
         "vitest": "^4",
       },
     },
+    "plugins/bevy": {
+      "name": "@game-ci/bevy",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^17.0.23",
+        "typescript": "4.7.4",
+        "vitest": "^4",
+      },
+    },
     "plugins/code-signing": {
       "name": "@game-ci/code-signing",
       "version": "0.0.1",
@@ -163,15 +172,6 @@
     },
     "plugins/runtime-test-framework": {
       "name": "@game-ci/runtime-test-framework",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@types/node": "^17.0.23",
-        "typescript": "4.7.4",
-        "vitest": "^4",
-      },
-    },
-    "plugins/rust": {
-      "name": "@game-ci/rust",
       "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^17.0.23",
@@ -476,6 +476,8 @@
 
     "@game-ci/anti-cheat": ["@game-ci/anti-cheat@workspace:plugins/anti-cheat"],
 
+    "@game-ci/bevy": ["@game-ci/bevy@workspace:plugins/bevy"],
+
     "@game-ci/code-signing": ["@game-ci/code-signing@workspace:plugins/code-signing"],
 
     "@game-ci/dedicated-server-provisioning": ["@game-ci/dedicated-server-provisioning@workspace:plugins/dedicated-server-provisioning"],
@@ -497,8 +499,6 @@
     "@game-ci/rpg-maker": ["@game-ci/rpg-maker@workspace:plugins/rpg-maker"],
 
     "@game-ci/runtime-test-framework": ["@game-ci/runtime-test-framework@workspace:plugins/runtime-test-framework"],
-
-    "@game-ci/rust": ["@game-ci/rust@workspace:plugins/rust"],
 
     "@game-ci/save-data-compat": ["@game-ci/save-data-compat@workspace:plugins/save-data-compat"],
 
@@ -1644,6 +1644,8 @@
 
     "@game-ci/anti-cheat/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
+    "@game-ci/bevy/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
+
     "@game-ci/code-signing/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/dedicated-server-provisioning/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
@@ -1665,8 +1667,6 @@
     "@game-ci/rpg-maker/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/runtime-test-framework/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
-
-    "@game-ci/rust/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 
     "@game-ci/save-data-compat/typescript": ["typescript@4.7.4", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="],
 

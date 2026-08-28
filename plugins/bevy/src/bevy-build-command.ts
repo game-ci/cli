@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CargoRunner, cargoOutputDir, binaryFileName } from "./cargo-runner";
-import { readCargoToml, readCargoPackageName } from "./rust-project-detector";
+import { readCargoToml, readCargoPackageName, isBevyProject } from "./bevy-project-detector";
 
-export interface RustBuildOptions {
+export interface BevyBuildOptions {
   projectPath?: string;
   target?: string;
   features?: string;
@@ -18,8 +18,8 @@ interface YargsLike {
   option: (name: string, config: Record<string, unknown>) => YargsLike;
 }
 
-export class RustBuildCommand {
-  public readonly name = "Build Rust project";
+export class BevyBuildCommand {
+  public readonly name = "Build Bevy project";
 
   constructor(private readonly cargoRunner: CargoRunner = new CargoRunner()) {}
 
@@ -49,11 +49,14 @@ export class RustBuildCommand {
       });
   }
 
-  public async execute(options: RustBuildOptions): Promise<boolean> {
+  public async execute(options: BevyBuildOptions): Promise<boolean> {
     const projectPath = options.projectPath || ".";
     const absoluteProjectPath = path.resolve(projectPath);
     if (!fs.existsSync(path.join(absoluteProjectPath, "Cargo.toml"))) {
       throw new Error(`No Cargo.toml found at "${absoluteProjectPath}".`);
+    }
+    if (!isBevyProject(absoluteProjectPath)) {
+      throw new Error(`No bevy dependency found in "${path.join(absoluteProjectPath, "Cargo.toml")}" - this command is Bevy-specific.`);
     }
 
     const packageName = readCargoPackageName(readCargoToml(absoluteProjectPath));

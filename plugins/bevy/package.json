@@ -1,8 +1,8 @@
 {
-  "name": "@game-ci/rust",
+  "name": "@game-ci/bevy",
   "version": "0.1.0",
   "private": true,
-  "description": "EXPERIMENTAL: Rust engine plugin. Builds any Rust game (Bevy, macroquad, ggez, Fyrox, or plain wgpu/winit) via cargo - engine-agnostic within Rust, since they all build the same way.",
+  "description": "EXPERIMENTAL: Bevy engine plugin. Detects a Bevy project (a bevy dependency in Cargo.toml) and builds/tests it via cargo.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [

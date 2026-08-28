@@ -2,16 +2,39 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 /**
- * Detects a Rust project and reads just enough of its manifest to build
- * it - the package/binary name (cargo build's output file is named after
- * it) and the pinned toolchain version, if any. A minimal hand-rolled TOML
- * reader for the two fields actually needed, not a general TOML parser -
- * Cargo.toml's [package] table is simple, predictable key = "value" lines,
- * and pulling in a TOML dependency for two fields isn't worth it.
+ * Detects a Bevy project specifically - not just any Cargo/Rust project.
+ * Rust has no single dominant game engine the way Unity/Godot/Unreal do
+ * for their ecosystems, so detecting "any Cargo.toml" would misclassify
+ * every non-game Rust crate as a game project. Bevy is checked for as a
+ * direct dependency instead, the same way engine detection elsewhere in
+ * this repo looks for a specific, unambiguous project marker rather than
+ * a generic file that many unrelated project types also have.
+ *
+ * Also reads just enough of the manifest to build the project - the
+ * package/binary name (cargo build's output file is named after it) and
+ * the pinned toolchain version, if any. A minimal hand-rolled TOML reader
+ * for the fields actually needed, not a general TOML parser - Cargo.toml's
+ * [package]/[dependencies] tables are simple, predictable key = "value"
+ * lines, and pulling in a TOML dependency for a handful of fields isn't
+ * worth it.
  */
 
-export function isRustProject(projectPath: string): boolean {
-  return fs.existsSync(path.join(projectPath, "Cargo.toml"));
+export function isBevyProject(projectPath: string): boolean {
+  const cargoTomlPath = path.join(projectPath, "Cargo.toml");
+  if (!fs.existsSync(cargoTomlPath)) return false;
+
+  return hasBevyDependency(fs.readFileSync(cargoTomlPath, "utf8"));
+}
+
+/**
+ * Matches `bevy = "..."`, `bevy = { version = "...", ... }`, and a
+ * `[dependencies.bevy]` table - the three ways Cargo.toml can declare a
+ * dependency. Doesn't attempt to resolve workspace-inherited dependencies
+ * (`bevy.workspace = true`) - a real gap for workspace-structured
+ * projects, left as a known limitation rather than guessed at.
+ */
+export function hasBevyDependency(cargoTomlContent: string): boolean {
+  return /^\s*bevy\s*=/m.test(cargoTomlContent) || /^\[dependencies\.bevy\]/m.test(cargoTomlContent);
 }
 
 /**

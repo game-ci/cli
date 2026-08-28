@@ -2,14 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { RustBuildCommand } from "./rust-build-command";
+import { BevyBuildCommand } from "./bevy-build-command";
 import { CargoRunner, binaryFileName } from "./cargo-runner";
 
-describe("RustBuildCommand", () => {
+const BEVY_CARGO_TOML = '[package]\nname = "my-game"\n\n[dependencies]\nbevy = "0.14"\n';
+
+describe("BevyBuildCommand", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rust-build-command-test-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "bevy-build-command-test-"));
   });
 
   afterEach(() => {
@@ -31,35 +33,41 @@ describe("RustBuildCommand", () => {
   }
 
   it("throws when there is no Cargo.toml", async () => {
-    const command = new RustBuildCommand(cargoRunnerStub());
+    const command = new BevyBuildCommand(cargoRunnerStub());
     await expect(command.execute({ projectPath: tempDir })).rejects.toThrow(/No Cargo.toml found/);
   });
 
+  it("throws when Cargo.toml has no bevy dependency", async () => {
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "not-a-game"\n');
+    const command = new BevyBuildCommand(cargoRunnerStub());
+    await expect(command.execute({ projectPath: tempDir })).rejects.toThrow(/No bevy dependency found/);
+  });
+
   it("throws when the package name can't be determined", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), "[workspace]\nmembers = []\n");
-    const command = new RustBuildCommand(cargoRunnerStub());
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[workspace]\nmembers = []\n\n[dependencies]\nbevy = "0.14"\n');
+    const command = new BevyBuildCommand(cargoRunnerStub());
     await expect(command.execute({ projectPath: tempDir })).rejects.toThrow(/Could not determine the package/);
   });
 
   it("throws with cargo's output when the build fails", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), BEVY_CARGO_TOML);
     const runner = cargoRunnerStub({ build: vi.fn().mockResolvedValue({ success: false, output: "compile error", exitCode: 1 }) });
-    const command = new RustBuildCommand(runner);
+    const command = new BevyBuildCommand(runner);
 
     await expect(command.execute({ projectPath: tempDir })).rejects.toThrow(/compile error/);
   });
 
   it("throws when cargo reports success but the binary isn't where expected", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
-    const command = new RustBuildCommand(cargoRunnerStub());
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), BEVY_CARGO_TOML);
+    const command = new BevyBuildCommand(cargoRunnerStub());
 
     await expect(command.execute({ projectPath: tempDir })).rejects.toThrow(/was not found/);
   });
 
   it("succeeds and locates the built binary", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), BEVY_CARGO_TOML);
     writeBuiltBinary();
-    const command = new RustBuildCommand(cargoRunnerStub());
+    const command = new BevyBuildCommand(cargoRunnerStub());
 
     const result = await command.execute({ projectPath: tempDir });
 
@@ -67,10 +75,10 @@ describe("RustBuildCommand", () => {
   });
 
   it("copies the binary to outputPath when given", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), BEVY_CARGO_TOML);
     writeBuiltBinary();
     const outputDir = path.join(tempDir, "dist");
-    const command = new RustBuildCommand(cargoRunnerStub());
+    const command = new BevyBuildCommand(cargoRunnerStub());
 
     await command.execute({ projectPath: tempDir, outputPath: outputDir });
 
@@ -78,10 +86,10 @@ describe("RustBuildCommand", () => {
   });
 
   it("passes locked=true to cargo by default", async () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), BEVY_CARGO_TOML);
     writeBuiltBinary();
     const runner = cargoRunnerStub();
-    const command = new RustBuildCommand(runner);
+    const command = new BevyBuildCommand(runner);
 
     await command.execute({ projectPath: tempDir });
 

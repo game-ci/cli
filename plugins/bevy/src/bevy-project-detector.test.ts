@@ -3,17 +3,40 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-  isRustProject,
+  isBevyProject,
+  hasBevyDependency,
   readCargoPackageName,
   readCargoPackageVersion,
   readRustToolchainVersion,
-} from "./rust-project-detector";
+} from "./bevy-project-detector";
 
-describe("isRustProject", () => {
+describe("hasBevyDependency", () => {
+  it("matches a simple version-string dependency", () => {
+    expect(hasBevyDependency('[dependencies]\nbevy = "0.14"\n')).toBe(true);
+  });
+
+  it("matches an inline-table dependency", () => {
+    expect(hasBevyDependency('[dependencies]\nbevy = { version = "0.14", default-features = false }\n')).toBe(true);
+  });
+
+  it("matches a [dependencies.bevy] table", () => {
+    expect(hasBevyDependency('[dependencies.bevy]\nversion = "0.14"\n')).toBe(true);
+  });
+
+  it("returns false for a Cargo.toml with no bevy dependency", () => {
+    expect(hasBevyDependency('[package]\nname = "not-a-game"\n\n[dependencies]\nserde = "1"\n')).toBe(false);
+  });
+
+  it("does not match a substring like bevy_ecs alone (only the bevy crate itself)", () => {
+    expect(hasBevyDependency('[dependencies]\nbevy_ecs = "0.14"\n')).toBe(false);
+  });
+});
+
+describe("isBevyProject", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rust-detector-test-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "bevy-detector-test-"));
   });
 
   afterEach(() => {
@@ -21,12 +44,17 @@ describe("isRustProject", () => {
   });
 
   it("returns false when there is no Cargo.toml", () => {
-    expect(isRustProject(tempDir)).toBe(false);
+    expect(isBevyProject(tempDir)).toBe(false);
   });
 
-  it("returns true when Cargo.toml exists", () => {
-    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n');
-    expect(isRustProject(tempDir)).toBe(true);
+  it("returns false for a plain Rust crate with no bevy dependency", () => {
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-cli-tool"\n');
+    expect(isBevyProject(tempDir)).toBe(false);
+  });
+
+  it("returns true for a Cargo.toml that depends on bevy", () => {
+    fs.writeFileSync(path.join(tempDir, "Cargo.toml"), '[package]\nname = "my-game"\n\n[dependencies]\nbevy = "0.14"\n');
+    expect(isBevyProject(tempDir)).toBe(true);
   });
 });
 

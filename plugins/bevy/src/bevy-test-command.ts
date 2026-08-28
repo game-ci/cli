@@ -1,8 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CargoRunner } from "./cargo-runner";
+import { isBevyProject } from "./bevy-project-detector";
 
-export interface RustTestOptions {
+export interface BevyTestOptions {
   projectPath?: string;
   target?: string;
   features?: string;
@@ -14,8 +15,8 @@ interface YargsLike {
   option: (name: string, config: Record<string, unknown>) => YargsLike;
 }
 
-export class RustTestCommand {
-  public readonly name = "Test Rust project";
+export class BevyTestCommand {
+  public readonly name = "Test Bevy project";
 
   constructor(private readonly cargoRunner: CargoRunner = new CargoRunner()) {}
 
@@ -36,11 +37,14 @@ export class RustTestCommand {
       });
   }
 
-  public async execute(options: RustTestOptions): Promise<boolean> {
+  public async execute(options: BevyTestOptions): Promise<boolean> {
     const projectPath = options.projectPath || ".";
     const absoluteProjectPath = path.resolve(projectPath);
     if (!fs.existsSync(path.join(absoluteProjectPath, "Cargo.toml"))) {
       throw new Error(`No Cargo.toml found at "${absoluteProjectPath}".`);
+    }
+    if (!isBevyProject(absoluteProjectPath)) {
+      throw new Error(`No bevy dependency found in "${path.join(absoluteProjectPath, "Cargo.toml")}" - this command is Bevy-specific.`);
     }
 
     console.log(`Testing project at ${absoluteProjectPath} (cargo test --release)`);

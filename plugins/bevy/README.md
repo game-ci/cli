@@ -1,26 +1,29 @@
 > **EXPERIMENTAL.** Functional, but not published to npm and never loaded
-> unless you pass `--plugin @game-ci/rust` explicitly.
+> unless you pass `--plugin @game-ci/bevy` explicitly.
 
-# @game-ci/rust
+# @game-ci/bevy
 
-Builds and tests any Rust game via `cargo` - engine-agnostic *within*
-Rust: [Bevy](https://bevyengine.org/), [macroquad](https://macroquad.rs/),
-[ggez](https://ggez.rs/), [Fyrox](https://fyrox.rs/), or plain
-wgpu/winit all build the same way. There's no engine-specific build tool
-the way Unity/Godot/Unreal each have one, so this plugin doesn't attempt
-to detect which framework a project uses - only that it's a buildable
-Rust crate (a `Cargo.toml` at the project root).
+Detects a [Bevy](https://bevyengine.org/) project - a `bevy` dependency
+in `Cargo.toml`, not just any Cargo project - and builds/tests it via
+`cargo build --release`/`cargo test --release`. Bevy has no separate
+build tool of its own; it's a regular Cargo dependency, so this plugin's
+job is mostly correct detection (so it doesn't misclassify an unrelated
+Rust crate as a game) plus locating cargo's own build output.
 
 ## Usage
 
 ```bash
-game-ci --plugin @game-ci/rust build ./my-game --target x86_64-pc-windows-gnu
-game-ci --plugin @game-ci/rust test ./my-game
+game-ci --plugin @game-ci/bevy build ./my-game --target x86_64-pc-windows-gnu
+game-ci --plugin @game-ci/bevy test ./my-game
 ```
 
-- Detects a Rust project via `Cargo.toml`; reads the toolchain version
-  from `rust-toolchain.toml`/`rust-toolchain` if pinned, otherwise
-  reports `stable`.
+- Detected via a `bevy` dependency in `Cargo.toml` (a plain version
+  string, an inline table, or a `[dependencies.bevy]` table - all three
+  ways Cargo.toml can declare a dependency). Doesn't resolve
+  workspace-inherited dependencies (`bevy.workspace = true`) yet - a
+  known gap for workspace-structured projects.
+- Reads the toolchain version from `rust-toolchain.toml`/`rust-toolchain`
+  if pinned, otherwise reports `stable`.
 - `build` runs `cargo build --release` (pass `--debug` for a debug
   build), locates the resulting binary under `target/<target?>/release/`
   (cargo's own, stable output convention), and optionally copies it to
