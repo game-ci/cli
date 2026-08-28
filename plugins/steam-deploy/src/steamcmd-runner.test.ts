@@ -59,6 +59,27 @@ describe("SteamCmdRunner", () => {
     ]);
   });
 
+  it("logs in with just the username when password is omitted (relying on a configVdf session)", async () => {
+    const { spawnFn, calls } = fakeSpawn("Success!");
+    const runner = new SteamCmdRunner(spawnFn);
+
+    await runner.run({
+      buildDir: tempDir,
+      username: "u",
+      mode: "local",
+      steamCmdPath: localSteamCmdPath,
+      configVdfBase64: Buffer.from("session").toString("base64"),
+    });
+
+    expect(calls[0].args).toEqual([
+      "+login",
+      "u",
+      "+run_app_build",
+      `${tempDir.replace(/\\/g, "/")}/manifest.vdf`,
+      "+quit",
+    ]);
+  });
+
   it("prepends +set_steam_guard_code when totp is given", async () => {
     const { spawnFn, calls } = fakeSpawn("Success!");
     const runner = new SteamCmdRunner(spawnFn);

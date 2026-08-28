@@ -7,7 +7,15 @@ export interface RunSteamCmdOptions {
   /** Directory containing manifest.vdf and the depot VDF(s), already patched with correct ContentRoot/BuildOutput. */
   buildDir: string;
   username: string;
-  password: string;
+  /**
+   * Required unless configVdfBase64 or totp is set - a configVdf carries a
+   * previously-authorized session (SteamGuard already completed once,
+   * outside CI) that steamcmd can log in with using just the username,
+   * matching the old standalone game-ci/steam-deploy action's own
+   * behavior (its password input was "required if totp is set", i.e.
+   * optional otherwise).
+   */
+  password?: string;
   /** 'local' runs steamcmd directly; 'docker' runs it via the cm2network/steamcmd image; 'auto' picks whichever is available, preferring local. */
   mode: "auto" | "local" | "docker";
   /** Explicit path to steamcmd's executable. Skips PATH/common-location auto-detection when set - recommended for CI determinism. */
@@ -63,9 +71,16 @@ function writeConfigVdfIfProvided(steamHome: string, configVdfBase64?: string): 
 }
 
 function loginArgs(options: RunSteamCmdOptions): string[] {
+  // Password omitted entirely (not passed as "") when unset - a configVdf
+  // carries a session already authorized outside CI, and steamcmd logs in
+  // with just the username in that case, same as the old action's own
+  // second-stage login (its test-login used the password, but the actual
+  // build-upload login didn't).
+  const loginArgsBase = options.password ? [options.username, options.password] : [options.username];
+
   // set_steam_guard_code must precede +login for steamcmd to associate it
   // with that login attempt.
-  return options.totp ? ["+set_steam_guard_code", options.totp, "+login", options.username, options.password] : ["+login", options.username, options.password];
+  return options.totp ? ["+set_steam_guard_code", options.totp, "+login", ...loginArgsBase] : ["+login", ...loginArgsBase];
 }
 
 function runProcess(spawnFn: SpawnFn, command: string, args: string[]): Promise<{ output: string; exitCode: number }> {
