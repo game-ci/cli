@@ -1,35 +1,73 @@
-> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
-> shape is real, but its domain logic is not written. Any command it claims will
-> throw. It is not published to npm and is never loaded unless you pass
-> `--plugin @game-ci/code-signing` explicitly.
+> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
+> unless you pass `--plugin @game-ci/code-signing` explicitly.
 
-# @game-ci/code-signing (draft)
+# @game-ci/code-signing
 
-macOS notarization (`xcrun notarytool` + stapling) and Windows
-Authenticode signing for built players. **Not functional yet**, and
-`sign` is not yet registered anywhere in core's CLI.
+`game-ci sign <buildPath> --platform macos|windows` signs (and, on
+macOS, notarizes and staples) a built player. An unsigned macOS build is
+blocked by Gatekeeper; an unsigned Windows build is flagged by
+SmartScreen - both real, common pain points outside Steam/console
+storefronts (direct download, itch.io).
 
-## Why this
+## macOS
 
-Real, common pain point currently entirely hand-rolled per studio: an
-unsigned macOS build gets blocked by Gatekeeper, an unsigned Windows
-build gets flagged by SmartScreen. Distribution outside Steam/console
-storefronts (direct download, itch.io) hits this immediately.
+```bash
+APPLE_ID=... APPLE_TEAM_ID=... APPLE_APP_SPECIFIC_PASSWORD=... game-ci \
+  --plugin @game-ci/code-signing \
+  sign ./build/Game.app --platform macos --identity "Developer ID Application: Studio Name (TEAM123)"
+```
 
-## Remaining work before this is real
+Runs `codesign` with the hardened runtime enabled (required for
+notarization since macOS 10.15), then by default zips the app with
+`ditto` (preserves bundle structure, unlike a plain `zip`), submits it
+via `xcrun notarytool submit --wait`, and staples the ticket with `xcrun
+stapler staple` on success. Pass `--notarize=false` to sign without
+notarizing.
 
-1. Add `sign <buildPath>` to core's `CliCommands`.
-2. macOS path: codesign the `.app` bundle with a Developer ID
-   certificate, submit to `xcrun notarytool submit --wait`, staple the
-   ticket on success. Certificate/App-Store-Connect-API-key handling via
-   environment variables only, matching `steam-deploy`'s credential
-   convention.
-3. Windows path: Authenticode signing via `signtool.exe` (or an HSM/cloud
-   signing service like Azure Trusted Signing, increasingly required
-   since traditional EV cert issuance has gotten harder for indies) -
-   needs real research into which signing backends are actually
-   accessible to indie/small studios today before picking one to
-   implement first.
-4. Tests once the above is real - likely needs to mock the actual
-   signing tool invocations, since real certificates can't be part of a
-   test fixture.
+Credentials are read from `$APPLE_ID`/`$APPLE_TEAM_ID`/
+`$APPLE_APP_SPECIFIC_PASSWORD` only, never CLI arguments - the app-specific
+password is generated at https://appleid.apple.com, not your regular
+Apple ID password.
+
+## Windows
+
+```bash
+WINDOWS_CERTIFICATE_PASSWORD=... game-ci \
+  --plugin @game-ci/code-signing \
+  sign ./build/Game.exe --platform windows --certificatePath ./cert.pfx --timestampUrl http://timestamp.digicert.com
+```
+
+Runs `signtool sign` with SHA-256 file and timestamp digests (the modern
+mode - `signtool`'s legacy SHA-1-only mode is deprecated and
+increasingly rejected by SmartScreen). Pass either `--certificatePath`
+(a PFX file, password from `$WINDOWS_CERTIFICATE_PASSWORD`) or
+`--certificateThumbprint` (a certificate already in the Windows
+certificate store) - not both.
+
+`--timestampUrl` is strongly recommended: without an RFC 3161 timestamp,
+the signature becomes invalid the moment the certificate expires, even
+for builds already shipped.
+
+## Options
+
+| Option                    | Platform | Description                                                          |
+| -------------------------- | -------- | ---------------------------------------------------------------------- |
+| `--platform`                | both     | `macos` or `windows`. Required.                                      |
+| `--identity`                | macOS    | Code signing identity. Falls back to `$APPLE_SIGNING_IDENTITY`.      |
+| `--entitlementsPath`        | macOS    | Path to an entitlements `.plist`, if the app needs any.              |
+| `--notarize`                | macOS    | Submit for notarization and staple after signing. Default `true`.    |
+| `--certificatePath`         | Windows  | Path to a PFX certificate file.                                      |
+| `--certificateThumbprint`   | Windows  | Thumbprint of a certificate in the Windows certificate store.        |
+| `--timestampUrl`            | Windows  | RFC 3161 timestamp server URL.                                       |
+
+## What isn't covered yet
+
+Cloud/HSM-based Windows signing (e.g. Azure Trusted Signing, increasingly
+required as traditional EV certificate issuance has gotten harder for
+indies) isn't wired up - only local `signtool` with a PFX file or a
+certificate-store thumbprint. Real certificates can't be part of an
+automated test fixture, so the signing tool invocations themselves are
+unit-tested with a mocked process runner (argument construction,
+credential handling, and the macOS sign→zip→notarize→staple sequencing
+are covered); an actual signing/notarization run hasn't been exercised
+against real Apple/Microsoft infrastructure in this session.
