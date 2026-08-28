@@ -118,9 +118,19 @@ export class SteamDeployCommand {
 
     const username = process.env.STEAM_USERNAME;
     const password = process.env.STEAM_PASSWORD;
-    if (!username || !password) {
+    const totp = process.env.STEAM_TOTP;
+    const configVdfBase64 = process.env.STEAM_CONFIG_VDF_BASE64;
+    if (!username) {
       throw new Error(
-        "STEAM_USERNAME and STEAM_PASSWORD must be set as environment variables (never as CLI arguments - argv can leak through process listings).",
+        "STEAM_USERNAME must be set as an environment variable (never as a CLI argument - argv can leak through process listings).",
+      );
+    }
+    // Password is required unless a configVdf (a session already authorized
+    // outside CI) or a TOTP code is given - matches the old standalone
+    // game-ci/steam-deploy action's own behavior.
+    if (!password && !totp && !configVdfBase64) {
+      throw new Error(
+        "STEAM_PASSWORD must be set as an environment variable, unless STEAM_TOTP or STEAM_CONFIG_VDF_BASE64 is set (never as a CLI argument - argv can leak through process listings).",
       );
     }
 
@@ -182,8 +192,8 @@ export class SteamDeployCommand {
       mode,
       steamCmdPath: options.steamCmdPath,
       steamConfigDir: options.steamConfigDir,
-      totp: process.env.STEAM_TOTP,
-      configVdfBase64: process.env.STEAM_CONFIG_VDF_BASE64,
+      totp,
+      configVdfBase64,
     });
 
     if (!result.success) {
