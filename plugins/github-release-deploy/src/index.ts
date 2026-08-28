@@ -1,51 +1,36 @@
-/**
- * GitHub/GitLab Release deploy plugin - DRAFT.
- *
- * Plan: `game-ci deploy github-release <buildPath> --repo --tag` attaches
- * built artifacts to a GitHub or GitLab Release - a deploy target for
- * games distributed outside Steam/itch (open-source games, internal
- * builds, anything shipped straight from a repo). Handles multi-platform
- * artifact naming/organization the way a game build specifically
- * produces it, rather than being a bare file-upload wrapper.
- *
- * NOTE: mirrors steam-deploy's `deploy <target>` dispatch shape (already
- * registered in core - see game-ci/cli#123).
- */
+import { GithubReleaseDeployCommand } from "./github-release-deploy-command";
 
+/**
+ * GitHub Release deploy plugin - `game-ci deploy github-release <buildPath>`.
+ *
+ * Engine-agnostic: it uploads a pre-built output (file or directory), so
+ * it doesn't matter whether Unity, Godot, Unreal, or anything else
+ * produced it. Registered with engine: '*' (see PluginRegistry.createCommand's
+ * wildcard handling), mirroring steam-deploy's dispatch shape.
+ *
+ * GitLab Release support was scoped out of this first version (see
+ * README's "Remaining work" - GitHub first, given this repo's own
+ * hosting); the command/option shape doesn't preclude adding it later
+ * behind a --provider flag without a breaking change.
+ */
 export const githubReleaseDeployPlugin = {
   name: "github-release-deploy",
-  version: "0.0.1",
-
-  /**
-   * Loaded only via an explicit --plugin flag, never by default, so
-   * reaching this point is deliberate - warn rather than fail, but make
-   * it impossible to mistake for a working integration.
-   */
-  onLoad() {
-    console.warn(
-      "[game-ci] WARNING: @game-ci/github-release-deploy is an EXPERIMENTAL draft plugin. " +
-        "Its structure is real but its domain logic is not implemented - any command it " +
-        "claims will throw. Do not depend on it. See plugins/github-release-deploy/README.md.",
-    );
-  },
+  version: "0.1.0",
 
   commands: [
     {
       engine: "*",
       createCommand(command: string, subCommands: string[]) {
         if (command === "deploy" && subCommands[0] === "github-release") {
-          return {
-            name: "Deploy github release",
-            async configureOptions() {
-              // TODO: register --repo, --tag, --releaseNotes, --draft, --prerelease.
-            },
-            async execute(): Promise<boolean> {
-              throw new Error(
-                "GitHub Release deploy is not implemented yet (draft plugin). " +
-                  "See plugins/github-release-deploy/README.md for the planned approach.",
-              );
-            },
-          };
+          // Warned here rather than in onLoad: this plugin is only loaded
+          // via an explicit --plugin flag, but warning there would fire
+          // even for someone just inspecting `--help` output. This fires
+          // exactly when the experimental feature is used.
+          console.warn(
+            "[game-ci] WARNING: `deploy github-release` is EXPERIMENTAL. " +
+              "Verify against a test repo before pointing it at a real release.",
+          );
+          return new GithubReleaseDeployCommand();
         }
         return null;
       },
@@ -54,3 +39,11 @@ export const githubReleaseDeployPlugin = {
 };
 
 export default githubReleaseDeployPlugin;
+export { GithubReleaseDeployCommand } from "./github-release-deploy-command";
+export {
+  getReleaseByTag,
+  createRelease,
+  deleteAsset,
+  uploadAsset,
+  stripUploadUrlTemplate,
+} from "./github-api";

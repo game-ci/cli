@@ -1,8 +1,8 @@
 {
   "name": "@game-ci/github-release-deploy",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
-  "description": "EXPERIMENTAL (draft, not implemented): GitHub/GitLab Release deploy plugin (draft). Attaches built artifacts to a GitHub or GitLab Release, for games distributed outside Steam/itch.",
+  "description": "EXPERIMENTAL: GitHub Release deploy plugin. Attaches built artifacts to a GitHub Release, for games distributed outside Steam/itch.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [
