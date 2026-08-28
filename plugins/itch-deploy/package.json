@@ -1,8 +1,8 @@
 {
   "name": "@game-ci/itch-deploy",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
-  "description": "EXPERIMENTAL (draft, not implemented): itch.io deploy plugin (draft). Wraps butler push for itch.io channel deploys.",
+  "description": "EXPERIMENTAL: itch.io deploy plugin. Wraps butler push for itch.io channel deploys.",
   "license": "MIT",
   "repository": "git@github.com:game-ci/cli.git",
   "files": [
