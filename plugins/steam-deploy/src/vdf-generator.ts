@@ -8,10 +8,45 @@
  * with the up-to-9-depots-per-app support that action shipped.
  */
 
+export interface FileMappingOption {
+  /** Relative path to the depot's content root; may contain wildcards ("?", "*"). */
+  localPath: string;
+  /** Where matched files land inside the depot. Defaults to "." - the depot root. */
+  depotPath?: string;
+  /** Whether the mapping also applies to matching files in subfolders. Defaults to true. */
+  recursive?: boolean;
+}
+
+export interface FilePropertyOption {
+  /** Path (relative to the depot's content root) of the file this property applies to. */
+  localPath: string;
+  /**
+   * "userconfig": file is modified by the user/game - never overwritten by an
+   * update, and a local diff from the shipped version isn't a verification
+   * error. "versionedconfig": same, but Steam re-applies the depot's version
+   * locally when the file itself changes in an update.
+   */
+  attribute: "userconfig" | "versionedconfig";
+}
+
 export interface DepotVdfOptions {
   depotId: string;
-  /** Path (relative to the depot's own working directory) SteamCMD maps this depot's files from. Defaults to "./*" - the whole build. */
+  /**
+   * Path (relative to the depot's own working directory) SteamCMD maps this
+   * depot's files from. Defaults to "./*" - the whole build. Ignored when
+   * fileMappings is given; kept as a shorthand for the common single-mapping
+   * case.
+   */
   localPath?: string;
+  /**
+   * Explicit FileMapping blocks, for depots that need more than one -
+   * SteamCMD depots support multiple mappings with independent
+   * localPath/depotPath/recursive settings (see game-ci/steam-deploy#67).
+   * Overrides localPath when set.
+   */
+  fileMappings?: FileMappingOption[];
+  /** FileProperties blocks - marks specific files as user-modifiable/versioned config (see game-ci/steam-deploy#67). */
+  fileProperties?: FilePropertyOption[];
   /** Path to an install script (relative to the depot's content) to run after this depot installs. */
   installScript?: string;
   /** Glob-style exclusion patterns, e.g. "*.pdb". Applied in addition to the built-in defaults. */
@@ -32,6 +67,27 @@ const DEBUG_SYMBOL_EXCLUSIONS = [
   "*_BackUpThisFolder_ButDontShipItWithYourGame*",
 ];
 
+function formatFileMapping(mapping: FileMappingOption): string {
+  return [
+    '    "FileMapping"',
+    "    {",
+    `        "LocalPath"\t"${mapping.localPath}"`,
+    `        "DepotPath"\t"${mapping.depotPath ?? "."}"`,
+    `        "recursive"\t"${mapping.recursive === false ? "0" : "1"}"`,
+    "    }",
+  ].join("\n");
+}
+
+function formatFileProperty(property: FilePropertyOption): string {
+  return [
+    '    "FileProperties"',
+    "    {",
+    `        "LocalPath"\t"${property.localPath}"`,
+    `        "Attributes"\t"${property.attribute}"`,
+    "    }",
+  ].join("\n");
+}
+
 export function generateDepotVdf(options: DepotVdfOptions): string {
   const exclusions = [
     ...ALWAYS_EXCLUDED,
@@ -40,17 +96,17 @@ export function generateDepotVdf(options: DepotVdfOptions): string {
   ];
   const exclusionLines = exclusions.map((pattern) => `    "FileExclusion"\t"${pattern}"`).join("\n");
 
+  const mappings = options.fileMappings ?? [{ localPath: options.localPath ?? "./*", depotPath: ".", recursive: true }];
+  const mappingLines = mappings.map(formatFileMapping).join("\n");
+  const propertyLines = (options.fileProperties ?? []).map(formatFileProperty).join("\n");
+
   return [
     '"DepotBuildConfig"',
     "{",
     `    "depotid" "${options.depotId}"`,
-    '    "FileMapping"',
-    "    {",
-    `        "LocalPath"\t"${options.localPath ?? "./*"}"`,
-    '        "DepotPath"\t"."',
-    '        "recursive"\t"1"',
-    "    }",
+    mappingLines,
     exclusionLines,
+    ...(propertyLines ? [propertyLines] : []),
     ...(options.installScript ? [`    "InstallScript" "${options.installScript}"`] : []),
     "}",
   ].join("\n");
