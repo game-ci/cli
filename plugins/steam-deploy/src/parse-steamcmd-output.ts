@@ -33,6 +33,7 @@ export function parseSteamCmdOutput(output: string, exitCode: number): SteamCmdP
   const disconnected = /disconnected from steam/i.test(output);
   const errorBuild = /ERROR!.*Build for depot.*failed/.test(output);
   const errorChunks = /ERROR!.*Failed to get list of missing chunks/.test(output);
+  const loginFailed = /Logging in.*FAILED|Login Failure/i.exec(output);
 
   if (successConfirmed) {
     return { success: true, buildId };
@@ -46,7 +47,21 @@ export function parseSteamCmdOutput(output: string, exitCode: number): SteamCmdP
   if (disconnected) reasons.push("Steam connection dropped (request revoked)");
   if (errorChunks) reasons.push("failed to get list of missing chunks (lost connection)");
   if (errorBuild) reasons.push("depot build reported failure");
-  if (reasons.length === 0) reasons.push(`exit code ${exitCode}`);
+  if (loginFailed) reasons.push("login failed");
+  if (reasons.length === 0) {
+    // No known failure signature matched - surface the tail of the actual
+    // output instead of a bare exit code, which on its own gives a human
+    // debugging a real failure nothing to go on (see game-ci/steam-deploy#92,
+    // where "exit code 5" alone gave no clue whether it was an auth,
+    // network, or Steam-side issue).
+    const tail = output
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(-5)
+      .join(" | ");
+    reasons.push(tail ? `exit code ${exitCode}: ${tail}` : `exit code ${exitCode}`);
+  }
 
   return { success: false, buildId: "", failureReason: reasons.join("; ") };
 }
