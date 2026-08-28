@@ -17,21 +17,76 @@ describe("generateDepotVdf", () => {
     expect(vdf).toContain('"FileExclusion"\t"*.pdb"');
     expect(vdf).toContain('"FileExclusion"\t"*.debug"');
   });
+
+  it("defaults LocalPath to the whole build (./*)", () => {
+    const vdf = generateDepotVdf({ depotId: "12345" });
+
+    expect(vdf).toContain('"LocalPath"\t"./*"');
+  });
+
+  it("uses a custom localPath when given - for multi-depot builds where each depot maps its own subdirectory", () => {
+    const vdf = generateDepotVdf({ depotId: "12345", localPath: "./depot1Path/*" });
+
+    expect(vdf).toContain('"LocalPath"\t"./depot1Path/*"');
+  });
+
+  it("omits debug-symbol exclusions when includeDebugSymbols is true - matches steam-deploy's own debugBranch input", () => {
+    const vdf = generateDepotVdf({ depotId: "12345", includeDebugSymbols: true });
+
+    expect(vdf).not.toContain('"FileExclusion"\t"*.pdb"');
+    expect(vdf).not.toContain("BurstDebugInformation");
+    // Always-excluded patterns (not debug-symbol-specific) still apply.
+    expect(vdf).toContain('"FileExclusion"\t"*.log"');
+  });
+
+  it("adds an InstallScript directive when given", () => {
+    const vdf = generateDepotVdf({ depotId: "12345", installScript: "install.vdf" });
+
+    expect(vdf).toContain('"InstallScript" "install.vdf"');
+  });
+
+  it("omits the InstallScript directive when not given", () => {
+    const vdf = generateDepotVdf({ depotId: "12345" });
+
+    expect(vdf).not.toContain("InstallScript");
+  });
 });
 
 describe("generateAppVdf", () => {
-  it("produces a manifest referencing the depot VDF file by name", () => {
+  it("produces a manifest referencing a single depot VDF file by name", () => {
     const vdf = generateAppVdf({
       appId: "999",
-      depotId: "1000",
+      depots: [{ depotId: "1000", vdfFileName: "depot_build_1000.vdf" }],
       branch: "beta",
       description: "Test build",
-      depotVdfFileName: "depot_build_1000.vdf",
     });
 
     expect(vdf).toContain('"appid" "999"');
     expect(vdf).toContain('"setlive" "beta"');
     expect(vdf).toContain('"desc" "Test build"');
     expect(vdf).toContain('"1000" "depot_build_1000.vdf"');
+  });
+
+  it("references every depot when given more than one", () => {
+    const vdf = generateAppVdf({
+      appId: "999",
+      depots: [
+        { depotId: "1000", vdfFileName: "depot_build_1000.vdf" },
+        { depotId: "1001", vdfFileName: "depot_build_1001.vdf" },
+        { depotId: "1002", vdfFileName: "depot_build_1002.vdf" },
+      ],
+      branch: "default",
+      description: "Test build",
+    });
+
+    expect(vdf).toContain('"1000" "depot_build_1000.vdf"');
+    expect(vdf).toContain('"1001" "depot_build_1001.vdf"');
+    expect(vdf).toContain('"1002" "depot_build_1002.vdf"');
+  });
+
+  it("throws when given no depots", () => {
+    expect(() =>
+      generateAppVdf({ appId: "999", depots: [], branch: "default", description: "x" }),
+    ).toThrow(/at least one depot/);
   });
 });
