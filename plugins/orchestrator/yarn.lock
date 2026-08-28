@@ -1535,6 +1535,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jsep-plugin/assignment@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "@jsep-plugin/assignment@npm:1.3.0"
+  peerDependencies:
+    jsep: ^0.4.0||^1.0.0
+  checksum: 10/0c93b703d84af95b4be9fb6c23fbdbe7c7b6985b41c98fd10386cd54686ed1eb751cb39f5d54abcb621e4da2a0900a3b2a852e5bf7f2d322b756db3b22e42a45
+  languageName: node
+  linkType: hard
+
+"@jsep-plugin/regex@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "@jsep-plugin/regex@npm:1.0.4"
+  peerDependencies:
+    jsep: ^0.4.0||^1.0.0
+  checksum: 10/0ea6ba81f03955972b762fd9fbc8e3fd7e1c1c12e52ce3d4366e23c0a63c8bff8528687b8b3d8f641cf9f626f8bf5a7841efcd31a2489fe967e1900e5738ee3a
+  languageName: node
+  linkType: hard
+
 "@kubernetes/client-node@npm:^0.19.0":
   version: 0.19.0
   resolution: "@kubernetes/client-node@npm:0.19.0"
@@ -5106,6 +5124,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jsep@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "jsep@npm:1.4.0"
+  checksum: 10/935824fe6ac28fcff3cd13878f508f99f6c13e7f0f53ec9fca0d3db465e6dd15f8af030bcdc75a38b07c78359c656647435923a26aceb91607027021f00c17f2
+  languageName: node
+  linkType: hard
+
 "jsesc@npm:^3.0.2, jsesc@npm:^3.1.0, jsesc@npm:~3.1.0":
   version: 3.1.0
   resolution: "jsesc@npm:3.1.0"
@@ -5172,10 +5197,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsonpath-plus@npm:^7.2.0":
-  version: 7.2.0
-  resolution: "jsonpath-plus@npm:7.2.0"
-  checksum: 10/f602445b1aa2d55abc2875859fd948f942980ef6400ca2a0362c7a6aa6f912467865262f4d092e04a16889fa74f0dbf6fd67b9dc9583485a5059be6e0a62c6c2
+"jsonpath-plus@npm:^10.2.0":
+  version: 10.4.0
+  resolution: "jsonpath-plus@npm:10.4.0"
+  dependencies:
+    "@jsep-plugin/assignment": "npm:^1.3.0"
+    "@jsep-plugin/regex": "npm:^1.0.4"
+    jsep: "npm:^1.4.0"
+  bin:
+    jsonpath: bin/jsonpath-cli.js
+    jsonpath-plus: bin/jsonpath-cli.js
+  checksum: 10/0ff33c7eb6500d7c8d789ce15a63ac2c46cb01b855f1c53729ca9e3833e0253af70277fc1799ebfe0b3130ddc03c127562669b999729dd11f2621b81472248d4
   languageName: node
   linkType: hard
 

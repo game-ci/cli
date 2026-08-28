@@ -13,6 +13,9 @@
   "workspaces": [
     "plugins/*"
   ],
+  "overrides": {
+    "jsonpath-plus": "^10.2.0"
+  },
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
