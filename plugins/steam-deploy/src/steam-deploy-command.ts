@@ -22,6 +22,8 @@ export interface SteamDeployOptions {
    * sequence starts - matches steam-deploy's own firstDepotIdOverride input.
    */
   firstDepotIdOverride?: string;
+  depotPath?: string;
+  depotInstallScriptPath?: string;
   [key: string]: unknown;
 }
 
@@ -82,6 +84,14 @@ export class SteamDeployCommand {
         describe:
           "Depot ID to start numbering extra depots (depot1Path..depot9Path) from. Defaults to depotId+1, depotId+2, ...",
         type: "string",
+      })
+      .option("depotPath", {
+        describe: "Path (relative to the build) mapped by the primary --depotId depot. Defaults to the whole build.",
+        type: "string",
+      })
+      .option("depotInstallScriptPath", {
+        describe: "Install script (relative to the primary depot's content) to run after it installs.",
+        type: "string",
       });
 
     for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
@@ -128,7 +138,11 @@ export class SteamDeployCommand {
     const contentRoot = mode === "docker" ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
 
     const extraDepots = this.collectExtraDepots(options, depotId);
-    const allDepots = [{ depotId, localPath: undefined as string | undefined, installScript: undefined as string | undefined }, ...extraDepots];
+    const primaryLocalPath = options.depotPath ? `./${options.depotPath.replace(/^\.?\/*/, "")}/*` : undefined;
+    const allDepots = [
+      { depotId, localPath: primaryLocalPath, installScript: options.depotInstallScriptPath },
+      ...extraDepots,
+    ];
 
     const depotEntries = allDepots.map((depot) => ({
       depotId: depot.depotId,
