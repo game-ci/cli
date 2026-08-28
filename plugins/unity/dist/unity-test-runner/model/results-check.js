@@ -43,7 +43,7 @@ const handlebars_1 = __importDefault(require("handlebars"));
 const results_parser_1 = __importDefault(require("./results-parser"));
 const results_meta_1 = require("./results-meta");
 const path_1 = __importDefault(require("path"));
-const action_1 = __importDefault(require("./action"));
+const results_check_templates_1 = require("./results-check-templates");
 const ResultsCheck = {
     async createCheck(artifactsPath, githubToken, checkName) {
         // Validate input
@@ -134,17 +134,16 @@ const ResultsCheck = {
         await octokit.rest.checks.create(createCheckRequest);
     },
     async renderSummary(runMetas) {
-        return ResultsCheck.render(`${action_1.default.actionFolder}/results-check-summary.hbs`, runMetas);
+        return ResultsCheck.render(results_check_templates_1.RESULTS_CHECK_SUMMARY_TEMPLATE, runMetas);
     },
     async renderDetails(runMetas) {
-        return ResultsCheck.render(`${action_1.default.actionFolder}/results-check-details.hbs`, runMetas);
+        return ResultsCheck.render(results_check_templates_1.RESULTS_CHECK_DETAILS_TEMPLATE, runMetas);
     },
-    async render(viewPath, runMetas) {
+    async render(source, runMetas) {
         handlebars_1.default.registerHelper('indent', (toIndent) => toIndent
             .split('\n')
             .map((s) => `        ${s.replace('/github/workspace/', '')}`)
             .join('\n'));
-        const source = await fs.promises.readFile(viewPath, 'utf8');
         const template = handlebars_1.default.compile(source);
         return template({ runs: runMetas }, {
             allowProtoMethodsByDefault: true,
