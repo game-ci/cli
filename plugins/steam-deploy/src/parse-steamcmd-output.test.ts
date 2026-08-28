@@ -50,12 +50,28 @@ describe("parseSteamCmdOutput", () => {
     expect(result.failureReason).toContain("missing chunks");
   });
 
-  it("falls back to the raw exit code when no known failure signature is present", () => {
+  it("falls back to the exit code plus the tail of the output when no known failure signature is present", () => {
     const output = "Something unexpected happened.\n";
 
     const result = parseSteamCmdOutput(output, 7);
 
     expect(result.success).toBe(false);
-    expect(result.failureReason).toBe("exit code 7");
+    expect(result.failureReason).toBe("exit code 7: Something unexpected happened.");
+  });
+
+  it("falls back to a bare exit code when the output is empty", () => {
+    const result = parseSteamCmdOutput("", 5);
+
+    expect(result.success).toBe(false);
+    expect(result.failureReason).toBe("exit code 5");
+  });
+
+  it("reports failure with a specific reason when login failed", () => {
+    const output = "Logging in user 'someuser' to Steam Public...FAILED (Invalid Password)\n";
+
+    const result = parseSteamCmdOutput(output, 5);
+
+    expect(result.success).toBe(false);
+    expect(result.failureReason).toContain("login failed");
   });
 });
