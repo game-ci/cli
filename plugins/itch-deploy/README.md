@@ -1,39 +1,48 @@
-> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
-> shape is real, but its domain logic is not written. Any command it claims will
-> throw. It is not published to npm and is never loaded unless you pass
-> `--plugin @game-ci/itch-deploy` explicitly.
+> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
+> unless you pass `--plugin @game-ci/itch-deploy` explicitly. Not wired
+> into core's default load list.
 
-# @game-ci/itch-deploy (draft)
+# @game-ci/itch-deploy
 
-itch.io deploy plugin. **Not functional yet** - structural skeleton only.
-Mirrors `@game-ci/steam-deploy`'s shape: engine-agnostic, dispatched via
-the `deploy` command's `'*'` engine wildcard. Not wired into core's
-default load list.
+`game-ci deploy itch <buildPath> --user --game --channel` wraps itch.io's
+official `butler push` CLI. Mirrors `@game-ci/steam-deploy`'s shape:
+engine-agnostic, dispatched via the `deploy` command's `'*'` engine
+wildcard.
 
-## Why itch.io
+## Usage
 
-Huge game-jam/indie audience, currently all ad hoc third-party GitHub
-Actions. itch.io's official `butler` CLI is straightforward, so this
-should be one of the faster ones to bring to real functionality once
-someone picks it up.
+```bash
+BUTLER_API_KEY=... game-ci deploy itch ./build --user myuser --game mygame --channel windows
+```
 
-## What's real vs. TODO
+- Requires `butler` already installed and on `PATH` (or pass
+  `--butlerPath` explicitly - recommended for CI determinism). This
+  plugin doesn't auto-install or auto-download butler.
+- The API key is read from `$BUTLER_API_KEY` only, never a CLI argument -
+  butler itself reads this env var and skips its normal interactive
+  `butler login` flow, matching `steam-deploy`'s credential handling.
+- Success/failure is trusted from butler's own exit code - unlike
+  SteamCMD (see `steam-deploy`'s `parse-steamcmd-output.ts`), butler is a
+  modern Go CLI with reliable exit-code semantics, so no output-text
+  heuristic is needed. A failure's message includes the tail of butler's
+  own output for diagnostics.
 
-- Plugin/command registration shape: real, mirrors `steam-deploy`'s
-  `deploy <target>` dispatch.
-- `execute()`: throws immediately, pointing here.
+## Options
 
-## Remaining work before this is real
+| Option          | Description                                                                 |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `--user`         | itch.io username or organization. Required.                                 |
+| `--game`         | itch.io game slug. Required.                                                 |
+| `--channel`      | Channel to push to, e.g. `windows`, `linux`, `web`. Required.               |
+| `--butlerPath`   | Explicit path to the butler executable.                                     |
+| `--userVersion`  | Custom version string shown in itch.io's build history (butler's `--userversion`). |
+| `--ignore`       | Comma-separated glob patterns excluded from the push.                       |
 
-1. Wrap `butler push <buildPath> <user>/<game>:<channel>`, including
-   butler's own login/credential handling (an API key, likely via
-   `BUTLER_API_KEY` env var, matching steam-deploy's env-var-only
-   credential convention - never CLI args).
-2. Decide how `game-ci deploy itch` needs core's `deploy <target>
-[buildPath]` yargs registration extended, if at all (steam-deploy
-   already required a core change here - see game-ci/cli#123 - itch may
-   reuse it as-is once its own options are registered via
-   `configureOptions`).
-3. Tests mirroring `steam-deploy`'s `parse-steamcmd-output.test.ts` and
-   `vdf-generator.test.ts` pattern - butler's own output has a similar
-   "did this actually succeed" ambiguity worth checking.
+## A note on verification
+
+Butler's `push`/`--userversion`/`--ignore` flag shapes are taken from
+itch.io's own public documentation and are stable, long-standing butler
+CLI conventions - but this implementation hasn't been run against a live
+`butler push` in this session. Verify against a real itch.io project
+before depending on it in production; please report back (or send a fix)
+if anything doesn't match butler's actual behavior.

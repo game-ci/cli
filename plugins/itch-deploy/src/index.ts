@@ -1,49 +1,28 @@
-/**
- * itch.io deploy plugin - DRAFT.
- *
- * Plan: `game-ci deploy itch <buildPath> --user --game --channel`,
- * wrapping itch.io's official `butler push` CLI. Structurally identical
- * to @game-ci/steam-deploy (engine-agnostic, dispatched via the '*'
- * engine wildcard on the `deploy` command) - butler's actual invocation
- * shape and channel-naming conventions need verification before this is
- * functional.
- */
+import { ItchDeployCommand } from "./itch-deploy-command";
 
+/**
+ * itch.io deploy plugin - `game-ci deploy itch <buildPath>`.
+ *
+ * Engine-agnostic: it deploys a pre-built output folder, so it doesn't
+ * matter whether Unity, Godot, Unreal, or anything else produced it.
+ * Registered with engine: '*' (see PluginRegistry.createCommand's
+ * wildcard handling), mirroring steam-deploy's dispatch shape. Not wired
+ * into core's default load list.
+ */
 export const itchDeployPlugin = {
   name: "itch-deploy",
-  version: "0.0.1",
-
-  /**
-   * Loaded only via an explicit --plugin flag, never by default, so
-   * reaching this point is deliberate - warn rather than fail, but make
-   * it impossible to mistake for a working integration.
-   */
-  onLoad() {
-    console.warn(
-      "[game-ci] WARNING: @game-ci/itch-deploy is an EXPERIMENTAL draft plugin. " +
-        "Its structure is real but its domain logic is not implemented - any command it " +
-        "claims will throw. Do not depend on it. See plugins/itch-deploy/README.md.",
-    );
-  },
+  version: "0.1.0",
 
   commands: [
     {
       engine: "*",
       createCommand(command: string, subCommands: string[]) {
         if (command === "deploy" && subCommands[0] === "itch") {
-          return {
-            name: "Deploy itch",
-            async configureOptions() {
-              // TODO: register --user, --game, --channel options, matching
-              // butler's <user>/<game>:<channel> target format.
-            },
-            async execute(): Promise<boolean> {
-              throw new Error(
-                "itch.io deploy is not implemented yet (draft plugin). " +
-                  "See plugins/itch-deploy/README.md for the planned `butler push` invocation.",
-              );
-            },
-          };
+          console.warn(
+            "[game-ci] WARNING: `deploy itch` is EXPERIMENTAL. Verify against a test channel " +
+              "before pointing it at a live one.",
+          );
+          return new ItchDeployCommand();
         }
         return null;
       },
@@ -52,3 +31,5 @@ export const itchDeployPlugin = {
 };
 
 export default itchDeployPlugin;
+export { ItchDeployCommand } from "./itch-deploy-command";
+export { ButlerRunner } from "./butler-runner";
