@@ -38,4 +38,4 @@ export default steamDeployPlugin;
 export { SteamDeployCommand } from "./steam-deploy-command";
 export { generateAppVdf, generateDepotVdf } from "./vdf-generator";
 export { parseSteamCmdOutput } from "./parse-steamcmd-output";
-export { SteamCmdRunner } from "./steamcmd-runner";
+export { SteamCmdRunner, resolveUseDocker } from "./steamcmd-runner";

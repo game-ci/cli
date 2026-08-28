@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { EventEmitter } from "node:events";
-import { SteamCmdRunner } from "./steamcmd-runner";
+import { SteamCmdRunner, resolveUseDocker } from "./steamcmd-runner";
 
 /** A fake child_process that immediately succeeds with the given stdout, matching the shape SteamCmdRunner reads from. */
 function fakeSpawn(stdout: string, exitCode = 0) {
@@ -216,5 +216,27 @@ describe("SteamCmdRunner", () => {
         steamCmdPath: path.join(tempDir, "does-not-exist.sh"),
       }),
     ).rejects.toThrow(/steamcmd was not found locally/);
+  });
+});
+
+describe("resolveUseDocker", () => {
+  it("is true for mode=docker regardless of a local steamcmd's presence", () => {
+    expect(resolveUseDocker("docker", "/does/not/exist")).toBe(true);
+  });
+
+  it("is false for mode=local regardless of a local steamcmd's presence", () => {
+    expect(resolveUseDocker("local", "/does/not/exist")).toBe(false);
+  });
+
+  it("falls back to docker for mode=auto when no local steamcmd is found", () => {
+    // Regression test for a real bug (game-ci/steam-deploy#92's live CI):
+    // steam-deploy-command.ts used to decide the manifest's contentroot
+    // via a literal `mode === "docker"` check, which stayed false for
+    // mode=auto even when run() itself fell back to Docker here - writing
+    // a host absolute path into the manifest for a build that then
+    // actually executed inside a container, where only /build was
+    // mounted. This function is now the single source of truth both
+    // callers share.
+    expect(resolveUseDocker("auto", "/does/not/exist")).toBe(true);
   });
 });
