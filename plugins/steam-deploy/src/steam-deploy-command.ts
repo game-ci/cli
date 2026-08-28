@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { generateAppVdf, generateDepotVdf } from "./vdf-generator";
+import { generateAppVdf, generateDepotVdf, type FileMappingOption, type FilePropertyOption } from "./vdf-generator";
 import { SteamCmdRunner, resolveUseDocker } from "./steamcmd-runner";
 
 const MAX_EXTRA_DEPOTS = 9;
@@ -24,6 +24,10 @@ export interface SteamDeployOptions {
   firstDepotIdOverride?: string;
   depotPath?: string;
   depotInstallScriptPath?: string;
+  /** Each entry "localPath=depotPath" - replaces the primary depot's single depotPath mapping with explicit FileMapping blocks. */
+  fileMapping?: string[];
+  /** Each entry "localPath=userconfig" or "localPath=versionedconfig" - marks files on the primary depot as user-modifiable/versioned config. */
+  fileProperty?: string[];
   [key: string]: unknown;
 }
 
@@ -92,6 +96,18 @@ export class SteamDeployCommand {
       .option("depotInstallScriptPath", {
         describe: "Install script (relative to the primary depot's content) to run after it installs.",
         type: "string",
+      })
+      .option("fileMapping", {
+        describe:
+          'One or more explicit FileMapping blocks for the primary depot, each "localPath=depotPath" (e.g. "bin/*=executables/"). Repeatable. Overrides --depotPath when set - use this instead when a depot needs more than one mapping.',
+        type: "string",
+        array: true,
+      })
+      .option("fileProperty", {
+        describe:
+          'Marks a file on the primary depot as user-modifiable config, each "localPath=userconfig" or "localPath=versionedconfig". Repeatable.',
+        type: "string",
+        array: true,
       });
 
     for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
@@ -143,6 +159,8 @@ export class SteamDeployCommand {
       ? options.extraExclusions.split(",").map((s) => s.trim())
       : undefined;
     const includeDebugSymbols = options.debugBranch ?? false;
+    const fileMappings = this.parseFileMappings(options.fileMapping);
+    const fileProperties = this.parseFileProperties(options.fileProperty);
 
     const absoluteBuildPath = path.resolve(buildPath);
     const contentRoot = resolveUseDocker(mode, options.steamCmdPath) ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
@@ -160,11 +178,14 @@ export class SteamDeployCommand {
     }));
 
     for (const depot of allDepots) {
+      const isPrimaryDepot = depot.depotId === depotId;
       const depotVdf = generateDepotVdf({
         depotId: depot.depotId,
         localPath: depot.localPath,
+        fileMappings: isPrimaryDepot ? fileMappings : undefined,
+        fileProperties: isPrimaryDepot ? fileProperties : undefined,
         installScript: depot.installScript,
-        extraExclusions: depot.depotId === depotId ? extraExclusions : undefined,
+        extraExclusions: isPrimaryDepot ? extraExclusions : undefined,
         includeDebugSymbols,
       });
       fs.writeFileSync(path.join(absoluteBuildPath, `depot_build_${depot.depotId}.vdf`), depotVdf, "utf8");
@@ -207,6 +228,38 @@ export class SteamDeployCommand {
     }
 
     return true;
+  }
+
+  /** Parses --fileMapping "localPath=depotPath" entries. Throws on a malformed entry rather than silently dropping it. */
+  private parseFileMappings(entries?: string[]): FileMappingOption[] | undefined {
+    if (!entries || entries.length === 0) return undefined;
+
+    return entries.map((entry) => {
+      const separatorIndex = entry.indexOf("=");
+      if (separatorIndex <= 0) {
+        throw new Error(`Invalid --fileMapping "${entry}": expected "localPath=depotPath".`);
+      }
+      return {
+        localPath: entry.slice(0, separatorIndex),
+        depotPath: entry.slice(separatorIndex + 1),
+      };
+    });
+  }
+
+  /** Parses --fileProperty "localPath=userconfig|versionedconfig" entries. Throws on a malformed entry rather than silently dropping it. */
+  private parseFileProperties(entries?: string[]): FilePropertyOption[] | undefined {
+    if (!entries || entries.length === 0) return undefined;
+
+    return entries.map((entry) => {
+      const separatorIndex = entry.indexOf("=");
+      const attribute = separatorIndex >= 0 ? entry.slice(separatorIndex + 1) : "";
+      if (separatorIndex <= 0 || (attribute !== "userconfig" && attribute !== "versionedconfig")) {
+        throw new Error(
+          `Invalid --fileProperty "${entry}": expected "localPath=userconfig" or "localPath=versionedconfig".`,
+        );
+      }
+      return { localPath: entry.slice(0, separatorIndex), attribute };
+    });
   }
 
   /**

@@ -50,6 +50,66 @@ describe("generateDepotVdf", () => {
 
     expect(vdf).not.toContain("InstallScript");
   });
+
+  it("emits multiple FileMapping blocks when fileMappings is given, ignoring localPath", () => {
+    const vdf = generateDepotVdf({
+      depotId: "12345",
+      localPath: "./ignored/*",
+      fileMappings: [
+        { localPath: "bin\\*", depotPath: "executables\\", recursive: true },
+        { localPath: "localization\\german\\audio\\*", depotPath: "audio\\", recursive: false },
+      ],
+    });
+
+    expect(vdf).not.toContain("./ignored/*");
+    const mappingCount = vdf.split('"FileMapping"').length - 1;
+    expect(mappingCount).toBe(2);
+    expect(vdf).toContain('"LocalPath"\t"bin\\*"');
+    expect(vdf).toContain('"DepotPath"\t"executables\\"');
+    expect(vdf).toContain('"LocalPath"\t"localization\\german\\audio\\*"');
+    expect(vdf).toContain('"DepotPath"\t"audio\\"');
+  });
+
+  it("defaults a FileMapping's recursive flag to true and its depotPath to the depot root", () => {
+    const vdf = generateDepotVdf({
+      depotId: "12345",
+      fileMappings: [{ localPath: "bin\\*" }],
+    });
+
+    expect(vdf).toContain('"DepotPath"\t"."');
+    expect(vdf).toContain('"recursive"\t"1"');
+  });
+
+  it("sets recursive to 0 when a mapping explicitly opts out", () => {
+    const vdf = generateDepotVdf({
+      depotId: "12345",
+      fileMappings: [{ localPath: "bin\\*", recursive: false }],
+    });
+
+    expect(vdf).toContain('"recursive"\t"0"');
+  });
+
+  it("emits FileProperties blocks for userconfig/versionedconfig files", () => {
+    const vdf = generateDepotVdf({
+      depotId: "12345",
+      fileProperties: [
+        { localPath: "bin/config.cfg", attribute: "userconfig" },
+        { localPath: "bin/settings.ini", attribute: "versionedconfig" },
+      ],
+    });
+
+    expect(vdf).toContain('"FileProperties"');
+    expect(vdf).toContain('"LocalPath"\t"bin/config.cfg"');
+    expect(vdf).toContain('"Attributes"\t"userconfig"');
+    expect(vdf).toContain('"LocalPath"\t"bin/settings.ini"');
+    expect(vdf).toContain('"Attributes"\t"versionedconfig"');
+  });
+
+  it("omits FileProperties entirely when none are given", () => {
+    const vdf = generateDepotVdf({ depotId: "12345" });
+
+    expect(vdf).not.toContain("FileProperties");
+  });
 });
 
 describe("generateAppVdf", () => {
