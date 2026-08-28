@@ -6,6 +6,20 @@ $StepsDir = if ($Env:STEPS_DIR) { $Env:STEPS_DIR } else { $PSScriptRoot }
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
 
+# A failed license *return* is worse than a failed activate/build: it leaks
+# the seat back to Unity's license pool - see mac/steps/return_license.sh's
+# matching comment. This branch never checked its exit code and never
+# retried before now (confirmed live via game-ci/unity-test-runner#310's
+# Windows Docker matrix: "Serial number unavailable for ULF return" /
+# "Connection attempt to the License Client ... failed" on the very first
+# attempt, with no retry and -returnlicense missing -username/-password -
+# both required for a SERIAL-mode return, same as
+# mac/steps/return_license.sh and the host-mode windows/return_license.ps1
+# already pass).
+$MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 4 }
+$RetryDelaySeconds = 20
+$TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
+
 try {
   if ($Env:UNITY_LICENSING_SERVER) {
     #
@@ -13,7 +27,27 @@ try {
     #
     Write-Host "Returning floating license: `"$($global:FLOATING_LICENSE)`""
     $LicensingClientPath = Get-UnityLicensingClientExePath
-    & $LicensingClientPath --return-floating $global:FLOATING_LICENSE
+
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+      $ReturnOutput = & $LicensingClientPath --return-floating $global:FLOATING_LICENSE 2>&1 | Tee-Object -Variable ReturnOutputVar
+      $ReturnOutput | Out-Host
+      $ReturnExitCode = $LASTEXITCODE
+      $ReturnText = ($ReturnOutputVar | Out-String)
+
+      if ($ReturnExitCode -eq 0) { break }
+
+      if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
+        # Exponential backoff - see mac/steps/activate.sh's matching comment.
+        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+        Write-Host "Floating license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        Start-Sleep -Seconds $CurrentRetryDelay
+        continue
+      }
+      break
+    }
+    if ($ReturnExitCode -ne 0) {
+      Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+    }
   } elseif ($Env:UNITY_SERIAL) {
     #
     # PROFESSIONAL (SERIAL) LICENSE MODE
@@ -23,10 +57,34 @@ try {
     # reimport its library against whatever the editor's default target
     # is) just to return the license (game-ci/cli#33).
     #
+    # -username/-password are required here - without them Unity has no
+    # way to tell this was a serial-mode activation and instead attempts a
+    # personal-license (ULF) return, which fails immediately with "Serial
+    # number unavailable for ULF return".
+    #
     $UnityExePath = Get-UnityEditorExePath
     $LogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'return_license.log'
-    Invoke-UnityLaunch -ExePath $UnityExePath -logFile $LogPath -quit -returnlicense -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
-    if (Test-Path $LogPath) { Get-Content $LogPath | Out-Host }
+
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+      Invoke-UnityLaunch -ExePath $UnityExePath -logFile $LogPath -quit -returnlicense -username $Env:UNITY_EMAIL -password $Env:UNITY_PASSWORD -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
+      $ReturnExitCode = $LASTEXITCODE
+      $LogContent = if (Test-Path $LogPath) { Get-Content $LogPath -Raw } else { '' }
+      if ($LogContent) { Get-Content $LogPath | Out-Host }
+
+      if ($ReturnExitCode -eq 0) { break }
+
+      if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
+        # Exponential backoff - see mac/steps/activate.sh's matching comment.
+        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+        Write-Host "License return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        Start-Sleep -Seconds $CurrentRetryDelay
+        continue
+      }
+      break
+    }
+    if ($ReturnExitCode -ne 0) {
+      Write-Host "##[warning] Failed to return the Unity license after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+    }
   }
 } catch {
   Write-Host "Could not return license: $($_.Exception.Message)"
