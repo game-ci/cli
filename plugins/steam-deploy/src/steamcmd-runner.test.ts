@@ -80,6 +80,38 @@ describe("SteamCmdRunner", () => {
     ]);
   });
 
+  it("reuses the same configVdf session across repeated runs without ever needing a TOTP code", async () => {
+    // Regression test for a real gotcha in the old standalone action's
+    // history (raised on game-ci/steam-deploy#92's review): once a 2FA
+    // method is applied, it must persist across runs - a config.vdf is
+    // exactly that persisted session, supplied fresh from a secret on
+    // every run (not derived from on-disk state), so no run after the
+    // first should ever need a TOTP prompt as long as configVdfBase64 is
+    // set. Mirrors steam-deploy's own CI "Deploy to Steam" job, which runs
+    // the action twice in a row with the same configVdf and no totp.
+    const steamHome = path.join(tempDir, "steam-home-repeat");
+    const configVdfBase64 = Buffer.from("persisted session").toString("base64");
+
+    for (let run = 0; run < 2; run++) {
+      const { spawnFn, calls } = fakeSpawn("Success!");
+      const runner = new SteamCmdRunner(spawnFn);
+
+      await runner.run({
+        buildDir: tempDir,
+        username: "u",
+        mode: "local",
+        steamCmdPath: localSteamCmdPath,
+        steamHome,
+        configVdfBase64,
+      });
+
+      expect(calls[0].args).not.toContain("+set_steam_guard_code");
+      expect(calls[0].args[0]).toBe("+login");
+      expect(calls[0].args[1]).toBe("u");
+      expect(fs.readFileSync(path.join(steamHome, "config", "config.vdf"), "utf8")).toBe("persisted session");
+    }
+  });
+
   it("prepends +set_steam_guard_code when totp is given", async () => {
     const { spawnFn, calls } = fakeSpawn("Success!");
     const runner = new SteamCmdRunner(spawnFn);
