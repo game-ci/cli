@@ -30,6 +30,7 @@ export class CliCommands {
     await this.deployCommand();
     await this.testRuntimeCommand();
     await this.pseudoLocalizeCommand();
+    await this.signCommand();
 
     // This is needed to run the engine and vcs detection middleware.
     // Their output is used to register the correct commands based on the detected engine and vcs.
@@ -127,6 +128,20 @@ export class CliCommands {
     await this.yargs.command(
       "pseudo-localize [projectPath]",
       "Inject pseudo-localized strings to catch UI overflow/truncation bugs pre-translation",
+      async (yargs: YargsInstance) => {
+        this.register(yargs);
+      },
+    );
+  }
+
+  private async signCommand() {
+    // Engine-independent, same reasoning as deploy/test-runtime: it signs
+    // an already-built player executable/app bundle, which carries no
+    // Unity/Godot/Unreal project markers of its own for detectEngine() to
+    // find.
+    await this.yargs.command(
+      "sign [buildPath]",
+      "Sign (and, on macOS, notarize) a built player",
       async (yargs: YargsInstance) => {
         this.register(yargs);
       },

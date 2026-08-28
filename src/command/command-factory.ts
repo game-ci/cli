@@ -42,7 +42,9 @@ export class CommandFactory {
     // its own for detectEngine() to find.
     // pseudo-localize doesn't either: it operates on a flat localization
     // table file, not an engine project structure.
-    if (command === "deploy" || command === "test-runtime" || command === "pseudo-localize") {
+    // sign doesn't either: it signs an already-built player executable/
+    // app bundle, same reasoning as test-runtime.
+    if (command === "deploy" || command === "test-runtime" || command === "pseudo-localize" || command === "sign") {
       const pluginCommand = PluginRegistry.createCommand("*", command, subCommands);
       if (pluginCommand) {
         return pluginCommand;
