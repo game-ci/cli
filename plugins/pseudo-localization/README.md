@@ -1,13 +1,21 @@
-> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
-> shape is real, but its domain logic is not written. Any command it claims will
-> throw. It is not published to npm and is never loaded unless you pass
-> `--plugin @game-ci/pseudo-localization` explicitly.
+> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
+> unless you pass `--plugin @game-ci/pseudo-localization` explicitly.
 
-# @game-ci/pseudo-localization (draft)
+# @game-ci/pseudo-localization
 
-Injects pseudo-loc strings pre-translation to catch UI overflow/
-truncation bugs. **Not functional yet**, and `pseudo-localize` is not yet
-registered anywhere in core's CLI.
+`game-ci pseudo-localize <projectPath>` injects pseudo-loc strings
+pre-translation to catch UI overflow/truncation bugs before real
+translation work starts.
+
+## Usage
+
+```bash
+game-ci pseudo-localize ./Localization --sourceLocale en --expansionFactor 1.4
+```
+
+Reads `<projectPath>/<sourceLocale>.json` or `.csv` (a flat key -> string
+table) and writes the pseudo-localized result to
+`<projectPath>/<outputLocale>.<same format>`.
 
 ## Why this, distinct from translation sync
 
@@ -15,13 +23,39 @@ UI _testing_, not translation management - deliberately different from a
 Crowdin/Lokalise-style sync plugin (which was considered and cut from the
 roadmap for not being game-specific enough).
 
-## Remaining work before this is real
+## The transform
 
-1. Add `pseudo-localize <projectPath>` to core's `CliCommands`.
-2. Pseudo-loc transform (accented characters, length expansion/padding,
-   bracket markers around each string) applied to whatever localization
-   table format the target engine uses - this is genuinely
-   engine-specific (Unity's Localization package format differs
-   completely from a flat JSON/CSV table), so the first real
-   implementation will likely need to pick one engine's format to start.
-3. Tests once the above is real.
+Three real, well-established pseudo-loc techniques:
+
+1. **Accented lookalikes** replace plain ASCII letters, so any string
+   that skipped the pipeline (hardcoded, forgotten) stands out
+   immediately in a build.
+2. **Length expansion** pads the string (`--expansionFactor`, default
+   `1.3`) - most languages run 30-50% longer than English for the same
+   meaning, the #1 real cause of UI truncation bugs.
+3. **Bracket markers** around the whole string make its exact
+   boundaries visible, catching concatenation bugs.
+
+Format placeholders (`{0}`, `{playerName}`, `%s`, `%d`) and simple markup
+(`<b>...</b>`) are detected and left untouched, so string
+formatting/rich text keeps working on the pseudo-localized output.
+
+## Table format scope
+
+Supports the two most common *generic* flat-table interchange formats -
+a plain JSON object (`{"key": "value"}`) and a two-column CSV. Deliberately
+**not** engine-specific structured formats (e.g. Unity's binary
+StringTable assets) - those need real verification against an actual
+engine install before being guessed at, same reasoning as this repo's
+other engine-specific draft plugins (see `plugins/gamemaker`'s README).
+If your project uses an engine-native format, export/import through a
+flat table as an intermediate step, or convert this plugin's output.
+
+## Options
+
+| Option              | Description                                                          |
+| -------------------- | ------------------------------------------------------------------ |
+| `--sourceLocale`     | Source locale to read. Default `en`.                                |
+| `--outputLocale`     | Locale code the output table is written under. Default `qps-ploc`.  |
+| `--expansionFactor`  | Length multiplier applied to each string. Default `1.3`.            |
+| `--outputPath`       | Directory to write the output table into. Defaults to `projectPath`. |

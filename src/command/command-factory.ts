@@ -40,7 +40,9 @@ export class CommandFactory {
     // reason deploy doesn't: it launches an already-built player
     // executable, which carries no Unity/Godot/Unreal project markers of
     // its own for detectEngine() to find.
-    if (command === "deploy" || command === "test-runtime") {
+    // pseudo-localize doesn't either: it operates on a flat localization
+    // table file, not an engine project structure.
+    if (command === "deploy" || command === "test-runtime" || command === "pseudo-localize") {
       const pluginCommand = PluginRegistry.createCommand("*", command, subCommands);
       if (pluginCommand) {
         return pluginCommand;
