@@ -1,37 +1,53 @@
-> **EXPERIMENTAL — NOT IMPLEMENTED.** This is a structural draft only: the plugin
-> shape is real, but its domain logic is not written. Any command it claims will
-> throw. It is not published to npm and is never loaded unless you pass
-> `--plugin @game-ci/github-release-deploy` explicitly.
+> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
+> unless you pass `--plugin @game-ci/github-release-deploy` explicitly -
+> and not yet wired into core's default load list.
 
-# @game-ci/github-release-deploy (draft)
+# @game-ci/github-release-deploy
 
-GitHub/GitLab Release deploy plugin. **Not functional yet** - structural
-skeleton only. Mirrors `@game-ci/steam-deploy`'s `deploy <target>`
-dispatch shape, reusing core's existing `deploy` command registration.
+`game-ci deploy github-release <buildPath>` attaches built artifacts to a
+GitHub Release - a deploy target for games distributed outside
+Steam/itch (open-source games, internal builds, anything shipped
+straight from a repo). Mirrors `@game-ci/steam-deploy`'s `deploy
+<target>` dispatch shape, reusing core's existing `deploy` command
+registration.
 
-## Why this
+## Usage
 
-Fills a real gap: games not on Steam or itch (open-source games, internal
-builds, anything distributed straight from a repo) have no deploy target
-today. Flagged as the thinnest of the recent plugin-idea batch - closest
-in spirit to what a generic release-upload action already does - but
-still worth having as a first-party, game-artifact-aware option.
+```bash
+GITHUB_TOKEN=... game-ci deploy github-release ./build --repo owner/repo --tag v1.2.3
+```
 
-## What's real vs. TODO
+- `buildPath` may be a single file (uploaded as-is, optionally renamed
+  via `--assetName`) or a directory - every top-level regular file
+  inside it is uploaded as a separate asset, named after itself. Not
+  recursive, so a build step that produces one artifact per
+  platform/target lays out predictably; nested folders are ignored (run
+  the command once per platform if you need per-platform releases from a
+  build that groups them in subdirectories).
+- `--tag` reuses an existing release for that tag if one exists (its
+  assets updated), or creates a new one - re-running against the same
+  tag (e.g. a retried CI job) is idempotent: an asset that already
+  exists on the release is deleted and re-uploaded rather than failing
+  with GitHub's `422 already_exists`.
+- The token is read from `$GITHUB_TOKEN` (or `$GH_TOKEN`) only, never a
+  CLI argument - matches `steam-deploy`'s credential handling.
+- `--repo` defaults to `$GITHUB_REPOSITORY`, which GitHub Actions sets
+  automatically.
 
-- Plugin/command registration shape: real, mirrors `steam-deploy`.
-- `execute()`: throws immediately, pointing here.
+## Options
 
-## Remaining work before this is real
+| Option              | Description                                                                    |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `--repo`             | `owner/repo`. Defaults to `$GITHUB_REPOSITORY`.                                 |
+| `--tag`              | Release tag. Required.                                                          |
+| `--releaseNotes`     | Release body/description.                                                       |
+| `--draft`            | Create the release as a draft. Default `false`.                                 |
+| `--prerelease`       | Mark the release as a prerelease. Default `false`.                              |
+| `--assetName`        | Override the uploaded asset's file name. Only valid for a single-file buildPath. |
+| `--targetCommitish`  | Commit/branch to create the tag from, if it doesn't already exist.              |
 
-1. Decide GitHub vs. GitLab scope for the first version (likely GitHub
-   first, given this repo's own hosting) and the auth token convention
-   (env var only, matching `steam-deploy`'s credential handling - never
-   CLI args).
-2. Multi-platform artifact naming/packaging - if `buildPath` contains
-   builds for multiple `targetPlatform`s, decide whether this plugin
-   zips each separately with a platform-suffixed name, or expects to be
-   invoked once per platform.
-3. Release creation vs. update-existing-release handling (idempotent
-   re-runs on the same tag).
-4. Tests once the above is real.
+## Scope of this first version
+
+GitLab Release support was scoped out (GitHub first, given this repo's
+own hosting) - the command/option shape doesn't preclude adding it later
+behind a `--provider` flag without a breaking change.
