@@ -5,7 +5,7 @@ import Handlebars from 'handlebars';
 import ResultsParser from './results-parser';
 import { RunMeta } from './results-meta';
 import path from 'path';
-import Action from './action';
+import { RESULTS_CHECK_DETAILS_TEMPLATE, RESULTS_CHECK_SUMMARY_TEMPLATE } from './results-check-templates';
 
 const ResultsCheck = {
   async createCheck(artifactsPath, githubToken, checkName) {
@@ -109,21 +109,20 @@ const ResultsCheck = {
   },
 
   async renderSummary(runMetas) {
-    return ResultsCheck.render(`${Action.actionFolder}/results-check-summary.hbs`, runMetas);
+    return ResultsCheck.render(RESULTS_CHECK_SUMMARY_TEMPLATE, runMetas);
   },
 
   async renderDetails(runMetas) {
-    return ResultsCheck.render(`${Action.actionFolder}/results-check-details.hbs`, runMetas);
+    return ResultsCheck.render(RESULTS_CHECK_DETAILS_TEMPLATE, runMetas);
   },
 
-  async render(viewPath, runMetas) {
+  async render(source, runMetas) {
     Handlebars.registerHelper('indent', (toIndent) =>
       toIndent
         .split('\n')
         .map((s) => `        ${s.replace('/github/workspace/', '')}`)
         .join('\n'),
     );
-    const source = await fs.promises.readFile(viewPath, 'utf8');
     const template = Handlebars.compile(source);
     return template(
       { runs: runMetas },
