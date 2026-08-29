@@ -22,10 +22,12 @@ export const githubReleaseDeployPlugin = {
       engine: "*",
       createCommand(command: string, subCommands: string[]) {
         if (command === "deploy" && subCommands[0] === "github-release") {
-          // Warned here rather than in onLoad: this plugin is only loaded
-          // via an explicit --plugin flag, but warning there would fire
-          // even for someone just inspecting `--help` output. This fires
-          // exactly when the experimental feature is used.
+          // Warned here rather than in onLoad: onLoad fires for every
+          // command (this plugin is registered by default, see cli.ts's
+          // loadPlugins), so warning there would fire even for someone
+          // just inspecting `--help` output or running an unrelated
+          // command. This fires exactly when the experimental feature is
+          // actually used.
           console.warn(
             "[game-ci] WARNING: `deploy github-release` is EXPERIMENTAL. " +
               "Verify against a test repo before pointing it at a real release.",
