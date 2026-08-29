@@ -63,31 +63,57 @@ describe('Docker.run retry behavior', () => {
 
   it('retries a launch failure when a githubToken is set (USE_EXIT_CODE=false, exit code cannot mean a test failure)', async () => {
     execMock
+      .mockResolvedValueOnce(0) // docker pull
       .mockRejectedValueOnce(new Error('docker.exe failed with exit code 1'))
       .mockRejectedValueOnce(new Error('docker.exe failed with exit code 1'))
       .mockResolvedValueOnce(0);
 
     await Docker.run('some-image', buildParameters({ githubToken: 'gh-token' }));
 
-    expect(execMock).toHaveBeenCalledTimes(3);
+    // 1 pull + 3 run attempts
+    expect(execMock).toHaveBeenCalledTimes(4);
   });
 
   it('gives up after exhausting retries when a githubToken is set', async () => {
-    execMock.mockRejectedValue(new Error('docker.exe failed with exit code 1'));
+    execMock
+      .mockResolvedValueOnce(0) // docker pull
+      .mockRejectedValue(new Error('docker.exe failed with exit code 1'));
 
     await expect(
       Docker.run('some-image', buildParameters({ githubToken: 'gh-token' })),
     ).rejects.toThrow('docker.exe failed with exit code 1');
 
-    expect(execMock).toHaveBeenCalledTimes(3);
+    // 1 pull + 3 run attempts
+    expect(execMock).toHaveBeenCalledTimes(4);
   });
 
   it('does not retry when no githubToken is set (a nonzero exit there means a real test failure)', async () => {
-    execMock.mockRejectedValue(new Error('tests failed'));
+    execMock
+      .mockResolvedValueOnce(0) // docker pull
+      .mockRejectedValue(new Error('tests failed'));
 
     await expect(
       Docker.run('some-image', buildParameters({ githubToken: undefined })),
     ).rejects.toThrow('tests failed');
+
+    // 1 pull + 1 run attempt
+    expect(execMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('pulls the image explicitly before running, so pull time is not folded into the license-hold window', async () => {
+    execMock.mockResolvedValue(0);
+
+    await Docker.run('unityci/editor:some-tag', buildParameters({ githubToken: 'gh-token' }));
+
+    expect(execMock).toHaveBeenNthCalledWith(1, 'docker', ['pull', 'unityci/editor:some-tag']);
+  });
+
+  it('does not attempt to run if the pull itself fails - a pull failure is not launch-retryable', async () => {
+    execMock.mockRejectedValueOnce(new Error('manifest unknown'));
+
+    await expect(
+      Docker.run('some-image', buildParameters({ githubToken: 'gh-token' })),
+    ).rejects.toThrow('manifest unknown');
 
     expect(execMock).toHaveBeenCalledTimes(1);
   });
@@ -95,6 +121,7 @@ describe('Docker.run retry behavior', () => {
   it('cleans up a stale cidfile between retry attempts so --cidfile does not immediately fail again', async () => {
     fsState.cidfileExists = true;
     execMock
+      .mockResolvedValueOnce(0) // docker pull
       .mockRejectedValueOnce(new Error('docker.exe failed with exit code 1'))
       .mockResolvedValueOnce(0);
 
