@@ -84,6 +84,15 @@ export class Cli {
       await import("@game-ci/runtime-test-framework"),
       "@game-ci/runtime-test-framework",
     );
+    // EXPERIMENTAL (see plugins/bevy/README.md), but always registered like
+    // the other workspace plugins above rather than gated behind --plugin:
+    // detection only fires for a project with a real `bevy` dependency in
+    // Cargo.toml, so registering it unconditionally costs nothing for
+    // non-Bevy projects. Not published to npm - PluginLoader.load's
+    // string-parameter/--plugin path (loadFromNpm) can't resolve it, so it
+    // must go through this literal `import()` instead, same reasoning as
+    // orchestrator/steam-deploy/runtime-test-framework above.
+    await PluginLoader.loadModule(await import("@game-ci/bevy"), "@game-ci/bevy");
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);
