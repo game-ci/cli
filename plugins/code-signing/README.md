@@ -1,5 +1,6 @@
-> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
-> unless you pass `--plugin @game-ci/code-signing` explicitly.
+> **EXPERIMENTAL.** Functional, and registered by default in every `game-ci`
+> binary (no `--plugin` flag needed) - not published to npm, so it's loaded
+> via a literal `import()` compiled directly into the binary instead.
 
 # @game-ci/code-signing
 
@@ -13,7 +14,6 @@ storefronts (direct download, itch.io).
 
 ```bash
 APPLE_ID=... APPLE_TEAM_ID=... APPLE_APP_SPECIFIC_PASSWORD=... game-ci \
-  --plugin @game-ci/code-signing \
   sign ./build/Game.app --platform macos --identity "Developer ID Application: Studio Name (TEAM123)"
 ```
 
@@ -33,7 +33,6 @@ Apple ID password.
 
 ```bash
 WINDOWS_CERTIFICATE_PASSWORD=... game-ci \
-  --plugin @game-ci/code-signing \
   sign ./build/Game.exe --platform windows --certificatePath ./cert.pfx --timestampUrl http://timestamp.digicert.com
 ```
 

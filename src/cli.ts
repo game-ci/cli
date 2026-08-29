@@ -93,6 +93,27 @@ export class Cli {
     // must go through this literal `import()` instead, same reasoning as
     // orchestrator/steam-deploy/runtime-test-framework above.
     await PluginLoader.loadModule(await import("@game-ci/bevy"), "@game-ci/bevy");
+    // Same reasoning as bevy above: functional, but not published to npm,
+    // so --plugin (loadFromNpm) can't reach them either - only a literal
+    // import() traced into the compiled binary works. Each registers its
+    // own subcommand(s) rather than doing engine-style project detection,
+    // so - like steam-deploy above - there's no auto-detection cost to
+    // registering them unconditionally; they only activate when their own
+    // subcommand is actually invoked.
+    await PluginLoader.loadModule(
+      await import("@game-ci/github-release-deploy"),
+      "@game-ci/github-release-deploy",
+    );
+    await PluginLoader.loadModule(await import("@game-ci/itch-deploy"), "@game-ci/itch-deploy");
+    await PluginLoader.loadModule(
+      await import("@game-ci/pseudo-localization"),
+      "@game-ci/pseudo-localization",
+    );
+    await PluginLoader.loadModule(await import("@game-ci/code-signing"), "@game-ci/code-signing");
+    await PluginLoader.loadModule(
+      await import("@game-ci/steam-workshop"),
+      "@game-ci/steam-workshop",
+    );
 
     const options = await this.getPreCommandOptions();
     const pluginSources = this.getPluginSources(options);

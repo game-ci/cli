@@ -1,6 +1,6 @@
-> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
-> unless you pass `--plugin @game-ci/github-release-deploy` explicitly -
-> and not yet wired into core's default load list.
+> **EXPERIMENTAL.** Functional, and registered by default in every `game-ci`
+> binary (no `--plugin` flag needed) - not published to npm, so it's loaded
+> via a literal `import()` compiled directly into the binary instead.
 
 # @game-ci/github-release-deploy
 

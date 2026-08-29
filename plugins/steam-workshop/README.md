@@ -1,5 +1,6 @@
-> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
-> unless you pass `--plugin @game-ci/steam-workshop` explicitly.
+> **EXPERIMENTAL.** Functional, and registered by default in every `game-ci`
+> binary (no `--plugin` flag needed) - not published to npm, so it's loaded
+> via a literal `import()` compiled directly into the binary instead.
 
 # @game-ci/steam-workshop
 
@@ -13,7 +14,6 @@ genuinely different upload target and VDF schema from
 
 ```bash
 STEAM_USERNAME=... STEAM_PASSWORD=... game-ci \
-  --plugin @game-ci/steam-workshop \
   deploy steam-workshop ./my-mod --appId 480 --title "My Mod"
 ```
 
