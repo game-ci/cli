@@ -1,0 +1,142 @@
+name: Real Project Examples
+
+# Validates the CLI against real, popular open-source projects - not our own
+# minimal fixtures. Deliberately separate from engine-smoke-test.yml (which
+# stays fast and runs on every PR): cloning external repos and running real
+# engine work (a real Godot import, a real cargo build) is slower and, more
+# importantly, depends on projects we don't control - an upstream breakage
+# here shouldn't block unrelated PRs. Runs on a schedule and manually instead,
+# so upstream drift surfaces on its own rather than silently.
+#
+# Engine coverage here mirrors what's actually usable today:
+# - Godot and Bevy have real, functional plugins - both included.
+# - Unity is deliberately NOT included: this repo's own Unity coverage
+#   (engine-smoke-test.yml) already exercises real Unity build/activate
+#   logic against dedicated fixtures with a real license; a second,
+#   external-project version would mostly duplicate that for uncertain
+#   benefit, given how few Unity projects are both open-source and
+#   buildable without proprietary assets.
+# - GameMaker, Ren'Py, RPG Maker, and the other structural-draft plugins
+#   are NOT included: their domain logic isn't implemented yet (see each
+#   plugin's own README), regardless of how many public example projects
+#   exist for those engines - there's nothing here for them to build yet.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC - catches upstream breakage on our own schedule,
+    # not tied to unrelated PR activity.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── Godot — godotengine/godot-demo-projects ────────────────────
+  godot-real-project:
+    name: Godot real project (dodge_the_creeps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check out godot-demo-projects (2d/dodge_the_creeps)
+        run: |
+          mkdir -p /tmp/godot-example
+          git clone --no-checkout --depth 1 --branch 4.3 \
+            https://github.com/godotengine/godot-demo-projects.git /tmp/godot-example
+          cd /tmp/godot-example
+          git sparse-checkout set --no-cone 2d/dodge_the_creeps
+          git checkout 52e30044658448149b04e8f69b475eebbfbd8f6e
+
+      - name: Build via the CLI (real Godot 4.3 image, real project)
+        run: |
+          bun run src/index.ts build /tmp/godot-example/2d/dodge_the_creeps \
+            --engine=godot \
+            --engineVersion=4.3 \
+            --containerRegistryRepository=barichello/godot-ci \
+            --containerRegistryImageVersion=4.3
+
+  # ─── Bevy — NiklasEi/bevy_game_template ─────────────────────────
+  bevy-real-project:
+    name: Bevy real project (bevy_game_template)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check out bevy_game_template
+        run: |
+          git clone --depth 1 https://github.com/NiklasEi/bevy_game_template.git /tmp/bevy-example
+          cd /tmp/bevy-example
+          git fetch --depth 1 origin 333a3bfe176dfe126156fefe0db81950cd80e719
+          git checkout 333a3bfe176dfe126156fefe0db81950cd80e719
+
+      - name: Build via the CLI (real cargo build, no --plugin flag)
+        run: bun run src/index.ts build /tmp/bevy-example
+
+  # ─── Bevy — webbertakken/death-arena ────────────────────────────
+  bevy-death-arena:
+    name: Bevy real project (death-arena)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check out death-arena
+        run: |
+          git clone --depth 1 https://github.com/webbertakken/death-arena.git /tmp/death-arena
+          cd /tmp/death-arena
+          git fetch --depth 1 origin 0d615dd66cd71582a90ad70e9fb0292398379d9b
+          git checkout 0d615dd66cd71582a90ad70e9fb0292398379d9b
+
+      - name: Build via the CLI (real cargo build, no --plugin flag)
+        run: bun run src/index.ts build /tmp/death-arena
+
+  # Aggregate gate, same pattern as engine-smoke-test.yml's smoke-gate.
+  real-project-gate:
+    name: Real project examples gate
+    needs: [godot-real-project, bevy-real-project, bevy-death-arena]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no real-project example failed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "A real-project example build failed."
+            exit 1
+          fi
+          echo "All real-project examples that ran are green."
