@@ -5,9 +5,15 @@
     "": {
       "name": "@game-ci/cli",
       "dependencies": {
+        "@game-ci/bevy": "workspace:*",
+        "@game-ci/code-signing": "workspace:*",
+        "@game-ci/github-release-deploy": "workspace:*",
+        "@game-ci/itch-deploy": "workspace:*",
         "@game-ci/orchestrator": "workspace:*",
+        "@game-ci/pseudo-localization": "workspace:*",
         "@game-ci/runtime-test-framework": "workspace:*",
         "@game-ci/steam-deploy": "workspace:*",
+        "@game-ci/steam-workshop": "workspace:*",
         "dotenv": "^16.3.1",
         "semver": "^7.5.4",
         "unity-changeset": "^3.4.0",
