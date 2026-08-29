@@ -1,5 +1,7 @@
-> **EXPERIMENTAL.** Functional, but not published to npm and never loaded
-> unless you pass `--plugin @game-ci/bevy` explicitly.
+> **EXPERIMENTAL.** Functional, and registered by default in every `game-ci`
+> binary (no `--plugin` flag needed) - not published to npm, so it's loaded
+> the same way orchestrator/steam-deploy/runtime-test-framework are: a
+> literal `import()` compiled directly into the binary.
 
 # @game-ci/bevy
 
@@ -12,9 +14,11 @@ Rust crate as a game) plus locating cargo's own build output.
 
 ## Usage
 
+Registered by default - just point `game-ci` at a Bevy project:
+
 ```bash
-game-ci --plugin @game-ci/bevy build ./my-game --target x86_64-pc-windows-gnu
-game-ci --plugin @game-ci/bevy test ./my-game
+game-ci build ./my-game --target x86_64-pc-windows-gnu
+game-ci test ./my-game
 ```
 
 - Detected via a `bevy` dependency in `Cargo.toml` (a plain version

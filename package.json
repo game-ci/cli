@@ -26,6 +26,7 @@
     "lint": "echo 'Not implemented yet.'"
   },
   "dependencies": {
+    "@game-ci/bevy": "workspace:*",
     "@game-ci/orchestrator": "workspace:*",
     "@game-ci/runtime-test-framework": "workspace:*",
     "@game-ci/steam-deploy": "workspace:*",
