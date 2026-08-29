@@ -2,6 +2,7 @@ import { CommandInterface } from '../command-interface.ts';
 import { CommandBase } from '../command-base.ts';
 import type { YargsInstance, YargsArguments } from '../../dependencies.ts';
 import { ProjectOptions } from '../../command-options/project-options.ts';
+import { path, fsSync as fs } from '../../dependencies.ts';
 
 export class GodotBuildCommand extends CommandBase implements CommandInterface {
   public async execute(options: YargsArguments): Promise<boolean> {
@@ -12,15 +13,36 @@ export class GodotBuildCommand extends CommandBase implements CommandInterface {
 
     log.info(`Building Godot project at ${projectPath}`);
     log.info(`Using image: ${godotImage}`);
-    log.info(`Export preset: ${exportPreset}`);
+
+    // export_presets.cfg is commonly untracked (it can carry
+    // machine-specific paths/keystore locations - much like a .env file),
+    // so plenty of real, otherwise-buildable Godot projects don't have one
+    // checked in. Exporting without one fails outright with no useful
+    // signal, so fall back to `--import` (validates the project actually
+    // opens/imports cleanly) instead of a hard failure - the same
+    // accommodation this repo's own engine-smoke-test.yml already made by
+    // hand for its Godot fixture, now built into the command itself.
+    const hasExportPresets = fs.existsSync(path.join(projectPath, 'export_presets.cfg'));
 
     const { Docker } = await import('../../model/index.ts');
-    await log.group('Godot export', async () => {
-      await Docker.run(godotImage, {
-        ...options,
-        commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
+
+    if (hasExportPresets) {
+      log.info(`Export preset: ${exportPreset}`);
+      await log.group('Godot export', async () => {
+        await Docker.run(godotImage, {
+          ...options,
+          commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
+        });
       });
-    });
+    } else {
+      log.info('No export_presets.cfg found - validating the project imports cleanly instead of exporting.');
+      await log.group('Godot import validation', async () => {
+        await Docker.run(godotImage, {
+          ...options,
+          commands: 'godot --headless --verbose --import',
+        });
+      });
+    }
 
     return true;
   }
