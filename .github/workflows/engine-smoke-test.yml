@@ -32,6 +32,7 @@ jobs:
   changes:
     name: Detect changed engines
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       core: ${{ steps.filter.outputs.core }}
       unity: ${{ steps.filter.outputs.unity }}
@@ -77,6 +78,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.core == 'true' || needs.changes.outputs.unity == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -179,6 +181,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.core == 'true' || needs.changes.outputs.godot == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -242,6 +245,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.core == 'true' || needs.changes.outputs.unreal == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -328,6 +332,7 @@ jobs:
   unreal-smoke-test:
     name: Unreal Engine smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event.inputs.unreal-image != ''
     steps:
       - uses: actions/checkout@v4
@@ -354,6 +359,7 @@ jobs:
   protocol-tests:
     name: Executable CLI plugin tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -428,6 +434,7 @@ jobs:
     needs: [unity-build, godot-build, unreal-build, protocol-tests]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Verify no engine smoke test failed
         run: |

@@ -59,8 +59,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             plugins/orchestrator/node_modules
@@ -149,6 +149,17 @@ jobs:
           docker stop localstack-main 2>/dev/null || true
           docker rm localstack-main 2>/dev/null || true
           docker system prune -af --volumes || true
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ============================================================================
   # K8S + K3D SMOKE TEST
@@ -181,8 +192,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             plugins/orchestrator/node_modules
@@ -313,3 +324,14 @@ jobs:
           docker stop localstack-main 2>/dev/null || true
           docker rm localstack-main 2>/dev/null || true
           docker system prune -af --volumes || true
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true

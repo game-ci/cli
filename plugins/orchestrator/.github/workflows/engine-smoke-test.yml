@@ -75,8 +75,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -111,6 +111,17 @@ jobs:
               2>godot-stderr.log | tail -1) || true
           echo "Response: ${RESPONSE}"
           cat godot-stderr.log 2>/dev/null || true
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-'20'-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ─── UE — build with CI stub (validates full pipeline) ─────────
   unreal-stub-build:
@@ -169,8 +180,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -206,6 +217,17 @@ jobs:
             const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
             if (!('success' in d)) throw new Error('bad protocol response');
           "
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-'20'-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ─── UE — real image build (manual trigger) ────────────────────
   unreal-real-build:
@@ -243,8 +265,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -278,3 +300,14 @@ jobs:
             echo "${RESPONSE}" | grep -q '"success":false' || { echo "FAIL for input: '${input}'"; exit 1; }
           done
           echo "Error handling OK"
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-'20'-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
