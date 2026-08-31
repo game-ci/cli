@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const nanoid_1 = require("nanoid");
 const android_versioning_1 = __importDefault(require("./android-versioning"));
+const docker_1 = __importDefault(require("./docker"));
 const input_1 = __importDefault(require("./input"));
 const platform_1 = __importDefault(require("./platform"));
 const unity_versioning_1 = __importDefault(require("./unity-versioning"));
@@ -176,7 +177,9 @@ class BuildParameters {
             containerRegistryRepository: input_1.default.containerRegistryRepository,
             containerRegistryImageVersion: input_1.default.containerRegistryImageVersion,
             providerStrategy,
-            buildPlatform: providerStrategy !== 'local' ? 'linux' : process.platform,
+            buildPlatform: providerStrategy !== 'local'
+                ? 'linux'
+                : await docker_1.default.resolveBuildPlatform(input_1.default.containerOs),
             runNumber: input_1.default.runNumber,
             branch: input_1.default.branch.replace('/head', '') || (await git_repo_1.GitRepoReader.GetBranch()),
             githubRepo: (input_1.default.githubRepo ?? (await git_repo_1.GitRepoReader.GetRemote())) || 'game-ci/unity-builder',
