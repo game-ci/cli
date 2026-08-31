@@ -11,6 +11,23 @@ function engineEnvVars(options: Options) {
 }
 
 class Docker {
+  // Docker Desktop for Windows can run either Windows or Linux containers,
+  // and a Windows host with Docker in Linux-containers mode still needs
+  // Linux-style image tags, workdir paths, and command shape - the container
+  // runtime is Linux regardless of the host OS. `docker version --format
+  // '{{.Server.Os}}'` reports what the daemon is actually running, which is
+  // the correct signal here, not the host OS (see Cli.resolveHostOS()).
+  static async detectDaemonOs(): Promise<string | undefined> {
+    try {
+      const result = await System.run(`docker version --format "{{.Server.Os}}"`, undefined, { silent: true });
+      const daemonOs = (result.output || "").trim().toLowerCase();
+
+      return daemonOs === "windows" || daemonOs === "linux" ? daemonOs : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   static async run(image: string, options: Options) {
     const { hostPlatform, hostOS, engine, activateOnly, runTests } = options;
 
@@ -84,7 +101,11 @@ class Docker {
       sshAgent,
       sshPublicKeysDirectoryPath,
       gitPrivateToken,
-      dockerWorkspacePath,
+      // Only registered as a CLI flag for Unity's build/test/activate
+      // commands (see build-options.ts, docker-test-options.ts,
+      // activate-command.ts) - Godot/Unreal builds never set it, which
+      // previously produced a literal `--workdir undefined` Docker rejects.
+      dockerWorkspacePath = "/github/workspace",
       commands,
       engine,
       useHostNetwork,

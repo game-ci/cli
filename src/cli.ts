@@ -10,6 +10,7 @@ import { PluginLoader } from "./plugin/plugin-loader.ts";
 import { unityPlugin } from "./plugin/builtin/unity-plugin.ts";
 import { godotPlugin } from "./plugin/builtin/godot-plugin.ts";
 import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
+import { Docker } from "./model/docker.ts";
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -23,7 +24,7 @@ export class Cli {
   private readonly homeDir: string;
   private readonly isRunningLocally: boolean;
   private readonly hostPlatform: string;
-  private readonly hostOS: string;
+  private hostOS: string;
   private command: CommandInterface;
 
   constructor(args: string[], cwd: string) {
@@ -50,9 +51,44 @@ export class Cli {
 
   public async setup() {
     await this.configureLogger();
+    this.hostOS = await this.resolveHostOS();
     await this.configureGlobalSettings();
     await this.configureGlobalOptions();
     await this.loadPlugins();
+  }
+
+  /**
+   * Docker Desktop for Windows can run either Windows or Linux containers -
+   * a Windows host running Docker in Linux-containers mode still needs
+   * Linux-style image tags, workdir paths, and command shape, since the
+   * container runtime is Linux regardless of the host OS. Trust the daemon
+   * over process.platform by default. Reported via Discord: a Windows host
+   * with Docker Desktop in Linux-containers mode was getting the
+   * windows-tagged image and a `c:`-prefixed workdir, which Docker then
+   * rejected as invalid for a Linux container.
+   */
+  private async resolveHostOS(): Promise<string> {
+    const override = this.readRawFlag("container-os") ?? this.readRawFlag("containerOs");
+    if (override === "linux" || override === "windows") return override;
+
+    if (this.hostPlatform === "win32") {
+      const daemonOs = await Docker.detectDaemonOs();
+      if (daemonOs === "linux" || daemonOs === "windows") return daemonOs;
+    }
+
+    return this.hostOS;
+  }
+
+  /** Reads a --flag/--flag=value pair directly from argv, before yargs has parsed anything. */
+  private readRawFlag(name: string): string | undefined {
+    const prefix = `--${name}`;
+    const index = this.rawArgs.findIndex((arg) => arg === prefix || arg.startsWith(`${prefix}=`));
+    if (index === -1) return undefined;
+
+    const arg = this.rawArgs[index];
+    if (arg.includes("=")) return arg.slice(arg.indexOf("=") + 1).toLowerCase();
+
+    return this.rawArgs[index + 1]?.toLowerCase();
   }
 
   private async loadPlugins() {
@@ -247,7 +283,13 @@ export class Cli {
       .default("cliStoragePath", this.cliStoragePath)
       .default("isRunningLocally", this.isRunningLocally)
       .default("hostPlatform", this.hostPlatform)
-      .default("hostOS", this.hostOS);
+      .default("hostOS", this.hostOS)
+      .option("containerOs", {
+        description:
+          "Which Docker container OS to target for local builds: auto (ask the Docker daemon), linux, or windows.",
+        type: "string",
+        default: "auto",
+      });
   }
 
   private async getPreCommandOptions() {

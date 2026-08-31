@@ -441,6 +441,53 @@ describe("Docker", () => {
     expect(command).not.toContain("UnityTestRunnerAction");
   });
 
+  describe("detectDaemonOs", () => {
+    it("returns the daemon's reported OS on success", async () => {
+      System.run = mock(() => Promise.resolve({ output: "linux\n", error: "" }));
+
+      expect(await Docker.detectDaemonOs()).toBe("linux");
+    });
+
+    it("returns undefined for an unrecognized or empty response", async () => {
+      System.run = mock(() => Promise.resolve({ output: "", error: "" }));
+
+      expect(await Docker.detectDaemonOs()).toBeUndefined();
+    });
+
+    it("returns undefined when Docker isn't reachable", async () => {
+      System.run = mock(() => Promise.reject(new Error("docker: command not found")));
+
+      expect(await Docker.detectDaemonOs()).toBeUndefined();
+    });
+  });
+
+  it("defaults dockerWorkspacePath when omitted (Godot/Unreal don't register the flag)", async () => {
+    // Regression: Godot/Unreal builds never register --docker-workspace-path
+    // (only Unity's build/test/activate commands do), so it arrived here as
+    // undefined and produced a literal `--workdir undefined`, which Docker
+    // rejects as an invalid path.
+    let capturedCommand = "";
+    System.run = mock((command: string) => {
+      capturedCommand = command;
+      return Promise.resolve({ output: "", error: "" });
+    });
+
+    await Docker.run("barichello/godot-ci:4.3", {
+      hostOS: "linux",
+      hostPlatform: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      engine: "godot",
+      commands: "godot --headless --verbose --import",
+    } as any);
+
+    expect(capturedCommand).not.toContain("undefined");
+    expect(capturedCommand).toContain("--workdir /github/workspace");
+  });
+
   it.skip("runs", async () => {
     const image = "unity-builder:2019.2.11f1-webgl";
     const parameters = {

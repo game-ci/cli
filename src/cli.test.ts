@@ -9,6 +9,7 @@ import { UnityOrchestrateCommand } from "./command/orchestrate/unity-orchestrate
 import { CommandFactory } from "./command/command-factory.ts";
 import { unityPlugin } from "./plugin/builtin/unity-plugin.ts";
 import { PluginRegistry } from "./plugin/plugin-registry.ts";
+import { Docker } from "./model/docker.ts";
 
 describe("Cli plugin loading", () => {
   beforeEach(() => {
@@ -369,6 +370,60 @@ profiles:
       expect(options.logLevel).toBe(1);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// Regression tests for the Discord-reported bug: a Windows host running
+// Docker Desktop in Linux-containers mode got the windows-tagged image and a
+// `c:`-prefixed workdir, because hostOS was derived purely from
+// process.platform instead of asking the Docker daemon what it's actually
+// running.
+describe("Cli container OS resolution", () => {
+  const originalDetectDaemonOs = Docker.detectDaemonOs;
+
+  afterEach(() => {
+    Docker.detectDaemonOs = originalDetectDaemonOs;
+  });
+
+  it("honors an explicit --container-os override without touching Docker", async () => {
+    let called = false;
+    Docker.detectDaemonOs = async () => {
+      called = true;
+      return "windows";
+    };
+
+    const cli = new Cli(["--container-os", "linux"], process.cwd());
+    const hostOS = await (cli as unknown as { resolveHostOS(): Promise<string> }).resolveHostOS();
+
+    expect(hostOS).toBe("linux");
+    expect(called).toBe(false);
+  });
+
+  it("also accepts --container-os=value form", async () => {
+    Docker.detectDaemonOs = async () => "linux";
+
+    const cli = new Cli(["--container-os=windows"], process.cwd());
+    const hostOS = await (cli as unknown as { resolveHostOS(): Promise<string> }).resolveHostOS();
+
+    expect(hostOS).toBe("windows");
+  });
+
+  it("on a non-Windows host, trusts the existing hostOS without querying Docker", async () => {
+    let called = false;
+    Docker.detectDaemonOs = async () => {
+      called = true;
+      return "windows";
+    };
+
+    const cli = new Cli([], process.cwd());
+    const hostOS = await (cli as unknown as { resolveHostOS(): Promise<string> }).resolveHostOS();
+
+    // hostPlatform on the test runner determines this; only assert Docker
+    // wasn't consulted when the host isn't win32.
+    if (process.platform !== "win32") {
+      expect(called).toBe(false);
+      expect(hostOS).toBe(process.platform);
     }
   });
 });
