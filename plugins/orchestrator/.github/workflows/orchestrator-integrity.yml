@@ -89,8 +89,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -502,6 +502,17 @@ jobs:
           docker system prune -af --volumes || true
           echo "Final disk usage:"
           df -h
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ============================================================================
   # AWS/MINISTACK PROVIDER TESTS
@@ -529,8 +540,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -844,6 +855,17 @@ jobs:
           docker rm localstack-main 2>/dev/null || true
           docker system prune -af --volumes || true
           df -h
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ============================================================================
   # LOCAL DOCKER TESTS
@@ -874,8 +896,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -1187,6 +1209,17 @@ jobs:
           docker rm localstack-main 2>/dev/null || true
           docker system prune -af --volumes || true
           df -h
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ============================================================================
   # RCLONE TESTS
@@ -1217,8 +1250,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -1333,6 +1366,17 @@ jobs:
           docker rm localstack-main 2>/dev/null || true
           docker system prune -af --volumes || true
           df -h
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node-20-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # ============================================================================
   # MOCK AWS TESTS (sibling to MiniStack — no external dependencies)
@@ -1359,8 +1403,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             node_modules
@@ -1443,3 +1487,14 @@ jobs:
 
             main().catch(err => { console.error(err); process.exit(1); });
           "
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-node${{ steps.node.outputs.version }}-${{ hashFiles('yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true

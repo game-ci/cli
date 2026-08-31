@@ -12,6 +12,7 @@ jobs:
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       cli: ${{ steps.filter.outputs.cli }}
       orchestrator: ${{ steps.filter.outputs.orchestrator }}
@@ -41,6 +42,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Setup Bun
@@ -120,6 +122,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.unity == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: plugins/unity
@@ -149,6 +152,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.orchestrator == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: plugins/orchestrator
@@ -167,8 +171,8 @@ jobs:
       - name: Resolve yarn cache folder
         id: yarn-config
         run: echo "cacheFolder=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
-      - name: Restore yarn install cache (node_modules + cacheFolder + install-state)
-        uses: actions/cache@v4
+      - name: Restore cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             plugins/orchestrator/node_modules
@@ -193,6 +197,17 @@ jobs:
         run: yarn typecheck
       - name: Test
         run: yarn coverage
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            plugins/orchestrator/node_modules
+            ${{ steps.yarn-config.outputs.cacheFolder }}
+            plugins/orchestrator/.yarn/install-state.gz
+          key: yarn-v2-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('plugins/orchestrator/yarn.lock') }}
+        timeout-minutes: 5
+        continue-on-error: true
 
   # Mirrors plugins/orchestrator/.github/workflows/integration-ci.yml
   # (a workflow_call file, invoked by the old ci.yml on every PR).
@@ -217,6 +232,7 @@ jobs:
     needs: [tests, unity-tests, orchestrator-tests, orchestrator-integration]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Verify no suite failed
         run: |
