@@ -10,6 +10,10 @@ export class GodotBuildCommand extends CommandBase implements CommandInterface {
     const exportPreset = (options.exportPreset as string) || 'Linux/X11';
     const outputPath = (options.outputPath as string) || 'build/game';
     const godotImage = (options.customImage as string) || `barichello/godot-ci:${options.engineVersion || '4.3'}`;
+    // Docker.run defaults an unset dockerWorkspacePath to this same value
+    // (see src/model/docker.ts) - match it here so --path always points at
+    // where the project is actually mounted in the container.
+    const containerProjectPath = (options.dockerWorkspacePath as string) || '/github/workspace';
 
     log.info(`Building Godot project at ${projectPath}`);
     log.info(`Using image: ${godotImage}`);
@@ -31,15 +35,21 @@ export class GodotBuildCommand extends CommandBase implements CommandInterface {
       await log.group('Godot export', async () => {
         await Docker.run(godotImage, {
           ...options,
-          commands: `godot --headless --verbose --export-release "${exportPreset}" ${outputPath}`,
+          commands: `godot --headless --verbose --path ${containerProjectPath} --export-release "${exportPreset}" ${outputPath}`,
         });
       });
     } else {
       log.info('No export_presets.cfg found - validating the project imports cleanly instead of exporting.');
       await log.group('Godot import validation', async () => {
+        // --path is required here: without it, --import doesn't reliably
+        // resolve the project from the container's working directory, and
+        // Godot falls through to its default run-mode instead of import-only
+        // - which then fails with "Can't run project: no main scene defined"
+        // even on projects that do declare one (game-ci/cli, real-project
+        // smoke test against godotengine/godot-demo-projects).
         await Docker.run(godotImage, {
           ...options,
-          commands: 'godot --headless --verbose --import',
+          commands: `godot --headless --verbose --path ${containerProjectPath} --import`,
         });
       });
     }
