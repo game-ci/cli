@@ -43,6 +43,23 @@ class Docker {
     return process.platform;
   }
 
+  /**
+   * `docker run` pulls an uncached image implicitly, but that folds the pull
+   * time into the same session as Unity's license activation/hold/return
+   * inside the container - and these images are huge (7-8GB+ for Windows
+   * tags). A partial cache miss can take 15+ minutes to pull, which is long
+   * enough for Unity's own ephemeral ULF license session to fail to return
+   * cleanly once the container finally gets to run - a real failure, but one
+   * caused by pull time eating into the license window, not by anything
+   * about the build itself. Pulling explicitly first, before that window
+   * opens, avoids the whole class of failure. A pull failure here is a real,
+   * non-retryable-by-us problem (bad tag, registry down) and is left to fail
+   * with Docker's own error rather than swallowed.
+   */
+  static async pull(image: string): Promise<void> {
+    await exec('docker', ['pull', image]);
+  }
+
   static async run(
     image: string,
     parameters: DockerParameters,
@@ -57,6 +74,8 @@ class Docker {
     // so a Windows host running Docker Desktop in Linux-containers mode still
     // gets Linux image tags, workdir paths, and entrypoint.
     const runPlatform = parameters.buildPlatform ?? process.platform;
+
+    await Docker.pull(image);
 
     let runCommand = '';
     switch (runPlatform) {
