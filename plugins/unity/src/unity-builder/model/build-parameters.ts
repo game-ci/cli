@@ -1,5 +1,6 @@
 import { customAlphabet } from 'nanoid';
 import AndroidVersioning from './android-versioning';
+import Docker from './docker';
 import Input from './input';
 import Platform from './platform';
 import UnityVersioning from './unity-versioning';
@@ -171,7 +172,10 @@ class BuildParameters {
       containerRegistryRepository: Input.containerRegistryRepository,
       containerRegistryImageVersion: Input.containerRegistryImageVersion,
       providerStrategy,
-      buildPlatform: providerStrategy !== 'local' ? 'linux' : process.platform,
+      buildPlatform:
+        providerStrategy !== 'local'
+          ? 'linux'
+          : await Docker.resolveBuildPlatform(Input.containerOs),
       runNumber: Input.runNumber,
       branch: Input.branch.replace('/head', '') || (await GitRepoReader.GetBranch()),
       githubRepo:

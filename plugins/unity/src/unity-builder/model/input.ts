@@ -272,6 +272,10 @@ class Input {
     return Input.getInput('dockerIsolationMode') ?? 'default';
   }
 
+  static get containerOs(): string {
+    return Input.getInput('containerOs')?.toLowerCase() ?? 'auto';
+  }
+
   static get containerRegistryRepository(): string {
     return Input.getInput('containerRegistryRepository') ?? 'unityci/editor';
   }

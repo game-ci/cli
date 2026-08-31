@@ -8,9 +8,51 @@ const node_fs_1 = require("node:fs");
 const node_path_1 = __importDefault(require("node:path"));
 const exec_1 = require("@actions/exec");
 class Docker {
+    // Docker Desktop for Windows can run either Windows or Linux containers, and
+    // a Windows host with Docker running in Linux-containers mode still needs
+    // Linux-style image tags, workdir paths, volume mounts, and entrypoint - the
+    // container runtime is Linux regardless of the host OS. `docker version
+    // --format '{{.Server.Os}}'` reports what the daemon is actually running,
+    // which is the correct signal here, not `process.platform` (see game-ci
+    // Discord report: Windows host + Linux containers selected the
+    // windows-tagged image and a `c:`-prefixed workdir, which Docker then
+    // rejected as an invalid path for a Linux container).
+    static async detectDaemonOs() {
+        try {
+            const result = await (0, exec_1.getExecOutput)('docker', ['version', '--format', '{{.Server.Os}}'], {
+                silent: true,
+                ignoreReturnCode: true,
+            });
+            const daemonOs = result.stdout.trim().toLowerCase();
+            return daemonOs === 'windows' || daemonOs === 'linux' ? daemonOs : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    }
+    static async resolveBuildPlatform(containerOs) {
+        if (containerOs === 'linux')
+            return 'linux';
+        if (containerOs === 'windows')
+            return 'win32';
+        // 'auto' (default): trust the Docker daemon's actual OS over the host OS.
+        // Falls back to the host OS when Docker isn't reachable yet (e.g. tests,
+        // or environments where `docker version` itself is what's being diagnosed).
+        const daemonOs = await Docker.detectDaemonOs();
+        if (daemonOs === 'windows')
+            return 'win32';
+        if (daemonOs === 'linux')
+            return 'linux';
+        return process.platform;
+    }
     static async run(image, parameters, silent = false, overrideCommands = '', additionalVariables = [], options = {}, entrypointBash = false) {
+        // parameters.buildPlatform reflects the container runtime the CLI decided
+        // to target (see BuildParameters.create) - trust it over process.platform
+        // so a Windows host running Docker Desktop in Linux-containers mode still
+        // gets Linux image tags, workdir paths, and entrypoint.
+        const runPlatform = parameters.buildPlatform ?? process.platform;
         let runCommand = '';
-        switch (process.platform) {
+        switch (runPlatform) {
             case 'linux':
                 runCommand = this.getLinuxCommand(image, parameters, overrideCommands, additionalVariables, entrypointBash);
                 break;
@@ -18,7 +60,7 @@ class Docker {
                 runCommand = this.getWindowsCommand(image, parameters);
                 break;
             default:
-                throw new Error(`Operation system, ${process.platform}, is not supported yet.`);
+                throw new Error(`Operation system, ${runPlatform}, is not supported yet.`);
         }
         options.silent = silent;
         options.ignoreReturnCode = true;

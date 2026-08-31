@@ -52,6 +52,7 @@ declare class Input {
     static get dockerCpuLimit(): string;
     static get dockerMemoryLimit(): string;
     static get dockerIsolationMode(): string;
+    static get containerOs(): string;
     static get containerRegistryRepository(): string;
     static get containerRegistryImageVersion(): string;
     static get skipActivation(): string;
