@@ -61,4 +61,46 @@ describe('Docker', () => {
       expect(await Docker.resolveBuildPlatform('auto')).toBe(process.platform);
     });
   });
+
+  describe('run pull behavior', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('pulls the image explicitly before running, so pull time is not folded into the license-hold window', async () => {
+      const execSpy = vi.spyOn(execModule, 'exec').mockResolvedValue(0);
+
+      const parameters = {
+        workspace: Action.rootFolder,
+        actionFolder: Action.actionFolder,
+        runnerTempPath: '/tmp',
+        dockerCpuLimit: '2',
+        dockerMemoryLimit: '4g',
+        dockerWorkspacePath: '/github/workspace',
+        buildPlatform: 'linux',
+      } as any;
+
+      await Docker.run('unityci/editor:some-tag', parameters);
+
+      expect(execSpy).toHaveBeenNthCalledWith(1, 'docker', ['pull', 'unityci/editor:some-tag']);
+    });
+
+    it('does not attempt to run if the pull itself fails - a pull failure is not launch-retryable', async () => {
+      const execSpy = vi.spyOn(execModule, 'exec').mockRejectedValueOnce(new Error('manifest unknown'));
+
+      const parameters = {
+        workspace: Action.rootFolder,
+        actionFolder: Action.actionFolder,
+        runnerTempPath: '/tmp',
+        dockerCpuLimit: '2',
+        dockerMemoryLimit: '4g',
+        dockerWorkspacePath: '/github/workspace',
+        buildPlatform: 'linux',
+      } as any;
+
+      await expect(Docker.run('some-image', parameters)).rejects.toThrow('manifest unknown');
+
+      expect(execSpy).toHaveBeenCalledTimes(1);
+    });
+  });
 });
