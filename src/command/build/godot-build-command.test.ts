@@ -42,7 +42,7 @@ describe('GodotBuildCommand', () => {
     const command = new GodotBuildCommand('build');
 
     const dockerRunMock = mock(async (_image: string, options: any) => {
-      expect(options.commands).toBe('godot --headless --verbose --import');
+      expect(options.commands).toBe('godot --headless --verbose --path /github/workspace --import');
     });
     Docker.run = dockerRunMock as any;
 
@@ -57,13 +57,29 @@ describe('GodotBuildCommand', () => {
     const command = new GodotBuildCommand('build');
 
     const dockerRunMock = mock(async (_image: string, options: any) => {
-      expect(options.commands).toBe('godot --headless --verbose --export-release "Linux/X11" build/game');
+      expect(options.commands).toBe(
+        'godot --headless --verbose --path /github/workspace --export-release "Linux/X11" build/game',
+      );
     });
     Docker.run = dockerRunMock as any;
 
     const result = await command.execute({ projectPath: '/some/project' } as any);
 
     expect(result).toBe(true);
+    expect(dockerRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an explicit dockerWorkspacePath for --path when set', async () => {
+    fsSync.existsSync = () => false;
+    const command = new GodotBuildCommand('build');
+
+    const dockerRunMock = mock(async (_image: string, options: any) => {
+      expect(options.commands).toBe('godot --headless --verbose --path /custom/workspace --import');
+    });
+    Docker.run = dockerRunMock as any;
+
+    await command.execute({ projectPath: '/some/project', dockerWorkspacePath: '/custom/workspace' } as any);
+
     expect(dockerRunMock).toHaveBeenCalledTimes(1);
   });
 
