@@ -7,6 +7,19 @@ const image_environment_factory_1 = __importDefault(require("./image-environment
 const node_fs_1 = require("node:fs");
 const node_path_1 = __importDefault(require("node:path"));
 const exec_1 = require("@actions/exec");
+/**
+ * Unity 6.6+ editors request 1GiB of shared memory and hard-fail with
+ * "Insufficient shared memory available" against Docker's 64m default
+ * (game-ci/unity-builder#840). BuildParameters defaults this to 1025m, the
+ * value unity-test-runner has always passed. "0"/"none" omits the flag so
+ * Docker's own default applies.
+ */
+function shmSizeFlag(dockerShmSize) {
+    const value = String(dockerShmSize ?? '').trim();
+    if (value === '' || value === '0' || value.toLowerCase() === 'none')
+        return '';
+    return `--shm-size=${value}`;
+}
 class Docker {
     // Docker Desktop for Windows can run either Windows or Linux containers, and
     // a Windows host with Docker running in Linux-containers mode still needs
@@ -84,7 +97,7 @@ class Docker {
         return await (0, exec_1.exec)(runCommand, undefined, options);
     }
     static getLinuxCommand(image, parameters, overrideCommands = '', additionalVariables = [], entrypointBash = false) {
-        const { workspace, actionFolder, useHostNetwork, runnerTempPath, sshAgent, sshPublicKeysDirectoryPath, gitPrivateToken, dockerWorkspacePath, dockerCpuLimit, dockerMemoryLimit, } = parameters;
+        const { workspace, actionFolder, useHostNetwork, runnerTempPath, sshAgent, sshPublicKeysDirectoryPath, gitPrivateToken, dockerWorkspacePath, dockerCpuLimit, dockerMemoryLimit, dockerShmSize, } = parameters;
         const githubHome = node_path_1.default.join(runnerTempPath, '_github_home');
         if (!(0, node_fs_1.existsSync)(githubHome))
             (0, node_fs_1.mkdirSync)(githubHome);
@@ -112,6 +125,7 @@ class Docker {
             --volume "${actionFolder}/BlankProject":"/BlankProject:z" \
             --cpus=${dockerCpuLimit} \
             --memory=${dockerMemoryLimit} \
+            ${shmSizeFlag(dockerShmSize)} \
             ${sshAgent ? `--volume ${sshAgent}:/ssh-agent` : ''} \
             ${sshAgent && !sshPublicKeysDirectoryPath
             ? '--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro'
@@ -124,7 +138,7 @@ class Docker {
             "${overrideCommands !== '' ? overrideCommands : `/entrypoint.sh`}"`;
     }
     static getWindowsCommand(image, parameters) {
-        const { workspace, actionFolder, runnerTempPath, gitPrivateToken, dockerWorkspacePath, dockerCpuLimit, dockerMemoryLimit, dockerIsolationMode, } = parameters;
+        const { workspace, actionFolder, runnerTempPath, gitPrivateToken, dockerWorkspacePath, dockerCpuLimit, dockerMemoryLimit, dockerShmSize, dockerIsolationMode, } = parameters;
         const githubHome = node_path_1.default.join(runnerTempPath, '_github_home');
         if (!(0, node_fs_1.existsSync)(githubHome))
             (0, node_fs_1.mkdirSync)(githubHome);
@@ -148,6 +162,7 @@ class Docker {
             --volume "${actionFolder}/BlankProject":"c:/BlankProject" \
             --cpus=${dockerCpuLimit} \
             --memory=${dockerMemoryLimit} \
+            ${shmSizeFlag(dockerShmSize)} \
             --isolation=${dockerIsolationMode} \
             ${image} \
             powershell c:/steps/entrypoint.ps1`;

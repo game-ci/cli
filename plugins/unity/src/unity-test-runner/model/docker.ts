@@ -17,6 +17,20 @@ const containerIdFilePath = (parameters) => {
   return path.join(runnerTemporaryPath, `container_${githubAction}`);
 };
 
+/**
+ * 1025m was previously hardcoded here: Unity 6.6+ editors request 1GiB of
+ * shared memory and fail against Docker's 64m default
+ * (game-ci/unity-test-runner#307). It is now the default in Input, so the
+ * effective behaviour is unchanged, but users can raise or disable it.
+ * '0'/'none' omits the flag so Docker's own default applies.
+ */
+function shmSizeFlag(dockerShmSize?: string): string {
+  const value = String(dockerShmSize ?? '').trim();
+  if (value === '' || value === '0' || value.toLowerCase() === 'none') return '';
+
+  return `--shm-size=${value}`;
+}
+
 const Docker = {
   /**
    *  Remove a possible leftover container created by `Docker.run`.
@@ -126,6 +140,7 @@ const Docker = {
       runnerTemporaryPath,
       dockerCpuLimit,
       dockerMemoryLimit,
+      dockerShmSize,
     } = parameters;
 
     const githubHome = path.join(runnerTemporaryPath, '_github_home');
@@ -138,7 +153,7 @@ const Docker = {
     ).join(';');
 
     return `docker run \
-            --shm-size=1025m \
+            ${shmSizeFlag(dockerShmSize)} \
             --workdir /github/workspace \
             --cidfile "${cidfile}" \
             --rm \
@@ -184,6 +199,7 @@ const Docker = {
       runnerTemporaryPath,
       dockerCpuLimit,
       dockerMemoryLimit,
+      dockerShmSize,
       dockerIsolationMode,
     } = parameters;
 
@@ -197,7 +213,7 @@ const Docker = {
     ).join(';');
 
     return `docker run \
-                --shm-size=1025m \
+                ${shmSizeFlag(dockerShmSize)} \
                 --workdir c:/github/workspace \
                 --cidfile "${cidfile}" \
                 --rm \

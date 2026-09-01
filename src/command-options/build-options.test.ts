@@ -149,6 +149,9 @@ describe('BuildOptions', () => {
     expect(defaultArgv.sshPublicKeysDirectoryPath).toBe('');
     expect(typeof defaultArgv.dockerCpuLimit).toBe('string');
     expect(typeof defaultArgv.dockerMemoryLimit).toBe('string');
+    // Unity 6.6+ hard-fails against Docker's 64m default, so this must ship
+    // as a working value rather than opt-in (game-ci/unity-builder#840).
+    expect(defaultArgv.dockerShmSize).toBe('1025m');
 
     const setParser = yargs([
       '--targetPlatform',
@@ -166,6 +169,8 @@ describe('BuildOptions', () => {
       '2',
       '--dockerMemoryLimit',
       '4096m',
+      '--dockerShmSize',
+      '2g',
     ])
       .exitProcess(false)
       .fail((message, error) => {
@@ -180,5 +185,6 @@ describe('BuildOptions', () => {
     expect(setArgv.sshPublicKeysDirectoryPath).toBe('/home/runner/.ssh/keys');
     expect(setArgv.dockerCpuLimit).toBe('2');
     expect(setArgv.dockerMemoryLimit).toBe('4096m');
+    expect(setArgv.dockerShmSize).toBe('2g');
   });
 });

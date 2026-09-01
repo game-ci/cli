@@ -146,12 +146,13 @@ export class BuildOptions implements IOptions {
       })
       .option('dockerShmSize', {
         description: String.dedent`Size of /dev/shm to assign the docker container, using the format <number><unit>
-        (m or g). Unity 6.6 beta / 6.7 alpha editors have been reported to fail with "Insufficient shared memory
-        available" against Docker's 64m default (see game-ci/unity-test-runner#307); leave unset to use Docker's
-        own default on older/stable editors that don't need it.`,
+        (m or g). Unity 6.6+ editors request 1GiB of shared memory and fail with "Insufficient shared memory
+        available" against Docker's 64m default (game-ci/unity-builder#840, game-ci/unity-test-runner#307).
+        Defaults to 1025m, matching what unity-test-runner has always passed. Pass an explicit value to override,
+        or "0" to omit the flag entirely and use Docker's own default.`,
         type: 'string',
         demandOption: false,
-        default: '',
+        default: '1025m',
       })
       .option('dockerIsolationMode', {
         description: String.dedent`Windows only. Isolation mode to use for the docker container. Can be one of

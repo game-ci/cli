@@ -124,6 +124,11 @@ class Input {
     const dockerMemoryLimit =
       getInput('dockerMemoryLimit') ||
       `${Math.floor((os.totalmem() / bytesInMegabyte) * memoryMultiplier)}m`;
+    // Unity 6.6+ editors request 1GiB of shared memory and fail against
+    // Docker's 64m default (game-ci/unity-test-runner#307). 1025m was
+    // previously hardcoded into the docker command; it is the default here so
+    // behaviour is unchanged, but now overridable. '0'/'none' omits the flag.
+    const dockerShmSize = getInput('dockerShmSize') || '1025m';
     const dockerIsolationMode = getInput('dockerIsolationMode') || 'default';
 
     const runAsHostUser = getInput('runAsHostUser') || 'false';
@@ -239,6 +244,7 @@ class Input {
       chownFilesTo,
       dockerCpuLimit,
       dockerMemoryLimit,
+      dockerShmSize,
       dockerIsolationMode,
       unityLicensingServer,
       runAsHostUser,

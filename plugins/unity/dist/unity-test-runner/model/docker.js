@@ -51,6 +51,19 @@ const containerIdFilePath = (parameters) => {
     const { runnerTemporaryPath, githubAction } = parameters;
     return path_1.default.join(runnerTemporaryPath, `container_${githubAction}`);
 };
+/**
+ * 1025m was previously hardcoded here: Unity 6.6+ editors request 1GiB of
+ * shared memory and fail against Docker's 64m default
+ * (game-ci/unity-test-runner#307). It is now the default in Input, so the
+ * effective behaviour is unchanged, but users can raise or disable it.
+ * '0'/'none' omits the flag so Docker's own default applies.
+ */
+function shmSizeFlag(dockerShmSize) {
+    const value = String(dockerShmSize ?? '').trim();
+    if (value === '' || value === '0' || value.toLowerCase() === 'none')
+        return '';
+    return `--shm-size=${value}`;
+}
 const Docker = {
     /**
      *  Remove a possible leftover container created by `Docker.run`.
@@ -137,7 +150,7 @@ const Docker = {
         }
     },
     getLinuxCommand(image, parameters) {
-        const { actionFolder, workspace, testMode, useHostNetwork, sshAgent, sshPublicKeysDirectoryPath, githubToken, runnerTemporaryPath, dockerCpuLimit, dockerMemoryLimit, } = parameters;
+        const { actionFolder, workspace, testMode, useHostNetwork, sshAgent, sshPublicKeysDirectoryPath, githubToken, runnerTemporaryPath, dockerCpuLimit, dockerMemoryLimit, dockerShmSize, } = parameters;
         const githubHome = path_1.default.join(runnerTemporaryPath, '_github_home');
         if (!(0, fs_1.existsSync)(githubHome))
             (0, fs_1.mkdirSync)(githubHome);
@@ -147,7 +160,7 @@ const Docker = {
         const cidfile = containerIdFilePath(parameters);
         const testPlatforms = (testMode === 'all' ? ['playmode', 'editmode', 'COMBINE_RESULTS'] : [testMode]).join(';');
         return `docker run \
-            --shm-size=1025m \
+            ${shmSizeFlag(dockerShmSize)} \
             --workdir /github/workspace \
             --cidfile "${cidfile}" \
             --rm \
@@ -178,7 +191,7 @@ const Docker = {
             /bin/bash -c "/steps/entrypoint.sh`;
     },
     getWindowsCommand(image, parameters) {
-        const { actionFolder, workspace, testMode, useHostNetwork, sshAgent, githubToken, runnerTemporaryPath, dockerCpuLimit, dockerMemoryLimit, dockerIsolationMode, } = parameters;
+        const { actionFolder, workspace, testMode, useHostNetwork, sshAgent, githubToken, runnerTemporaryPath, dockerCpuLimit, dockerMemoryLimit, dockerShmSize, dockerIsolationMode, } = parameters;
         const githubHome = path_1.default.join(runnerTemporaryPath, '_github_home');
         if (!(0, fs_1.existsSync)(githubHome))
             (0, fs_1.mkdirSync)(githubHome);
@@ -188,7 +201,7 @@ const Docker = {
             (0, fs_1.mkdirSync)(githubWorkflow);
         const testPlatforms = (testMode === 'all' ? ['playmode', 'editmode', 'COMBINE_RESULTS'] : [testMode]).join(';');
         return `docker run \
-                --shm-size=1025m \
+                ${shmSizeFlag(dockerShmSize)} \
                 --workdir c:/github/workspace \
                 --cidfile "${cidfile}" \
                 --rm \
