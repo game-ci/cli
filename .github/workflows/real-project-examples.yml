@@ -58,13 +58,22 @@ jobs:
           git sparse-checkout set --no-cone 2d/dodge_the_creeps
           git checkout 52e30044658448149b04e8f69b475eebbfbd8f6e
 
+      # Run from *inside* the project. Docker.run mounts the CLI's current
+      # working directory into the container (--volume "$currentWorkDir":
+      # "$dockerWorkspacePath"), not the projectPath argument - so invoking
+      # the CLI from the repo root with an out-of-tree project path mounts
+      # this repo instead of the game, and Godot then reports "Can't run
+      # project: no main scene defined" because /github/workspace has no
+      # project.godot in it at all. Running with cwd set to the project is
+      # also how a real user invokes this.
       - name: Build via the CLI (real Godot 4.3 image, real project)
+        working-directory: /tmp/godot-example/2d/dodge_the_creeps
         run: |
           # GodotBuildCommand only reads --custom-image (and defaults to
           # barichello/godot-ci:<engineVersion> when omitted) - the Unity-only
           # --container-registry-* flags aren't registered for Godot and
           # fail with "Unknown arguments" under yargs' strict mode.
-          bun run src/index.ts build /tmp/godot-example/2d/dodge_the_creeps \
+          bun run "$GITHUB_WORKSPACE/src/index.ts" build \
             --engine=godot \
             --engineVersion=4.3
 
