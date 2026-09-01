@@ -39,8 +39,67 @@ class Docker {
     }
   }
 
+  /**
+   * Real bug: `game-ci build [projectPath]` documents a path argument, but the
+   * only host directory ever mounted into the container is the CLI's *current
+   * working directory* (see the `--volume "${currentWorkDir}"` lines below) -
+   * never projectPath. Host-side checks (e.g. GodotBuildCommand's
+   * existsSync(projectPath/export_presets.cfg)) do look at the real
+   * projectPath, so pointing the CLI at a project outside the cwd produces a
+   * silent mismatch: the container is handed some unrelated directory and the
+   * engine fails deep inside the build for reasons that have nothing to do
+   * with the actual cause.
+   *
+   * This bit us in our own real-project-examples CI job, which mounted the
+   * game-ci/cli repo instead of the Godot game and got "Can't run project: no
+   * main scene defined in the project." from a project that plainly defines
+   * one - four wrong diagnoses before the mount was spotted.
+   *
+   * Changing what gets mounted is a bigger design question (it would move
+   * Unity's -projectPath resolution and every relative path like buildsPath),
+   * so this only fails fast with an explanation instead.
+   */
+  private static assertProjectPathIsMounted(options: Options) {
+    const { currentWorkDir, projectPath } = options as Options & { projectPath?: string };
+
+    // Both are optional in practice (unit tests, engines that never set one),
+    // and a check that can't be evaluated shouldn't be enforced.
+    if (!currentWorkDir || !projectPath) return;
+
+    const workDir = path.resolve(currentWorkDir);
+    // A relative projectPath is relative to the cwd, which is currentWorkDir.
+    const projectDir = path.resolve(workDir, projectPath);
+
+    // path.relative() is the portable containment test: it normalizes
+    // separators and, on Windows, compares case-insensitively (so "C:\Work"
+    // and "c:\work" match). Inside means "" (same directory) or a relative
+    // result that doesn't climb out of workDir.
+    const relative = path.relative(workDir, projectDir);
+    const isInsideWorkDir =
+      relative === "" || (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`));
+
+    if (isInsideWorkDir) return;
+
+    throw new Error(String.dedent`
+      The project path is outside the current working directory.
+
+        project path:      ${projectDir}
+        working directory: ${workDir}
+
+      Only the working directory is mounted into the Docker container, so the
+      container would not contain the project at all - the build would fail
+      later on for reasons unrelated to the real cause.
+
+      Run game-ci from inside the project (or from a parent directory of it):
+        cd ${projectDir}
+        game-ci build
+    `);
+  }
+
   static async run(image: string, options: Options) {
     const { hostPlatform, hostOS, engine, activateOnly, runTests } = options;
+
+    this.assertProjectPathIsMounted(options);
 
     log.warning(`running docker process for ${hostOS} (${hostPlatform})`);
 

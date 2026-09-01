@@ -3,7 +3,7 @@ import { Action } from "./action.ts";
 import { Docker } from "./docker.ts";
 import { System } from "./system/system.ts";
 import { UnityBuildValidation } from "./unity/build-validation/unity-build-validation.ts";
-import { fsSync as fs } from "../dependencies.ts";
+import { fsSync as fs, path } from "../dependencies.ts";
 
 describe("Docker", () => {
   const originalSystemRun = System.run;
@@ -518,6 +518,79 @@ describe("Docker", () => {
 
     expect(capturedCommand).not.toContain("undefined");
     expect(capturedCommand).toContain("--workdir /github/workspace");
+  });
+
+  // Real bug: `game-ci build [projectPath]` documents a path argument, but
+  // only currentWorkDir is ever mounted into the container. Pointing the CLI
+  // at a project outside the cwd silently mounted the wrong directory - our
+  // own real-project-examples CI job mounted the game-ci/cli repo instead of
+  // the Godot game and reported "no main scene defined in the project".
+  describe("projectPath / currentWorkDir mount guard", () => {
+    const runWith = (extra: Record<string, unknown>) => {
+      System.run = mock(() => Promise.resolve({ output: "", error: "" }));
+      UnityBuildValidation.validateBuild = mock(() => {});
+
+      return Docker.run("barichello/godot-ci:4.3", {
+        hostOS: "linux",
+        hostPlatform: "linux",
+        homeDir: "/home/runner",
+        cliDistPath: "/home/runner/work/cli/cli/dist",
+        sshAgent: "",
+        gitPrivateToken: "",
+        engine: "godot",
+        commands: "godot --headless --verbose --import",
+        ...extra,
+      } as any);
+    };
+
+    it("does not throw when the project path is inside the working directory", async () => {
+      await runWith({
+        currentWorkDir: path.resolve("/home/runner/work/cli/cli"),
+        projectPath: path.resolve("/home/runner/work/cli/cli/test-project"),
+      });
+    });
+
+    it("does not throw for a relative project path (resolved against the working directory)", async () => {
+      await runWith({ currentWorkDir: path.resolve("/home/runner/work/cli/cli"), projectPath: "test-project" });
+    });
+
+    it("does not throw when the project path is the working directory itself", async () => {
+      const workDir = path.resolve("/home/runner/work/cli/cli");
+
+      await runWith({ currentWorkDir: workDir, projectPath: workDir });
+    });
+
+    it("throws an explanatory error when the project path is outside the working directory", async () => {
+      const workDir = path.resolve("/home/runner/work/cli/cli");
+      const projectDir = path.resolve("/home/runner/games/my-godot-game");
+
+      const promise = runWith({ currentWorkDir: workDir, projectPath: projectDir });
+
+      await expect(promise).rejects.toThrow(/project path is outside the current working directory/i);
+      // Both resolved paths are in the message, so the mismatch is diagnosable.
+      await expect(runWith({ currentWorkDir: workDir, projectPath: projectDir })).rejects.toThrow(projectDir);
+      await expect(runWith({ currentWorkDir: workDir, projectPath: projectDir })).rejects.toThrow(workDir);
+    });
+
+    it("throws when the project path escapes the working directory via ..", async () => {
+      await expect(
+        runWith({ currentWorkDir: path.resolve("/home/runner/work/cli/cli"), projectPath: "../../games/my-game" }),
+      ).rejects.toThrow(/outside the current working directory/i);
+    });
+
+    it("does not throw for a sibling-looking name that is actually inside the working directory", async () => {
+      // path.relative() can return a child name starting with ".." (e.g.
+      // "..hidden"), which a naive startsWith("..") check would misread.
+      await runWith({ currentWorkDir: path.resolve("/home/runner/work/cli/cli"), projectPath: "..hidden-project" });
+    });
+
+    it("skips the check when projectPath is not set", async () => {
+      await runWith({ currentWorkDir: path.resolve("/home/runner/work/cli/cli") });
+    });
+
+    it("skips the check when currentWorkDir is not set", async () => {
+      await runWith({ projectPath: path.resolve("/home/runner/games/my-godot-game") });
+    });
   });
 
   it.skip("runs", async () => {
