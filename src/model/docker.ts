@@ -10,6 +10,17 @@ function engineEnvVars(options: Options) {
   return options.engine === "unity" ? UnityEnvironment.getVariables(options) : [];
 }
 
+/**
+ * dockerShmSize defaults to 1025m because Unity 6.6+ editors request 1GiB of
+ * shared memory and hard-fail against Docker's 64m default. "0"/"none" is the
+ * escape hatch: omit --shm-size entirely and let Docker apply its own default.
+ */
+function resolveShmSize(dockerShmSize?: string): string {
+  const value = String(dockerShmSize ?? "").trim();
+
+  return value === "" || value === "0" || value.toLowerCase() === "none" ? "" : value;
+}
+
 class Docker {
   // Docker Desktop for Windows can run either Windows or Linux containers,
   // and a Windows host with Docker in Linux-containers mode still needs
@@ -73,6 +84,32 @@ class Docker {
           break;
       }
     } catch (error: any) {
+      // Unity prints this from inside the container when /dev/shm is too
+      // small for it (6.6+ editors ask for 1GiB against Docker's 64m
+      // default). The raw message tells you to pass --shm-size to `docker
+      // run`, which is useless advice when it's game-ci running Docker for
+      // you - so translate it into the knob that actually exists here.
+      if (error.message.includes("Insufficient shared memory available")) {
+        const requested = resolveShmSize(options.dockerShmSize as string | undefined);
+
+        throw new Error(String.dedent`
+          Unity ran out of shared memory (/dev/shm) inside the container.
+
+          game-ci passed ${requested ? `--shm-size=${requested}` : "no --shm-size, so Docker's 64m default applied"}.
+
+          Unity 6.6 and newer request 1GiB of shared memory. Raise it with:
+            game-ci build --docker-shm-size 2g
+          or, in a GitHub Actions workflow:
+            with:
+              dockerShmSize: 2g
+
+          See game-ci/unity-builder#840 and game-ci/unity-test-runner#307.
+
+          Original error:
+          ${error.message}
+        `);
+      }
+
       if (error.message.includes('docker: image operating system "windows" cannot be used on this platform')) {
         throw new Error(String.dedent`
           Docker daemon is not set to run Windows containers.
@@ -147,7 +184,7 @@ class Docker {
       sshAgent ? "--env SSH_AUTH_SOCK=/ssh-agent" : "",
       dockerCpuLimit ? `--cpus=${dockerCpuLimit}` : "",
       dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : "",
-      dockerShmSize ? `--shm-size=${dockerShmSize}` : "",
+      resolveShmSize(dockerShmSize) ? `--shm-size=${resolveShmSize(dockerShmSize)}` : "",
       useHostNetwork ? "--net=host" : "",
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
@@ -231,7 +268,7 @@ class Docker {
       `  --env GIT_PRIVATE_TOKEN="${gitPrivateToken}" \``,
       dockerCpuLimit ? `  --cpus=${dockerCpuLimit} \`` : "",
       dockerMemoryLimit ? `  --memory=${dockerMemoryLimit} \`` : "",
-      dockerShmSize ? `  --shm-size=${dockerShmSize} \`` : "",
+      resolveShmSize(dockerShmSize) ? `  --shm-size=${resolveShmSize(dockerShmSize)} \`` : "",
       dockerIsolationMode ? `  --isolation=${dockerIsolationMode} \`` : "",
       `  --volume="${currentWorkDir}":"c:${dockerWorkspacePath}" \``,
       isUnityDefaultFlow ? `  --volume="${cliStoragePath}/registry-keys":"c:/registry-keys" \`` : "",

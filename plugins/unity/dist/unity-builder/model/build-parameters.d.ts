@@ -28,6 +28,7 @@ declare class BuildParameters {
     androidSymbolType: string;
     dockerCpuLimit: string;
     dockerMemoryLimit: string;
+    dockerShmSize: string;
     dockerIsolationMode: string;
     containerRegistryRepository: string;
     containerRegistryImageVersion: string;

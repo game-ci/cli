@@ -50,6 +50,14 @@ declare class Input {
     static get unityLicense(): string | undefined;
     static get dockerWorkspacePath(): string;
     static get dockerCpuLimit(): string;
+    /**
+     * Unity 6.6+ editors request 1GiB of shared memory and hard-fail with
+     * "Insufficient shared memory available" against Docker's 64m default
+     * (game-ci/unity-builder#840). unity-test-runner has always passed 1025m,
+     * so match it here rather than leaving builds broken by default. "0" or
+     * "none" omits the flag and uses Docker's own default.
+     */
+    static get dockerShmSize(): string;
     static get dockerMemoryLimit(): string;
     static get dockerIsolationMode(): string;
     static get containerOs(): string;

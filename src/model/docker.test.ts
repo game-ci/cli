@@ -244,6 +244,38 @@ describe("Docker", () => {
     expect(command).toContain("--net=host");
   });
 
+  it('omits --shm-size when dockerShmSize is explicitly "0" (opt out of the 1025m default)', () => {
+    const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      dockerShmSize: "0",
+    });
+
+    expect(command).not.toContain("--shm-size");
+  });
+
+  it('omits --shm-size when dockerShmSize is "none"', () => {
+    const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
+      hostOS: "linux",
+      currentWorkDir: "/home/runner/work/cli/cli",
+      homeDir: "/home/runner",
+      cliDistPath: "/home/runner/work/cli/cli/dist",
+      sshAgent: "",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+      dockerShmSize: "none",
+    });
+
+    expect(command).not.toContain("--shm-size");
+  });
+
   it("omits --shm-size when dockerShmSize is not set (game-ci/unity-test-runner#307)", () => {
     const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
       hostOS: "linux",

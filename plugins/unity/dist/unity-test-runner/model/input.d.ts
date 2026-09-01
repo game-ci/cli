@@ -32,6 +32,7 @@ declare class Input {
         chownFilesTo: string;
         dockerCpuLimit: string;
         dockerMemoryLimit: string;
+        dockerShmSize: string;
         dockerIsolationMode: string;
         unityLicensingServer: string;
         runAsHostUser: string;
