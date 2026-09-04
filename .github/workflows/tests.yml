@@ -63,6 +63,17 @@ jobs:
       # and fail on a runner mismatch.
       - name: Unit/Integration tests
         run: bun run test
+      # The compiled binary carries dist/ inside it (see
+      # scripts/generate-embedded-assets.mjs). If the committed generated
+      # file drifts from dist/, a release ships a binary whose assets are
+      # silently out of date - the exact class of bug that stale, committed
+      # test-result XMLs already caused once (game-ci/unity-test-runner#310).
+      # Compares the content hash and file index rather than the generated
+      # file's bytes: gzip output is not byte-reproducible across zlib
+      # versions, so a byte comparison failed purely because CI runs a
+      # different Node than the machine that generated it.
+      - name: Verify embedded assets are up to date
+        run: node scripts/generate-embedded-assets.mjs --check
       # dist/platforms and dist/default-build-script are hand-maintained
       # bash/PowerShell/C# scripts the compiled binary mounts and copies at
       # runtime (see release-cli.yml's `cp -r dist pkg/dist`) - not build
