@@ -64,61 +64,112 @@ const NEWLINE = String.fromCharCode(10);
 const TAB = String.fromCharCode(9);
 const DIST_PREFIX = new RegExp('^dist/');
 
-function gitExecutablePaths() {
+/**
+ * Reads dist/ out of git rather than the working tree.
+ *
+ * Both the contents and the executable bits have to come from git, or the
+ * payload depends on which machine built it:
+ *
+ *   - Line endings. A Windows checkout with core.autocrlf gets CRLF, so
+ *     embedding the working tree there produces shell scripts starting
+ *     "#!/usr/bin/env bash
+" - a broken interpreter line inside the Linux
+ *     container, which would fail every Unity build. Releases are built on
+ *     Linux (LF), so git's blob is also exactly what the release archive
+ *     ships.
+ *   - Executable bits. Windows checkouts carry no POSIX exec bit at all.
+ *
+ * Falls back to the working tree outside a git checkout (e.g. building from
+ * a source tarball), which is at least correct on POSIX.
+ */
+function readFromGit() {
+  let listing;
   try {
-    const out = execFileSync('git', ['ls-files', '-s', '--', 'dist'], {
+    listing = execFileSync('git', ['ls-files', '-s', '--', 'dist'], {
       cwd: repoRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 64 * 1024 * 1024,
     });
-
-    const executables = new Set();
-    for (const line of out.split(NEWLINE)) {
-      if (!line) continue;
-      const [meta, filePath] = line.split(TAB);
-      if (meta.startsWith('100755') && filePath) {
-        executables.add(filePath.replace(DIST_PREFIX, ''));
-      }
-    }
-
-    return executables;
   } catch {
-    // Not a git checkout (e.g. building from a source tarball). Fall back to
-    // filesystem modes, which are at least correct on POSIX.
     return null;
   }
+
+  const entries = [];
+  for (const line of listing.split(NEWLINE)) {
+    if (!line) continue;
+    const [meta, filePath] = line.split(TAB);
+    if (!filePath) continue;
+    const [mode, oid] = meta.split(' ');
+    entries.push({ rel: filePath.replace(DIST_PREFIX, ''), oid, executable: mode === '100755' });
+  }
+
+  if (entries.length === 0) return null;
+
+  // One batch call rather than 141 separate `git show` invocations.
+  const batch = execFileSync('git', ['cat-file', '--batch'], {
+    cwd: repoRoot,
+    input: entries.map((entry) => entry.oid).join(NEWLINE) + NEWLINE,
+    maxBuffer: 512 * 1024 * 1024,
+  });
+
+  // Each record is a header line "<oid> blob <size>", then that many
+  // bytes of contents, then a newline. Walked by byte offset because the
+  // contents are binary and may themselves contain newlines.
+  const files = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const headerEnd = batch.indexOf(NEWLINE, offset);
+    if (headerEnd === -1) throw new Error(`Malformed git cat-file output for ${entry.rel}`);
+    const header = batch.subarray(offset, headerEnd).toString('utf8').split(' ');
+    const size = Number(header[2]);
+    if (!Number.isFinite(size)) throw new Error(`Unexpected git cat-file header for ${entry.rel}: ${header.join(' ')}`);
+    const contentStart = headerEnd + 1;
+    files.push({
+      rel: entry.rel,
+      data: batch.subarray(contentStart, contentStart + size),
+      executable: entry.executable,
+    });
+    offset = contentStart + size + 1;
+  }
+
+  return files;
 }
 
-const files = walk(distDir);
-const gitExecutables = gitExecutablePaths();
+const gitFiles = readFromGit();
+const files =
+  gitFiles ??
+  walk(distDir).map((file) => ({
+    rel: file.rel,
+    data: fs.readFileSync(file.abs),
+    executable: (file.mode & 0o111) !== 0,
+  }));
+
+if (!gitFiles) {
+  console.warn('Not a git checkout - falling back to working-tree contents and permissions.');
+}
 
 // Contents are concatenated into one blob and addressed by offset/length,
 // rather than base64-encoded per file inside the JSON. Base64 inflates by
 // 4/3 *before* compression, so encoding per file made the payload ~57%
 // larger than compressing the raw bytes once.
-function isExecutable(file) {
-  return gitExecutables ? gitExecutables.has(file.rel) : (file.mode & 0o111) !== 0;
-}
-
 const index = [];
 const chunks = [];
 let offset = 0;
 for (const file of files) {
-  const data = fs.readFileSync(file.abs);
-  chunks.push(data);
+  chunks.push(file.data);
   index.push({
     p: file.rel,
     o: offset,
-    l: data.length,
+    l: file.data.length,
     // Only the executable bit is carried; everything else gets a fixed 0644
-    // so the output is reproducible regardless of the umask of whoever built
-    // it. Note the shell scripts under platforms/* are NOT executable today
-    // and do not need to be - docker.ts invokes them through an explicit
-    // interpreter ("/bin/bash /entrypoint.sh"), and the release archive ships
-    // them 0644 too. This mirrors git rather than inventing a bit.
-    ...(isExecutable(file) ? { x: 1 } : {}),
+    // so output is reproducible regardless of the builder's umask. The shell
+    // scripts under platforms/* are NOT executable today and need not be -
+    // docker.ts invokes them through an explicit interpreter
+    // ("/bin/bash /entrypoint.sh"), and the release archive ships them 0644.
+    ...(file.executable ? { x: 1 } : {}),
   });
-  offset += data.length;
+  offset += file.data.length;
 }
 
 const blob = Buffer.concat(chunks);
