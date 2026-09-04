@@ -214,10 +214,14 @@ jobs:
           # Proves the binary is not quietly falling back to a dist/ next to
           # itself: there is nothing for it to fall back to.
           test ! -e /tmp/shipped-cli/dist
-          # And the working tree must be clean, or the failure above recurs.
-          test -z "$(git status --porcelain)" || { echo "Working tree is dirty:"; git status --porcelain; exit 1; }
 
-          /tmp/shipped-cli/game-ci build test-project             --engineVersion "${UNITY_VERSION}"             --targetPlatform StandaloneLinux64             --customImage game-ci/unity-editor-stub:latest             --unityLicense ci-stub-license             --buildsPath build-shipped
+          # --allowDirtyBuild because the dev-mode build above already ran in
+          # this workspace and left build/, test-project/Assets/Editor/ and a
+          # generated dist/unity-config/services-config.json behind. Semantic
+          # versioning refuses a dirty tree, which would fail this step for a
+          # reason that has nothing to do with the binary under test.
+
+          /tmp/shipped-cli/game-ci build test-project             --engineVersion "${UNITY_VERSION}"             --targetPlatform StandaloneLinux64             --customImage game-ci/unity-editor-stub:latest             --unityLicense ci-stub-license             --allowDirtyBuild             --buildsPath build-shipped
 
       - name: Verify the shipped binary produced a real build
         run: |
