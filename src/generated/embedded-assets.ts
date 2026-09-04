@@ -6,7 +6,7 @@
 // sibling dist/ directory shipped alongside it. See the generator for why.
 
 /** sha256 of the compressed payload, used as the extraction cache key. */
-export const EMBEDDED_ASSETS_HASH = '0ec1fa06b17bd5b1';
+export const EMBEDDED_ASSETS_HASH = '653308bc0463c262';
 
 /** Uncompressed size of the blob, in bytes. */
 export const EMBEDDED_ASSETS_SIZE = 1098145;
