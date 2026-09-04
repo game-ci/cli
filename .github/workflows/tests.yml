@@ -27,6 +27,12 @@ jobs:
               - 'src/**'
               - 'dist/**'
               - 'scripts/**'
+              # The root installer and the Action that runs it: without
+              # these, a PR touching only install.sh skips the install
+              # smoke tests below - the exact blind spot that let the root
+              # installer 404 on every platform for releases on end (#242).
+              - 'install.sh'
+              - 'action.yml'
               - 'package.json'
               - 'bunfig.toml'
               - '.github/workflows/tests.yml'
