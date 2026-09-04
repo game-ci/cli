@@ -19,6 +19,7 @@
  * it is up to date.
  */
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,12 +53,53 @@ function walk(dir, base = '') {
   return entries;
 }
 
+/**
+ * Executable bits come from git, not the filesystem. Windows checkouts do not
+ * carry a POSIX exec bit at all, so generating on Windows would silently mark
+ * every file non-executable while generating on Linux might not - producing a
+ * different payload per build host. git's index mode is the same everywhere
+ * and is what the release archive already reflects.
+ */
+const NEWLINE = String.fromCharCode(10);
+const TAB = String.fromCharCode(9);
+const DIST_PREFIX = new RegExp('^dist/');
+
+function gitExecutablePaths() {
+  try {
+    const out = execFileSync('git', ['ls-files', '-s', '--', 'dist'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+    const executables = new Set();
+    for (const line of out.split(NEWLINE)) {
+      if (!line) continue;
+      const [meta, filePath] = line.split(TAB);
+      if (meta.startsWith('100755') && filePath) {
+        executables.add(filePath.replace(DIST_PREFIX, ''));
+      }
+    }
+
+    return executables;
+  } catch {
+    // Not a git checkout (e.g. building from a source tarball). Fall back to
+    // filesystem modes, which are at least correct on POSIX.
+    return null;
+  }
+}
+
 const files = walk(distDir);
+const gitExecutables = gitExecutablePaths();
 
 // Contents are concatenated into one blob and addressed by offset/length,
 // rather than base64-encoded per file inside the JSON. Base64 inflates by
 // 4/3 *before* compression, so encoding per file made the payload ~57%
 // larger than compressing the raw bytes once.
+function isExecutable(file) {
+  return gitExecutables ? gitExecutables.has(file.rel) : (file.mode & 0o111) !== 0;
+}
+
 const index = [];
 const chunks = [];
 let offset = 0;
@@ -68,11 +110,13 @@ for (const file of files) {
     p: file.rel,
     o: offset,
     l: data.length,
-    // Only the executable bit is preserved: the shell entrypoints and step
-    // scripts under platforms/* must stay runnable inside the container.
-    // Everything else is data, and a fixed 0644 keeps output reproducible
-    // regardless of the umask of whoever ran the build.
-    ...((file.mode & 0o111) !== 0 ? { x: 1 } : {}),
+    // Only the executable bit is carried; everything else gets a fixed 0644
+    // so the output is reproducible regardless of the umask of whoever built
+    // it. Note the shell scripts under platforms/* are NOT executable today
+    // and do not need to be - docker.ts invokes them through an explicit
+    // interpreter ("/bin/bash /entrypoint.sh"), and the release archive ships
+    // them 0644 too. This mirrors git rather than inventing a bit.
+    ...(isExecutable(file) ? { x: 1 } : {}),
   });
   offset += data.length;
 }

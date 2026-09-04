@@ -50,16 +50,23 @@ describe('EmbeddedAssets', () => {
     expect(fs.existsSync(path.join(dir, 'unity-config'))).toBe(true);
   });
 
-  it('keeps the container entrypoints executable', () => {
+  it('reproduces the permissions recorded in the manifest', () => {
     const dir = EmbeddedAssets.resolve();
-    const entrypoint = path.join(dir, 'platforms', 'ubuntu', 'entrypoint.sh');
 
-    // Windows does not carry a POSIX executable bit, so only assert where it
-    // is meaningful - the container these run in is always Linux.
-    if (process.platform !== 'win32') {
-      expect(fs.statSync(entrypoint).mode & 0o111).toBeGreaterThan(0);
+    // Deliberately checks round-trip fidelity against the manifest rather
+    // than asserting a specific bit. The scripts under platforms/* are NOT
+    // executable - the release archive ships them 0644 and docker.ts runs
+    // them through an explicit interpreter ("/bin/bash /entrypoint.sh") - so
+    // asserting they are executable would encode a requirement that has
+    // never been true. The manifest's bits come from git, so they are the
+    // same regardless of which OS built the payload.
+    if (process.platform === 'win32') return; // no POSIX mode to compare
+
+    for (const entry of EMBEDDED_ASSETS_INDEX) {
+      const mode = fs.statSync(path.join(dir, ...entry.p.split('/'))).mode & 0o111;
+      if (entry.x) expect(mode).toBeGreaterThan(0);
+      else expect(mode).toBe(0);
     }
-    expect(fs.existsSync(entrypoint)).toBe(true);
   });
 
   it('caches by content hash, and reuses an existing extraction', () => {
