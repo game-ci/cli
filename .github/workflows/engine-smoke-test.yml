@@ -175,6 +175,78 @@ jobs:
           grep -q "Unity CLI smoke artifact" build/StandaloneLinux64/StandaloneLinux64.x86_64
           echo "Unity CLI stub build verified"
 
+      # Everything above runs `bun run src/index.ts`, which is dev mode: the
+      # CLI reads the repo's own dist/ directly and the compiled code path is
+      # never touched. That is what we ship, and until now CI only ever ran
+      # `--help` against it.
+      #
+      # The gap was not theoretical. Both install scripts requested release
+      # assets that did not exist and 404'd on every platform for an unknown
+      # length of time (#242); a binary installed without its dist/ sibling
+      # passed --help and then failed on any real build; and embedding the
+      # assets (#243) shipped CRLF shell scripts on the first attempt, which
+      # would have made the container entrypoint "#!/usr/bin/env bash<CR>" - a
+      # bad interpreter line that fails every Unity build. None of that was
+      # reachable by any test here.
+      #
+      # So run the same stub build again through the actual compiled binary,
+      # deliberately placed where it has NO sibling dist/, forcing it to
+      # resolve its assets the way a real installed binary does.
+      # Compiled straight into /tmp rather than the repo: an untracked binary
+      # in the working tree makes the branch dirty, and the CLI refuses to
+      # derive a semantic version from a dirty branch, so the build below
+      # would fail for a reason that has nothing to do with what is being
+      # tested. (.gitignore now covers the bare binary too, but the build
+      # under test should not depend on that being right.)
+      - name: Build the shipped binary
+        run: |
+          mkdir -p /tmp/shipped-cli
+          # Deliberately does not regenerate the embedded assets: tests.yml
+          # already fails the PR if the committed copy has drifted from dist/,
+          # and compiling from exactly what is committed is what a release
+          # does too.
+          bun build src/index.ts --compile --outfile /tmp/shipped-cli/game-ci
+
+      - name: Run the stub build through the shipped binary (no sibling dist/)
+        run: |
+          UNITY_VERSION="${{ github.event.inputs.unity-version || '2019.4.40f1' }}"
+
+          # Proves the binary is not quietly falling back to a dist/ next to
+          # itself: there is nothing for it to fall back to.
+          test ! -e /tmp/shipped-cli/dist
+
+          # --allowDirtyBuild because the dev-mode build above already ran in
+          # this workspace and left build/, test-project/Assets/Editor/ and a
+          # generated dist/unity-config/services-config.json behind. Semantic
+          # versioning refuses a dirty tree, which would fail this step for a
+          # reason that has nothing to do with the binary under test.
+
+          /tmp/shipped-cli/game-ci build test-project             --engineVersion "${UNITY_VERSION}"             --targetPlatform StandaloneLinux64             --customImage game-ci/unity-editor-stub:latest             --unityLicense ci-stub-license             --allowDirtyBuild             --buildsPath build-shipped
+
+      - name: Verify the shipped binary produced a real build
+        run: |
+          test -f build-shipped/StandaloneLinux64/StandaloneLinux64.x86_64
+          grep -q "Unity CLI smoke artifact" build-shipped/StandaloneLinux64/StandaloneLinux64.x86_64
+
+          # The assets must have come from the embedded payload, extracted to
+          # the content-addressed cache - not from anywhere on disk.
+          test -d "$HOME/.game-ci/assets"
+          extracted=$(find "$HOME/.game-ci/assets" -name entrypoint.sh -path '*ubuntu*' | head -1)
+          test -n "$extracted"
+
+          # The bug that shipped on the first attempt: CRLF line endings make
+          # the shebang unusable inside the container. Assert the extracted
+          # script is LF, so a regression fails here rather than in a user's
+          # Unity build.
+          # od prints a carriage return as a visible escape, so this detects
+          # CRLF without embedding one in this file.
+          if head -c 200 "$extracted" | od -An -c | grep -qF '\r'; then
+            echo "Extracted entrypoint.sh has CRLF line endings - it would fail as a container entrypoint."
+            exit 1
+          fi
+
+          echo "Shipped binary verified end to end against a real container"
+
   # ─── Godot — detect + build using third-party image ────────────
   godot-build:
     name: Godot build

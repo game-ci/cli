@@ -1,0 +1,4 @@
+# Generated with LF by scripts/generate-embedded-assets.mjs. Without this a
+# Windows checkout rewrites it to CRLF, so regenerating shows the whole file
+# as modified even when the content hash is identical.
+src/generated/embedded-assets.ts text eol=lf
