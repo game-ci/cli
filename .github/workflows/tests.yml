@@ -27,6 +27,12 @@ jobs:
               - 'src/**'
               - 'dist/**'
               - 'scripts/**'
+              # The root installer and the Action that runs it: without
+              # these, a PR touching only install.sh skips the install
+              # smoke tests below - the exact blind spot that let the root
+              # installer 404 on every platform for releases on end (#242).
+              - 'install.sh'
+              - 'action.yml'
               - 'package.json'
               - 'bunfig.toml'
               - '.github/workflows/tests.yml'
@@ -109,7 +115,26 @@ jobs:
             sleep 30
           done
           [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
+          # The binary is not self-contained - it resolves its static assets
+          # from a dist/ directory that has to sit next to it (game-ci/cli#73),
+          # so a "successful" install that only lays down the executable is
+          # still broken at runtime.
+          [ -d "$(dirname "$binary_path")/dist" ] || { echo "FAIL: dist/ was not extracted next to $binary_path"; exit 1; }
           "$binary_path" --help
+      # The root install.sh (the `curl | sh` installer, and what action.yml
+      # runs on Linux/macOS) had no CI coverage at all, which is how it got
+      # to spend releases 404ing on every platform (#242) unnoticed. It now
+      # delegates to scripts/install.sh, so this only has to prove the
+      # wrapper end of that contract still holds. No retry loop: the step
+      # above has already established that the latest release is fully
+      # uploaded.
+      - name: Smoke-test the root install.sh wrapper
+        run: |
+          export GAME_CI_INSTALL=/tmp/root-install-sh-smoke-test
+          sh ./install.sh
+          [ -x "$GAME_CI_INSTALL/game-ci" ] || { echo "FAIL: game-ci not installed to $GAME_CI_INSTALL"; exit 1; }
+          [ -d "$GAME_CI_INSTALL/dist" ] || { echo "FAIL: dist/ was not extracted next to the binary"; exit 1; }
+          "$GAME_CI_INSTALL/game-ci" --help
 
   # Mirrors plugins/unity/.github/workflows/integrity-check.yml, which is
   # inert (GitHub only reads root .github/workflows/) - ported here rather

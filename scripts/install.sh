@@ -2,9 +2,10 @@
 #
 # Installs the game-ci CLI binary for the current platform, from this repo's
 # own GitHub releases. This is the ONE place platform detection, version
-# resolution, and download/extract logic lives - every engine wrapper (Action)
-# that needs the CLI (unity-builder today, others later) fetches and runs
-# this script by tag/ref instead of reimplementing this logic itself:
+# resolution, download, checksum verification and extract logic lives - every
+# engine wrapper (Action) that needs the CLI (unity-builder today, others
+# later) fetches and runs this script by tag/ref instead of reimplementing
+# this logic itself:
 #
 #   curl -fsSL "https://raw.githubusercontent.com/game-ci/cli/$VERSION/scripts/install.sh" \
 #     | bash -s -- "$VERSION" "$DEST_DIR"
@@ -22,6 +23,13 @@
 # to stay in each wrapper's own Action code, wrapped around a call to this
 # script. Everything else (platform/arch detection, "latest" resolution,
 # download, extract, chmod) is fully generic and belongs here instead.
+#
+# The repo-root install.sh (the user-facing `curl ... | sh` installer, also
+# run by action.yml on Linux/macOS) is a thin wrapper around this script for
+# the same reason: it used to carry its own copy of all of the above, drifted
+# out of sync, and spent an unknown number of releases requesting release
+# assets that had never existed (see #242). Only Windows' PowerShell path
+# (install.ps1 / action.yml's pwsh branch) stays separate - it has no bash.
 #
 # Usage: install.sh [VERSION] [DEST_DIR]
 #   VERSION   A release tag (e.g. v0.1.31), or "latest" (default: latest)
@@ -127,6 +135,66 @@ archive_path="$DEST_DIR/$asset"
 
 log "Downloading game-ci CLI ${resolved_version} from ${url}"
 curl -fsSL "$url" -o "$archive_path"
+
+# --- Checksum verification ----------------------------------------------------
+
+# Verifies the downloaded archive, and therefore has to run before extraction:
+# checksums.txt lists the release archives, not the binaries inside them.
+#
+# Deliberately soft-fails (warn + continue) when verification is impossible
+# rather than unavailable-tool - a release predating checksums.txt, or a
+# transient failure fetching it, must not break installs; only an actual
+# mismatch is fatal. Every message here goes to stderr via log(), because
+# stdout is reserved for the binary path this script prints on success.
+verify_checksum() {
+  local sha_cmd
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha_cmd="sha256sum"
+  elif command -v shasum >/dev/null 2>&1; then
+    # macOS ships shasum (Perl) rather than GNU coreutils' sha256sum.
+    sha_cmd="shasum -a 256"
+  else
+    log "Warning: neither sha256sum nor shasum found - skipping checksum verification."
+    return 0
+  fi
+
+  local checksums_url="https://github.com/${CLI_REPO}/releases/download/${resolved_version}/checksums.txt"
+  local checksums=""
+  checksums="$(curl -fsSL "$checksums_url" 2>/dev/null)" || checksums=""
+
+  if [ -z "$checksums" ]; then
+    log "Warning: could not fetch ${checksums_url} - skipping checksum verification."
+    return 0
+  fi
+
+  # Matched on the whole trailing filename field rather than a substring:
+  # an unanchored match for game-ci-linux-x64.tar.gz would also hit the
+  # game-ci-linux-arm64.tar.gz line and verify against the wrong hash. An
+  # exact field comparison is also immune to the '.' in the asset name being
+  # treated as a regex wildcard.
+  local expected
+  expected="$(awk -v want="$asset" '$NF == want { print $1; exit }' <<< "$checksums")"
+
+  if [ -z "$expected" ]; then
+    log "Warning: no checksum listed for ${asset} in checksums.txt - skipping verification."
+    return 0
+  fi
+
+  local actual
+  actual="$($sha_cmd "$archive_path" | awk '{ print $1 }')"
+
+  if [ "$expected" != "$actual" ]; then
+    rm -f "$archive_path"
+    log "Checksum verification failed for ${asset}"
+    log "  expected: ${expected}"
+    log "  actual:   ${actual}"
+    exit 1
+  fi
+
+  log "Checksum verified (SHA256) for ${asset}"
+}
+
+verify_checksum
 
 if [ "$platform" = "win32" ]; then
   # No single tool is reliably present for zip extraction across every
