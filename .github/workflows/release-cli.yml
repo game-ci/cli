@@ -22,26 +22,31 @@ jobs:
             bun-target: bun-linux-x64
             binary: game-ci
             asset: game-ci-linux-x64.tar.gz
+            binary_asset: game-ci-linux-x64
           - target: linux-arm64
             runner: ubuntu-latest
             bun-target: bun-linux-arm64
             binary: game-ci
             asset: game-ci-linux-arm64.tar.gz
+            binary_asset: game-ci-linux-arm64
           - target: macos-x64
             runner: macos-latest
             bun-target: bun-darwin-x64
             binary: game-ci
             asset: game-ci-macos-x64.tar.gz
+            binary_asset: game-ci-macos-x64
           - target: macos-arm64
             runner: macos-latest
             bun-target: bun-darwin-arm64
             binary: game-ci
             asset: game-ci-macos-arm64.tar.gz
+            binary_asset: game-ci-macos-arm64
           - target: windows-x64
             runner: windows-latest
             bun-target: bun-windows-x64
             binary: game-ci.exe
             asset: game-ci-windows-x64.zip
+            binary_asset: game-ci-windows-x64.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -64,15 +69,23 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Regenerated rather than trusted from the checkout, so a release can
+      # never ship a binary whose embedded assets are stale relative to
+      # dist/. tests.yml separately fails the PR if the committed copy drifts.
+      - name: Generate embedded assets
+        run: bun run build:assets
+
       - name: Build standalone binary
         run: bun build src/index.ts --compile --target ${{ matrix.bun-target }} --outfile pkg/${{ matrix.binary }}
 
-      # The binary alone isn't self-contained: cli.ts resolves its own
-      # static assets (default-build-script/, platforms/*,
-      # unity-config/services-config.json.template - all needed for Docker
-      # volume mounts) relative to its own directory on disk. Those assets
-      # aren't bundled into the compiled binary, so dist/ has to ship as
-      # its sibling in the same archive - see game-ci/cli#73.
+      # The binary now carries its own copy of dist/ and extracts it to a
+      # content-addressed cache on first run, so it no longer NEEDS a sibling
+      # dist/ (game-ci/cli#73). The archive keeps shipping one anyway: the
+      # published unity-builder@v6.0.0-beta.1 is immutable, defaults to
+      # cliVersion "latest", and downloads these archives - dropping dist/
+      # from them would break it retroactively. It is now a compatibility
+      # shell rather than a functional requirement, and also serves as the
+      # fallback when the extraction cache can't be written.
       - name: Copy static assets alongside the binary
         shell: bash
         run: cp -r dist pkg/dist
@@ -101,6 +114,26 @@ jobs:
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
+
+      # Published alongside the archive for packaging that expects a single
+      # file (ubi, mise, and anything that extracts one binary and discards
+      # the rest). That shape used to be actively broken - it produced a
+      # binary that ran `--help` fine and then failed on any real build,
+      # because dist/ was left behind - and is safe now the assets are
+      # embedded.
+      # Renamed to the per-target asset name before upload: the checksums job
+      # downloads every artifact with merge-multiple, which merges by
+      # filename, so four bare binaries all called "game-ci" would collide
+      # and silently overwrite each other.
+      - name: Name the bare binary per target
+        shell: bash
+        run: cp "pkg/${{ matrix.binary }}" "${{ matrix.binary_asset }}"
+
+      - name: Upload bare binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_asset }}
+          path: ${{ matrix.binary_asset }}
 
   checksums:
     name: Generate checksums and upload
