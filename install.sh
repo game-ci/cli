@@ -5,12 +5,25 @@
 # Environment variables:
 #   GAME_CI_VERSION   - Install a specific version (e.g., v0.1.0). Defaults to latest.
 #   GAME_CI_INSTALL   - Installation directory. Defaults to ~/.game-ci/bin.
+#
+# This is the user-facing half of the installer: friendly progress output,
+# PATH setup guidance, and nothing else. Platform detection, version
+# resolution, download, checksum verification and extraction all live in
+# scripts/install.sh, which this script delegates to - see that script's
+# header for why it is the single source of truth. They used to be two
+# independent implementations of the same logic, which is exactly how this
+# one silently rotted into requesting release assets that did not exist
+# (#242) while the other stayed correct.
+#
+# Windows' PowerShell path (install.ps1, and action.yml's pwsh branch) is
+# intentionally NOT consolidated into scripts/install.sh: PowerShell users
+# have no bash to run it with, so that path stays self-contained.
 
 set -e
 
 REPO="game-ci/cli"
 INSTALL_DIR="${GAME_CI_INSTALL:-$HOME/.game-ci/bin}"
-BINARY_NAME="game-ci"
+VERSION="${GAME_CI_VERSION:-latest}"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -40,200 +53,139 @@ error() {
   exit 1
 }
 
-detect_platform() {
-  OS="$(uname -s)"
-  ARCH="$(uname -m)"
-
-  case "$OS" in
-    Linux*)  PLATFORM="linux" ;;
-    Darwin*) PLATFORM="macos" ;;
-    MINGW*|MSYS*|CYGWIN*)
-      PLATFORM="windows"
-      warn "For Windows, consider using install.ps1 instead:"
-      warn "  irm https://raw.githubusercontent.com/game-ci/cli/main/install.ps1 | iex"
-      ;;
-    *) error "Unsupported operating system: $OS" ;;
-  esac
-
-  case "$ARCH" in
-    x86_64|amd64)  ARCH="x64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
-    *) error "Unsupported architecture: $ARCH" ;;
-  esac
-
-  # Releases ship archives, not bare binaries: the executable is not
-  # self-contained, it resolves its own static assets (default-build-script/,
-  # platforms/*, unity-config/) from a dist/ directory that must sit next to
-  # it on disk (see game-ci/cli#73). Both live inside this archive, so the
-  # install has to extract it rather than download a single file.
-  if [ "$PLATFORM" = "windows" ]; then
-    ASSET_NAME="game-ci-${PLATFORM}-${ARCH}.zip"
-    BINARY_NAME="game-ci.exe"
-  else
-    ASSET_NAME="game-ci-${PLATFORM}-${ARCH}.tar.gz"
-  fi
+TMP_DIR=""
+cleanup() {
+  [ -n "$TMP_DIR" ] && rm -rf "$TMP_DIR"
+  return 0
 }
+trap cleanup EXIT INT TERM
 
-get_latest_version() {
-  if [ -n "$GAME_CI_VERSION" ]; then
-    VERSION="$GAME_CI_VERSION"
-    info "Using specified version: $VERSION"
-    return
-  fi
+# Only a UX hint - the actual platform detection is scripts/install.sh's job.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    warn "For Windows, consider using install.ps1 instead:"
+    warn "  irm https://raw.githubusercontent.com/game-ci/cli/main/install.ps1 | iex"
+    ;;
+esac
 
-  info "Fetching latest release..."
+# scripts/install.sh is #!/usr/bin/env bash and uses bash-only features
+# (arrays, herestrings), while this script is POSIX sh and documented as
+# being run via `sh`. Invoke it explicitly with bash rather than letting it
+# be sourced by whatever /bin/sh happens to be.
+command -v bash > /dev/null 2>&1 || error \
+  "bash is required to install the game-ci CLI. Install bash and re-run, or on Windows use install.ps1: irm https://raw.githubusercontent.com/game-ci/cli/main/install.ps1 | iex"
 
+# Prefer a scripts/install.sh sitting next to this script (a real checkout:
+# action.yml runs "${GITHUB_ACTION_PATH}/install.sh", and contributors run
+# ./install.sh from a clone). Resolving it relative to this script's own
+# location rather than the caller's cwd keeps the Action on the ref it
+# checked out and saves it a pointless network fetch.
+INSTALLER=""
+case "$0" in
+  # `curl ... | sh` leaves $0 as the shell's own name, with no script on
+  # disk to resolve against; anything else is a real path (possibly bare,
+  # e.g. `sh install.sh`, hence the -f test rather than a slash test).
+  sh | -sh | bash | -bash | dash | -dash | ash | -ash | '') ;;
+  *)
+    if [ -f "$0" ]; then
+      SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" > /dev/null 2>&1 && pwd) || SCRIPT_DIR=""
+      if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/scripts/install.sh" ]; then
+        INSTALLER="${SCRIPT_DIR}/scripts/install.sh"
+      fi
+    fi
+    ;;
+esac
+
+fetch_installer() {
   if command -v curl > /dev/null 2>&1; then
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-      | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+    curl -fsSL "$1" -o "$2" || return 1
   elif command -v wget > /dev/null 2>&1; then
-    VERSION=$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" \
-      | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+    wget -q "$1" -O "$2" || return 1
   else
     error "Neither curl nor wget found. Please install one of them."
   fi
-
-  if [ -z "$VERSION" ]; then
-    error "Could not determine latest version. Check https://github.com/${REPO}/releases"
-  fi
+  [ -s "$2" ] || return 1
 }
 
-download() {
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
-
-  printf "\n"
-  info "Installing game-ci CLI ${VERSION} (${PLATFORM}-${ARCH})"
-  info "  from: ${DOWNLOAD_URL}"
-  info "  to:   ${INSTALL_DIR}/${BINARY_NAME}"
-  printf "\n"
-
-  mkdir -p "$INSTALL_DIR"
+if [ -n "$INSTALLER" ]; then
+  info "Using local installer: ${INSTALLER}"
+else
+  # Piped install (no checkout). Fetch the installer at the ref matching the
+  # version being installed where one was requested, so the install logic is
+  # versioned with the release it installs (see scripts/install.sh's header);
+  # fall back to main when installing "latest".
+  if [ -n "${GAME_CI_VERSION:-}" ]; then
+    INSTALLER_REF="$GAME_CI_VERSION"
+  else
+    INSTALLER_REF="main"
+  fi
 
   TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t game-ci)
-  ARCHIVE_PATH="${TMP_DIR}/${ASSET_NAME}"
+  INSTALLER="${TMP_DIR}/install.sh"
+  INSTALLER_URL="https://raw.githubusercontent.com/${REPO}/${INSTALLER_REF}/scripts/install.sh"
 
-  if command -v curl > /dev/null 2>&1; then
-    HTTP_CODE=$(curl -fSL "$DOWNLOAD_URL" -o "$ARCHIVE_PATH" \
-      -w "%{http_code}" 2>/dev/null) || true
-    if [ "$HTTP_CODE" = "404" ]; then
-      rm -rf "$TMP_DIR"
-      error "Release asset not found: ${ASSET_NAME} (${VERSION})."
-    elif [ ! -f "$ARCHIVE_PATH" ]; then
-      rm -rf "$TMP_DIR"
-      error "Download failed. URL: ${DOWNLOAD_URL}"
+  info "Fetching installer: ${INSTALLER_URL}"
+  if ! fetch_installer "$INSTALLER_URL" "$INSTALLER"; then
+    # scripts/install.sh only exists from v0.1.31 onwards; pinning an older
+    # GAME_CI_VERSION must still install that older release, so fall back to
+    # main's copy of the installer rather than failing. The release being
+    # installed is unaffected - only which install logic downloads it.
+    if [ "$INSTALLER_REF" = "main" ]; then
+      error "Could not download the installer from ${INSTALLER_URL}"
     fi
-  elif command -v wget > /dev/null 2>&1; then
-    wget -q "$DOWNLOAD_URL" -O "$ARCHIVE_PATH" \
-      || { rm -rf "$TMP_DIR"; error "Download failed. URL: ${DOWNLOAD_URL}"; }
+    warn "No installer at ref ${INSTALLER_REF}; falling back to main."
+    INSTALLER_URL="https://raw.githubusercontent.com/${REPO}/main/scripts/install.sh"
+    fetch_installer "$INSTALLER_URL" "$INSTALLER" \
+      || error "Could not download the installer from ${INSTALLER_URL}"
   fi
-}
+fi
 
-extract() {
-  case "$ASSET_NAME" in
-    *.tar.gz)
-      command -v tar > /dev/null 2>&1 || { rm -rf "$TMP_DIR"; error "tar is required to extract ${ASSET_NAME}."; }
-      tar -xzf "$ARCHIVE_PATH" -C "$INSTALL_DIR" \
-        || { rm -rf "$TMP_DIR"; error "Failed to extract ${ASSET_NAME}."; }
-      ;;
-    *.zip)
-      command -v unzip > /dev/null 2>&1 || { rm -rf "$TMP_DIR"; error "unzip is required to extract ${ASSET_NAME}. On Windows, use install.ps1 instead."; }
-      unzip -oq "$ARCHIVE_PATH" -d "$INSTALL_DIR" \
-        || { rm -rf "$TMP_DIR"; error "Failed to extract ${ASSET_NAME}."; }
-      ;;
-    *)
-      rm -rf "$TMP_DIR"
-      error "Unrecognized asset type: ${ASSET_NAME}"
-      ;;
-  esac
+printf "\n"
+info "Installing game-ci CLI (${VERSION})"
+info "  to: ${INSTALL_DIR}"
+printf "\n"
 
-  rm -rf "$TMP_DIR"
+# scripts/install.sh writes all of its progress to stderr (shown to the user
+# as it happens) and prints only the absolute binary path on stdout.
+BINARY_PATH=$(bash "$INSTALLER" "$VERSION" "$INSTALL_DIR") \
+  || error "Installation failed. See the output above for details."
 
-  if [ ! -f "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-    error "Archive extracted but ${BINARY_NAME} was not found in ${INSTALL_DIR}."
-  fi
+[ -n "$BINARY_PATH" ] && [ -f "$BINARY_PATH" ] \
+  || error "Installer did not report a valid binary path."
 
-  chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+chmod +x "$BINARY_PATH" 2> /dev/null || true
 
-  if "${INSTALL_DIR}/${BINARY_NAME}" --help > /dev/null 2>&1; then
-    info "Verified: binary runs successfully"
-  else
-    warn "Binary installed but could not verify. It may still work."
-  fi
+if "$BINARY_PATH" --help > /dev/null 2>&1; then
+  info "Verified: binary runs successfully"
+else
+  warn "Binary installed but could not verify. It may still work."
+fi
 
-  printf "\n"
-  printf "${BOLD}game-ci CLI installed successfully!${RESET}\n"
-  printf "\n"
+printf "\n"
+printf "${BOLD}game-ci CLI installed successfully!${RESET}\n"
+printf "\n"
+info "Installed: ${BINARY_PATH}"
 
-  case ":$PATH:" in
-    *":${INSTALL_DIR}:"*)
-      info "game-ci is already in your PATH. Run: game-ci --help"
-      ;;
-    *)
-      SHELL_NAME=$(basename "$SHELL" 2>/dev/null || echo "sh")
-      case "$SHELL_NAME" in
-        zsh)  PROFILE="~/.zshrc" ;;
-        bash) PROFILE="~/.bashrc" ;;
-        fish) PROFILE="~/.config/fish/config.fish" ;;
-        *)    PROFILE="~/.profile" ;;
-      esac
-      printf "${YELLOW}Add game-ci to your PATH by adding this to ${PROFILE}:${RESET}\n"
-      printf "\n"
-      if [ "$SHELL_NAME" = "fish" ]; then
-        printf "  set -gx PATH \"%s\" \$PATH\n" "$INSTALL_DIR"
-      else
-        printf "  export PATH=\"%s:\$PATH\"\n" "$INSTALL_DIR"
-      fi
-      printf "\n"
-      info "Then restart your shell or run: source ${PROFILE}"
-      ;;
-  esac
-}
-
-# Verifies the downloaded archive, and must therefore run before extract().
-# checksums.txt lists the release archives, not the binary inside them.
-verify_checksum() {
-  if command -v sha256sum > /dev/null 2>&1; then
-    SHA_CMD="sha256sum"
-  elif command -v shasum > /dev/null 2>&1; then
-    SHA_CMD="shasum -a 256"
-  else
-    warn "No sha256sum/shasum available; skipping checksum verification."
-    return 0
-  fi
-
-  CHECKSUM_URL="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
-
-  CHECKSUMS=""
-  if command -v curl > /dev/null 2>&1; then
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || true
-  elif command -v wget > /dev/null 2>&1; then
-    CHECKSUMS=$(wget -qO- "$CHECKSUM_URL" 2>/dev/null) || true
-  fi
-
-  if [ -z "$CHECKSUMS" ]; then
-    warn "Could not fetch checksums.txt; skipping checksum verification."
-    return 0
-  fi
-
-  # Anchor to end-of-line so game-ci-linux-x64.tar.gz can't match the
-  # game-ci-linux-arm64.tar.gz line (or vice versa).
-  EXPECTED=$(echo "$CHECKSUMS" | grep " ${ASSET_NAME}$" | awk '{print $1}')
-  if [ -z "$EXPECTED" ]; then
-    warn "No checksum listed for ${ASSET_NAME}; skipping verification."
-    return 0
-  fi
-
-  ACTUAL=$($SHA_CMD "$ARCHIVE_PATH" | awk '{print $1}')
-  if [ "$EXPECTED" != "$ACTUAL" ]; then
-    rm -rf "$TMP_DIR"
-    error "Checksum verification failed!\n  Expected: ${EXPECTED}\n  Got:      ${ACTUAL}"
-  fi
-
-  info "Checksum verified (SHA256)"
-}
-
-detect_platform
-get_latest_version
-download
-verify_checksum
-extract
+case ":$PATH:" in
+  *":${INSTALL_DIR}:"*)
+    info "game-ci is already in your PATH. Run: game-ci --help"
+    ;;
+  *)
+    SHELL_NAME=$(basename "$SHELL" 2>/dev/null || echo "sh")
+    case "$SHELL_NAME" in
+      zsh)  PROFILE="~/.zshrc" ;;
+      bash) PROFILE="~/.bashrc" ;;
+      fish) PROFILE="~/.config/fish/config.fish" ;;
+      *)    PROFILE="~/.profile" ;;
+    esac
+    printf "${YELLOW}Add game-ci to your PATH by adding this to ${PROFILE}:${RESET}\n"
+    printf "\n"
+    if [ "$SHELL_NAME" = "fish" ]; then
+      printf "  set -gx PATH \"%s\" \$PATH\n" "$INSTALL_DIR"
+    else
+      printf "  export PATH=\"%s:\$PATH\"\n" "$INSTALL_DIR"
+    fi
+    printf "\n"
+    info "Then restart your shell or run: source ${PROFILE}"
+    ;;
+esac

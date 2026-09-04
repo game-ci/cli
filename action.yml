@@ -43,9 +43,19 @@ runs:
           export GAME_CI_VERSION="$version"
         fi
 
+        # install.sh is a thin wrapper that delegates to scripts/install.sh
+        # (the single source of truth for platform detection, version
+        # resolution, download, checksum verification and extraction). Run
+        # from the checked-out action path, it picks up the scripts/install.sh
+        # sitting next to it, so this step needs no network fetch of the
+        # installer and always matches the ref this action was checked out at.
         "${GITHUB_ACTION_PATH}/install.sh"
         echo "$GAME_CI_INSTALL" >> "$GITHUB_PATH"
 
+    # Intentionally NOT sharing scripts/install.sh with the branch above:
+    # that script is bash, and Windows runners' PowerShell path has no bash
+    # to run it with. This branch (and install.ps1) stays self-contained on
+    # purpose - keep it in sync by hand when the install flow changes.
     - name: Install GameCI CLI
       if: runner.os == 'Windows'
       shell: pwsh
