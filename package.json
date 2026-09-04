@@ -21,7 +21,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target node",
-    "build:binary": "bun build src/index.ts --compile --outfile game-ci",
+    "build:assets": "node scripts/generate-embedded-assets.mjs",
+    "build:binary": "bun run build:assets && bun build src/index.ts --compile --outfile game-ci",
     "test": "bun test ./src",
     "lint": "echo 'Not implemented yet.'"
   },

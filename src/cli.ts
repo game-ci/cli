@@ -10,6 +10,7 @@ import { PluginLoader } from "./plugin/plugin-loader.ts";
 import { unityPlugin } from "./plugin/builtin/unity-plugin.ts";
 import { godotPlugin } from "./plugin/builtin/godot-plugin.ts";
 import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
+import { EmbeddedAssets } from "./model/embedded-assets.ts";
 import { Docker } from "./model/docker.ts";
 
 export class Cli {
@@ -43,10 +44,18 @@ export class Cli {
 
     this.cliPath = __dirname;
     // Dev mode: __dirname is <repo>/src, so dist/ is a sibling of its parent
-    // (<repo>/dist). Compiled binary: __dirname is wherever the standalone
-    // executable itself sits on disk (no src/ nesting) - dist/ must be
-    // shipped as its direct sibling instead. See game-ci/cli#73.
-    this.cliDistPath = isCompiledBinary ? path.join(__dirname, "dist") : path.join(path.dirname(__dirname), "dist");
+    // (<repo>/dist), and the working tree's own assets are used directly so
+    // edits to them take effect without a rebuild.
+    //
+    // Compiled binary: the assets are embedded in the binary and extracted to
+    // a content-addressed cache (see EmbeddedAssets). __dirname is wherever
+    // the executable sits on disk, which is where dist/ used to have to be
+    // shipped as a sibling - still passed as the fallback for installs made
+    // from a release archive, or when the cache can't be written.
+    // See game-ci/cli#73.
+    this.cliDistPath = isCompiledBinary
+      ? EmbeddedAssets.resolve(path.join(__dirname, "dist"))
+      : path.join(path.dirname(__dirname), "dist");
   }
 
   public async setup() {
