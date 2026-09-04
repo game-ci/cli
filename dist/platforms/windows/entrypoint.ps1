@@ -38,6 +38,36 @@ if ($Env:ENABLE_GPU -eq "true") {
 # ACTIVATE_LICENSE_PATH="$ACTION_FOLDER/BlankProject" + mkdir -p pattern -
 # a scratch directory Unity can use as -projectPath purely to activate/
 # return the license against, distinct from the real project.
+#
+# Returns the license exactly once, however this script ends.
+#
+# A Personal seat stays consumed until returned, unlike a serial
+# (re-activatable) or a .ulf (a file, not a seat), so a missed return breaks
+# every later run on the account. See steps/runsteps.ps1's fuller comment.
+#
+$script:UnityLicenseReturned = $false
+
+function Invoke-ReturnLicenseOnce {
+  if ($script:UnityLicenseReturned) {
+    return
+  }
+  $script:UnityLicenseReturned = $true
+
+  & "c:\steps\return_license.ps1"
+}
+
+# RETURN_LICENSE_ONLY=true (used by `game-ci return-license`) is the
+# counterpart to ACTIVATE_ONLY below: it releases a seat left active by an
+# earlier `game-ci activate` and stops.
+if ($Env:RETURN_LICENSE_ONLY -eq "true") {
+  $Env:ACTIVATE_LICENSE_PATH = "c:\ActivateLicense"
+  New-Item -ItemType Directory -Force -Path $Env:ACTIVATE_LICENSE_PATH | Out-Null
+
+  Invoke-ReturnLicenseOnce
+  Remove-Item -Recurse -Force $Env:ACTIVATE_LICENSE_PATH -ErrorAction SilentlyContinue
+  exit 0
+}
+
 if ($Env:SKIP_ACTIVATION -ne "true") {
   $Env:ACTIVATE_LICENSE_PATH = "c:\ActivateLicense"
   New-Item -ItemType Directory -Force -Path $Env:ACTIVATE_LICENSE_PATH | Out-Null
@@ -73,18 +103,21 @@ if ($Env:ACTIVATE_ONLY -eq "true") {
 # Dot-sourced rather than called with & so the $global:TEST_RUNNER_EXIT_CODE
 # it sets is visible here; build.ps1 communicates via $Env: instead, which
 # crosses the & call boundary on its own.
-if ($Env:RUN_TESTS -eq "true") {
-  . "c:\steps\steps\test.ps1"
-  $StepExitCode = [int]$global:TEST_RUNNER_EXIT_CODE
-} else {
-  & "c:\steps\build.ps1"
-  $StepExitCode = [int]$Env:BUILD_EXIT_CODE
-}
-
-# Free the seat for the activated license
-if ($Env:SKIP_ACTIVATION -ne "true") {
-  & "c:\steps\return_license.ps1"
-  Remove-Item -Recurse -Force $Env:ACTIVATE_LICENSE_PATH -ErrorAction SilentlyContinue
+try {
+  if ($Env:RUN_TESTS -eq "true") {
+    . "c:\steps\steps\test.ps1"
+    $StepExitCode = [int]$global:TEST_RUNNER_EXIT_CODE
+  } else {
+    & "c:\steps\build.ps1"
+    $StepExitCode = [int]$Env:BUILD_EXIT_CODE
+  }
+} finally {
+  # Free the seat for the activated license - in a finally so it still happens
+  # when the build/test step above throws or the job is cancelled.
+  if ($Env:SKIP_ACTIVATION -ne "true") {
+    Invoke-ReturnLicenseOnce
+    Remove-Item -Recurse -Force $Env:ACTIVATE_LICENSE_PATH -ErrorAction SilentlyContinue
+  }
 }
 
 #

@@ -24,6 +24,7 @@ export class CliCommands {
     await this.testCommand();
     await this.buildCommand();
     await this.activateCommand();
+    await this.returnLicenseCommand();
     await this.buildImageCommand();
     await this.orchestrateCommand();
     await this.remoteCommands();
@@ -71,6 +72,13 @@ export class CliCommands {
         this.register(yargs);
       },
     );
+  }
+
+  private async returnLicenseCommand() {
+    await this.yargs.command('return-license [projectPath]', 'Returns a license left active by `activate`', async (yargs: YargsInstance) => {
+      ProjectOptions.preConfigure(yargs);
+      this.register(yargs);
+    });
   }
 
   private async buildImageCommand() {

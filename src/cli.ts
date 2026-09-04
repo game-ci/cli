@@ -11,6 +11,7 @@ import { unityPlugin } from "./plugin/builtin/unity-plugin.ts";
 import { godotPlugin } from "./plugin/builtin/godot-plugin.ts";
 import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
 import { Docker } from "./model/docker.ts";
+import { SecretRedaction } from "./model/secret-redaction.ts";
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -175,6 +176,11 @@ export class Cli {
   public async validateAndParseArguments() {
     // Parsing may happen many times before this point as well.
     const options = await this.finalParse();
+
+    // Registered as soon as the options exist, so every later log line - the
+    // -vv docker command, System.run's command/output dump - can scrub them.
+    // See SecretRedaction for why this isn't derived from process.env.
+    SecretRedaction.registerFromOptions(options);
 
     if (log.isVeryVerbose) {
       console.log("cliPath", this.cliPath);

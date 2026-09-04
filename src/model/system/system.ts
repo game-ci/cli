@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { SecretRedaction } from '../secret-redaction.ts';
 
 export interface RunOptions {
   cwd?: string;
@@ -104,9 +105,13 @@ class System {
         if (log.isVeryVerbose && options.silent) {
           const symbol = runResult.status.success ? '✅' : '⚠️';
           const truncatedOutput = runResult.output.length >= 30 ? `${runResult.output.slice(0, 27)}...` : runResult.output;
-          log.debug('Command:', shell, commandToRun, symbol, {
+          // Both the command and the captured output can carry secrets - the
+          // command because it may be a `docker run ... --env UNITY_PASSWORD=`
+          // line, the output because Unity echoes back some of what it was
+          // given. See SecretRedaction.
+          log.debug('Command:', shell, SecretRedaction.redact(commandToRun), symbol, {
             status: runResult.status,
-            output: log.isMaxVerbose ? runResult.output : truncatedOutput,
+            output: SecretRedaction.redact(log.isMaxVerbose ? runResult.output : truncatedOutput),
           });
         }
 

@@ -4,6 +4,7 @@ import type { Options } from "../dependencies.ts";
 import { System } from "./system/system.ts";
 import { UnityBuildValidation } from "./unity/build-validation/unity-build-validation.ts";
 import { UnityEnvironment } from "../logic/unity/environment.ts";
+import { SecretRedaction } from "./secret-redaction.ts";
 
 /** UNITY_LICENSE/ANDROID_* etc. only make sense inside a Unity container. */
 function engineEnvVars(options: Options) {
@@ -118,7 +119,9 @@ class Docker {
     }
 
     try {
-      if (log.isVeryVerbose) log.debug(`docker command: ${command}`);
+      // Redacted: this string contains every --env value verbatim, including
+      // UNITY_PASSWORD. See SecretRedaction.
+      if (log.isVeryVerbose) log.debug(`docker command: ${SecretRedaction.redact(command)}`);
 
       const dockerRun = await System.run(command);
 

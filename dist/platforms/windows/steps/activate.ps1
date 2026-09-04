@@ -1,13 +1,20 @@
 # Native Windows host-mode equivalent of ../../ubuntu/steps/activate.sh -
-# see runsteps.ps1's doc comment. Same three activation strategies, checked
+# see runsteps.ps1's doc comment. Same four activation strategies, checked
 # in the same order, with the same success/failure detection logic (Unity's
 # own stdout/log text doesn't differ by platform, so the strings matched
 # below are identical to the bash version).
 $StepsDir = if ($Env:STEPS_DIR) { $Env:STEPS_DIR } else { $PSScriptRoot }
 . (Join-Path $StepsDir 'resolve_unity_path.ps1')
+. (Join-Path $StepsDir 'licensing_method.ps1')
 
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
+
+# Which strategy to activate with. Normally resolved by the CLI and passed in
+# as UNITY_LICENSING_METHOD; Get-UnityLicensingMethod falls back to deriving it
+# from the individual credentials. See licensing_method.ps1.
+$LicensingMethod = Get-UnityLicensingMethod
+Write-Host "Licensing method: $(if ($LicensingMethod) { $LicensingMethod } else { '<none>' })"
 
 $global:UNITY_EXIT_CODE = 1
 
@@ -25,24 +32,17 @@ $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|
 try {
   $UnityExePath = Get-UnityEditorExePath
 
-  # Serial mode is preferred over personal-license (below) whenever both are
-  # configured - see mac/steps/activate.sh's matching comment: a manually-
-  # activated .ulf is bound to the machine fingerprint of whatever machine
-  # originally requested it, which doesn't necessarily match every runner.
-  $HasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
-
-  if ((-not $HasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
+  if ($LicensingMethod -eq 'file') {
     #
-    # PERSONAL LICENSE MODE
+    # LICENSE FILE MODE
     #
-    # This will activate Unity, using a license file. Note that this is the
-    # ONLY WAY for PERSONAL LICENSES in 2020 - see
-    # https://gitlab.com/gableroux/unity3d-gitlab-ci-example/issues/5#note_72815478
+    # Formerly the only way to activate a PERSONAL license. It no longer is:
+    # Unity restricted manual (offline) activation to Enterprise and Industry
+    # seats, so a .ulf can't be obtained on a free account at all. Free-tier
+    # users want the `personal` branch below. Kept working for the seats that
+    # can still produce a .ulf, and for runners with an existing valid one.
     #
-    # The license file can be acquired using
-    # `webbertakken/request-manual-activation-file` action.
-    #
-    Write-Host 'Requesting activation (personal license)'
+    Write-Host 'Requesting activation (license file)'
 
     $FilePath = 'UnityLicenseFile.ulf'
     $LogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'activate.log'
@@ -78,7 +78,7 @@ try {
     }
 
     Remove-Item -Force $FilePath -ErrorAction SilentlyContinue
-  } elseif ($HasSerialCredentials) {
+  } elseif ($LicensingMethod -eq 'serial') {
     #
     # PROFESSIONAL (SERIAL) LICENSE MODE
     #
@@ -103,7 +103,7 @@ try {
       }
       break
     }
-  } elseif ($Env:UNITY_LICENSING_SERVER) {
+  } elseif ($LicensingMethod -eq 'floating') {
     #
     # Custom Unity License Server
     #
@@ -136,11 +136,64 @@ try {
     $global:FLOATING_LICENSE_TIMEOUT = $ParsedFile[3]
 
     Write-Host "Acquired floating license: `"$($global:FLOATING_LICENSE)`" with timeout $($global:FLOATING_LICENSE_TIMEOUT)"
+  } elseif ($LicensingMethod -eq 'personal') {
+    #
+    # PERSONAL (FREE) LICENSE MODE
+    #
+    # Acquires a Personal seat straight from Unity's licensing service using
+    # the account credentials - the replacement for the .ulf route, which
+    # Unity closed off for free seats. Note this is the *licensing client*,
+    # not the editor: Unity.exe -serial -username -password is the serial
+    # path, which Unity documents as not applying to Personal.
+    #
+    # The seat stays held until returned, unlike a .ulf. return_license.ps1
+    # has a matching branch and runsteps.ps1 runs it from a finally block,
+    # because a leaked Personal seat breaks every subsequent run on the
+    # account rather than just this one.
+    #
+    Write-Host 'Requesting activation (personal license via Unity account)'
+
+    $LicensingClientPath = Get-UnityLicensingClientExePath
+
+    # UNITY_PASSWORD is passed as an argument because the licensing client
+    # offers no stdin or file-based alternative, so it is briefly visible in
+    # the host's process list. Nothing here echoes it.
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+      $ActivateOutput = & $LicensingClientPath --activate-all --include-personal `
+                                               --username $Env:UNITY_EMAIL `
+                                               --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivateOutputVar
+      $ActivateOutput | Out-Host
+      $global:UNITY_EXIT_CODE = $LASTEXITCODE
+      $ActivateText = ($ActivateOutputVar | Out-String)
+
+      if ($global:UNITY_EXIT_CODE -eq 0) { break }
+
+      if ($Attempt -lt $MaxAttempts -and $ActivateText -match $TransientPattern) {
+        # Exponential backoff - see mac/steps/activate.sh's matching comment.
+        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+        Write-Host "Personal activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        Start-Sleep -Seconds $CurrentRetryDelay
+        continue
+      }
+      break
+    }
+
+    # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
+    # completely different fixes - say which one it was.
+    if ($global:UNITY_EXIT_CODE -ne 0) {
+      Write-PersonalActivationFailureHelp -LogText $ActivateText | Out-Null
+    }
   } else {
     #
     # NO LICENSE ACTIVATION STRATEGY MATCHED
     #
     Write-Host 'License activation strategy could not be determined.'
+    Write-Host ''
+    Write-Host 'Set one of the following:'
+    Write-Host '  * UNITY_EMAIL + UNITY_PASSWORD                 - Personal (free) seat'
+    Write-Host '  * UNITY_EMAIL + UNITY_PASSWORD + UNITY_SERIAL  - Pro/Plus seat'
+    Write-Host '  * UNITY_LICENSE or UNITY_LICENSE_FILE          - a .ulf (Enterprise/Industry)'
+    Write-Host '  * UNITY_LICENSING_SERVER                       - floating license server'
     Write-Host ''
     Write-Host 'Visit https://game.ci/docs/github/getting-started for more'
     Write-Host 'details on how to set up one of the possible activation strategies.'

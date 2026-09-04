@@ -9,8 +9,19 @@
 # activate license." on unity-builder#844's Windows CI (game-ci/cli#844
 # investigation). dist/platforms/windows/steps/activate.ps1 (the native,
 # non-container path) already uses $Env: correctly.
+. (Join-Path $PSScriptRoot 'licensing_method.ps1')
+
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
+
+# Which strategy to activate with. Normally resolved by the CLI and passed in
+# as UNITY_LICENSING_METHOD; Get-UnityLicensingMethod falls back to deriving it
+# from the individual credentials. See licensing_method.ps1.
+$LicensingMethod = Get-UnityLicensingMethod
+Write-Host "Licensing method: $(if ($LicensingMethod) { $LicensingMethod } else { '<none>' })"
+
+# See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
+$LicensingClientPath = "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe"
 
 # Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.ps1's matching retry - one
 # knob covers every activation mode below since they're the same underlying
@@ -19,29 +30,16 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
-# Serial mode is preferred over personal-license (below) whenever both are
-# configured - see mac/steps/activate.sh's matching comment: a manually-
-# activated .ulf is bound to the machine fingerprint of whatever machine
-# originally requested it, which real CI evidence shows genuinely doesn't
-# match every runner (confirmed "Machine bindings don't match" on windows
-# specifically, with the identical .ulf activating cleanly elsewhere).
-# Serial credentials have no such constraint, so given a choice, prefer them.
-$HasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
-
-if ((-not $HasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
+if ($LicensingMethod -eq 'file') {
   #
-  # PERSONAL LICENSE MODE
+  # LICENSE FILE MODE
   #
-  # windows never had this branch at all - only ubuntu/steps/activate.sh
-  # did. A repo whose only configured credential is UNITY_LICENSE (no
-  # UNITY_SERIAL/EMAIL/PASSWORD - exactly game-ci/unity-test-runner's actual
-  # repo secrets) had no way to activate on windows at all: activation
-  # always fell through to serial mode with empty credentials, producing
-  # the same "License is not active"/"0 entitlement groups" symptoms as
-  # genuine license-server flakiness, but persistent and 100% reproducible
-  # rather than transient - no amount of retrying a fundamentally missing
-  # credential ever helps.
-  Write-Host "Requesting activation (personal license)"
+  # Formerly the only way to activate a PERSONAL license. It no longer is:
+  # Unity restricted manual (offline) activation to Enterprise and Industry
+  # seats, so a .ulf can't be obtained on a free account at all. Free-tier
+  # users want the `personal` branch below. Kept working for the seats that
+  # can still produce a .ulf, and for runners with an existing valid one.
+  Write-Host "Requesting activation (license file)"
 
   $FilePath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'UnityLicenseFile.ulf'
   if ($Env:UNITY_LICENSE) {
@@ -78,14 +76,13 @@ if ((-not $HasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE
   }
   Remove-Item -Force -ErrorAction SilentlyContinue $FilePath
 }
-elseif ($env:UNITY_LICENSING_SERVER) {
+elseif ($LicensingMethod -eq 'floating') {
   #
   # Custom Unity License Server
   #
   Write-Host "Adding licensing server config"
 
-  # See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
-  & "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe" --acquire-floating | Out-File -FilePath license.txt -Encoding UTF8 # Note: using Out-File instead of redirection
+  & $LicensingClientPath --acquire-floating | Out-File -FilePath license.txt -Encoding UTF8 # Note: using Out-File instead of redirection
 
   $PARSEDFILE = Select-String -Path license.txt -Pattern '\".*?\"' | ForEach-Object { $_.Matches.Value -replace '"' }
   $global:FLOATING_LICENSE = $($PARSEDFILE[1])
@@ -95,7 +92,53 @@ elseif ($env:UNITY_LICENSING_SERVER) {
   # Store the exit code from the verify command
   $global:UNITY_EXIT_CODE = $LASTEXITCODE
 }
-else {
+elseif ($LicensingMethod -eq 'personal') {
+  #
+  # PERSONAL (FREE) LICENSE MODE
+  #
+  # Acquires a Personal seat straight from Unity's licensing service using the
+  # account credentials - the replacement for the .ulf route, which Unity
+  # closed off for free seats. Note this is the *licensing client*, not the
+  # editor: Unity.exe -serial -username -password is the serial path, which
+  # Unity documents as not applying to Personal.
+  #
+  # The seat stays held until returned, unlike a .ulf. return_license.ps1 has
+  # a matching branch and runsteps.ps1/entrypoint.ps1 run it from a finally
+  # block, because a leaked Personal seat breaks every subsequent run on the
+  # account rather than just this one.
+  Write-Host "Requesting activation (personal license via Unity account)"
+
+  # UNITY_PASSWORD is passed as an argument because the licensing client offers
+  # no stdin or file-based alternative, so it is briefly visible in the
+  # container's process list. Nothing here echoes it.
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    $ActivationOutput = & $LicensingClientPath --activate-all --include-personal `
+                                               --username $Env:UNITY_EMAIL `
+                                               --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivationOutputVar
+    $ActivationOutput | Out-Host
+    $global:UNITY_EXIT_CODE = $LASTEXITCODE
+    $ActivationText = ($ActivationOutputVar | Out-String)
+
+    if ($global:UNITY_EXIT_CODE -eq 0) { break }
+
+    if ($Attempt -lt $MaxAttempts -and $ActivationText -match $TransientPattern) {
+      # Exponential backoff (20s, 40s, 80s, ...) - see mac/steps/activate.sh's
+      # matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "Personal activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
+      continue
+    }
+    break
+  }
+
+  # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
+  # completely different fixes - say which one it was.
+  if ($global:UNITY_EXIT_CODE -ne 0) {
+    Write-PersonalActivationFailureHelp -LogText $ActivationText | Out-Null
+  }
+}
+elseif ($LicensingMethod -eq 'serial') {
   # -logfile needs a real path - without one, Unity has nowhere to write
   # and exits immediately with "Unable to open log file, exiting." (compounded
   # by $ACTIVATE_LICENSE_PATH being wrong before the fix above). Also: this
@@ -127,6 +170,28 @@ else {
 
     break
   }
+}
+else {
+  #
+  # NO LICENSE ACTIVATION STRATEGY MATCHED
+  #
+  # Previously the serial branch was the catch-all `else`, so a run with no
+  # credentials at all silently attempted activation with empty ones and
+  # failed with Unity's generic licensing errors instead of saying what was
+  # missing. Now every strategy is explicit and this is the real fallthrough.
+  Write-Host 'License activation strategy could not be determined.'
+  Write-Host ''
+  Write-Host 'Set one of the following:'
+  Write-Host '  * UNITY_EMAIL + UNITY_PASSWORD                 - Personal (free) seat'
+  Write-Host '  * UNITY_EMAIL + UNITY_PASSWORD + UNITY_SERIAL  - Pro/Plus seat'
+  Write-Host '  * UNITY_LICENSE or UNITY_LICENSE_FILE          - a .ulf (Enterprise/Industry)'
+  Write-Host '  * UNITY_LICENSING_SERVER                       - floating license server'
+  Write-Host ''
+  Write-Host 'Visit https://game.ci/docs/github/getting-started for more'
+  Write-Host 'details on how to set up one of the possible activation strategies.'
+
+  Pop-Location
+  exit 1
 }
 
 #

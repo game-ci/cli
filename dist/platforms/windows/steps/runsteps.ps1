@@ -23,6 +23,40 @@ $StepsDir = if ($Env:STEPS_DIR) { $Env:STEPS_DIR } else { $PSScriptRoot }
 . (Join-Path $StepsDir 'set_extra_git_configs.ps1')
 . (Join-Path $StepsDir 'set_gitcredential.ps1')
 
+#
+# Returns the license exactly once, however this script ends.
+#
+# Under the serial and .ulf strategies a missed return was survivable - a
+# serial can be re-activated, and a .ulf is a file, not a seat. A Personal
+# seat is neither: it stays consumed until returned, so a leaked one breaks
+# every subsequent run on the account rather than just this one. That makes
+# "return on the happy path only", which is all this script did before, an
+# actual cascading failure mode now that free-tier users can activate.
+#
+# The build/test step is therefore wrapped in try/finally below, so the return
+# also happens when that step throws or the job is cancelled.
+#
+$script:UnityLicenseReturned = $false
+
+function Invoke-ReturnLicenseOnce {
+  if ($script:UnityLicenseReturned) {
+    return
+  }
+  $script:UnityLicenseReturned = $true
+
+  . (Join-Path $StepsDir 'return_license.ps1')
+}
+
+# RETURN_LICENSE_ONLY=true (used by `game-ci return-license`, see game-ci/cli's
+# ReturnLicenseCommand) is the counterpart to ACTIVATE_ONLY below: it releases
+# a seat left active by an earlier `game-ci activate` and stops. No activation,
+# no build.
+if ($Env:RETURN_LICENSE_ONLY -eq 'true') {
+  Invoke-ReturnLicenseOnce
+  Remove-Item -Recurse -Force $Env:ACTIVATE_LICENSE_PATH -ErrorAction SilentlyContinue
+  exit 0
+}
+
 if ($Env:SKIP_ACTIVATION -ne 'true') {
   . (Join-Path $StepsDir 'activate.ps1')
 
@@ -47,16 +81,20 @@ if ($Env:ACTIVATE_ONLY -eq 'true') {
 # UnityTestCommand) runs the classic batchmode test flow instead of a
 # build - same activation/license-return steps either way, only the middle
 # step differs.
-if ($Env:RUN_TESTS -eq 'true') {
-  . (Join-Path $StepsDir 'test.ps1')
-  $StepExitCode = $global:TEST_RUNNER_EXIT_CODE
-} else {
-  . (Join-Path $StepsDir 'build.ps1')
-  $StepExitCode = $global:BUILD_EXIT_CODE
-}
-
-if ($Env:SKIP_ACTIVATION -ne 'true') {
-  . (Join-Path $StepsDir 'return_license.ps1')
+try {
+  if ($Env:RUN_TESTS -eq 'true') {
+    . (Join-Path $StepsDir 'test.ps1')
+    $StepExitCode = $global:TEST_RUNNER_EXIT_CODE
+  } else {
+    . (Join-Path $StepsDir 'build.ps1')
+    $StepExitCode = $global:BUILD_EXIT_CODE
+  }
+} finally {
+  # Runs before the activation directory is removed below (return_license.ps1
+  # Push-Location's into it), and still runs if the step above threw.
+  if ($Env:SKIP_ACTIVATION -ne 'true') {
+    Invoke-ReturnLicenseOnce
+  }
 }
 
 #

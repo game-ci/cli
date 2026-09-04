@@ -22,6 +22,18 @@ class ImageEnvironmentFactory {
         continue;
       }
       if (p.name !== 'ANDROID_KEYSTORE_BASE64' && p.value.toString().includes(`\n`)) {
+        // Bare `--env NAME` makes the docker client inherit the value from its
+        // own process environment, which keeps a multiline blob (a .ulf's XML)
+        // out of the command string. That only works when the value actually
+        // is in process.env: pass `--unityLicense <path>` instead of the
+        // UNITY_LICENSE env var and the coercer in unity-options.ts reads the
+        // file off disk, so nothing ever set process.env.UNITY_LICENSE and the
+        // variable arrived *empty* in the container - activation then failed
+        // with Unity's generic licensing errors rather than anything pointing
+        // at the real cause. Export it here so both routes behave the same.
+        if (process.env[p.name] === undefined) {
+          process.env[p.name] = p.value.toString();
+        }
         lines.push(`--env ${p.name}`);
         continue;
       }
