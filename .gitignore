@@ -12,3 +12,10 @@ logs/*
 .env*
 !.env*.dist
 *.exe
+
+# The compiled CLI binary. *.exe above covers Windows, but the Linux/macOS
+# build has no extension - without this, `bun run build:binary` leaves an
+# untracked ~120MB binary that dirties the tree, and the CLI then refuses to
+# version a build from it ("Branch is dirty. Refusing to base semantic version
+# on uncommitted changes").
+/game-ci

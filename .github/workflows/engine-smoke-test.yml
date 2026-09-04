@@ -192,18 +192,30 @@ jobs:
       # So run the same stub build again through the actual compiled binary,
       # deliberately placed where it has NO sibling dist/, forcing it to
       # resolve its assets the way a real installed binary does.
+      # Compiled straight into /tmp rather than the repo: an untracked binary
+      # in the working tree makes the branch dirty, and the CLI refuses to
+      # derive a semantic version from a dirty branch, so the build below
+      # would fail for a reason that has nothing to do with what is being
+      # tested. (.gitignore now covers the bare binary too, but the build
+      # under test should not depend on that being right.)
       - name: Build the shipped binary
-        run: bun run build:binary
+        run: |
+          mkdir -p /tmp/shipped-cli
+          # Deliberately does not regenerate the embedded assets: tests.yml
+          # already fails the PR if the committed copy has drifted from dist/,
+          # and compiling from exactly what is committed is what a release
+          # does too.
+          bun build src/index.ts --compile --outfile /tmp/shipped-cli/game-ci
 
       - name: Run the stub build through the shipped binary (no sibling dist/)
         run: |
           UNITY_VERSION="${{ github.event.inputs.unity-version || '2019.4.40f1' }}"
 
-          mkdir -p /tmp/shipped-cli
-          cp game-ci /tmp/shipped-cli/game-ci
           # Proves the binary is not quietly falling back to a dist/ next to
           # itself: there is nothing for it to fall back to.
           test ! -e /tmp/shipped-cli/dist
+          # And the working tree must be clean, or the failure above recurs.
+          test -z "$(git status --porcelain)" || { echo "Working tree is dirty:"; git status --porcelain; exit 1; }
 
           /tmp/shipped-cli/game-ci build test-project             --engineVersion "${UNITY_VERSION}"             --targetPlatform StandaloneLinux64             --customImage game-ci/unity-editor-stub:latest             --unityLicense ci-stub-license             --buildsPath build-shipped
 
