@@ -54,16 +54,17 @@ describe('UnityEnvironment', () => {
     const byNameFor = (options: Record<string, unknown>) =>
       Object.fromEntries(UnityEnvironment.getVariables(options as any).map((v) => [v.name, v.value]));
 
-    it('emits the resolved UNITY_LICENSING_METHOD so the scripts branch on one value', () => {
-      const byName = byNameFor({ unityEmail: 'ci@example.com', unityPassword: 'pw' });
-
-      expect(byName.UNITY_LICENSING_METHOD).toBe('personal');
+    it('emits no UNITY_LICENSING_METHOD on auto, leaving detection to the scripts', () => {
+      // getEnvVarString drops empty values, so the platform scripts keep using
+      // their own original precedence chains - which differ between the
+      // windows container set and everything else. Forwarding a centrally
+      // resolved method would silently change activation for existing setups.
+      expect(byNameFor({ unityEmail: 'ci@example.com', unityPassword: 'pw' }).UNITY_LICENSING_METHOD).toBe('');
+      expect(byNameFor({}).UNITY_LICENSING_METHOD).toBe('');
     });
 
-    it('emits an empty method when no credentials are configured', () => {
-      // getEnvVarString drops empty values, so the scripts fall back to their
-      // own detection and keep their existing "could not be determined" path.
-      expect(byNameFor({}).UNITY_LICENSING_METHOD).toBe('');
+    it('emits UNITY_LICENSING_METHOD when a strategy was explicitly chosen', () => {
+      expect(byNameFor({ unityLicensingMethod: 'personal' }).UNITY_LICENSING_METHOD).toBe('personal');
     });
 
     it('carries UNITY_LICENSE_FILE through, now that the option exists', () => {

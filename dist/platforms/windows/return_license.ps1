@@ -9,8 +9,10 @@
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
 
-# Must match whatever activate.ps1 acted on - see licensing_method.ps1.
-$LicensingMethod = Get-UnityLicensingMethod
+# Which license to hand back. Not simply activate.ps1's strategy - the original
+# conditions here keyed off the raw env vars, and are preserved so that no
+# return which used to happen stops happening. See licensing_method.ps1.
+$ReturnStrategy = Get-UnityLicenseReturnStrategy
 
 # See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
 $LicensingClientPath = "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe"
@@ -31,7 +33,7 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
-if ($LicensingMethod -eq 'floating') {
+if ($ReturnStrategy -eq 'floating') {
   #
   # Return any floating license used.
   #
@@ -57,7 +59,7 @@ if ($LicensingMethod -eq 'floating') {
     Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $MaxAttempts attempts - this seat may still be held by Unity's license server."
   }
 }
-elseif ($LicensingMethod -eq 'personal') {
+elseif ($ReturnStrategy -eq 'personal') {
   #
   # PERSONAL (FREE) LICENSE MODE
   #
@@ -92,7 +94,7 @@ elseif ($LicensingMethod -eq 'personal') {
     Write-Host '##[warning] will fail with ''no available seats''.'
   }
 }
-elseif ($LicensingMethod -eq 'serial') {
+elseif ($ReturnStrategy -eq 'serial') {
   # -projectPath points at the scratch activation directory, not the built
   # project, so Unity doesn't reopen the real project (and reimport its
   # library against whatever the editor's default target is) just to

@@ -7,8 +7,10 @@ $StepsDir = if ($Env:STEPS_DIR) { $Env:STEPS_DIR } else { $PSScriptRoot }
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
 
-# Must match whatever activate.ps1 acted on - see licensing_method.ps1.
-$LicensingMethod = Get-UnityLicensingMethod
+# Which license to hand back. Not simply activate.ps1's strategy - the original
+# conditions here keyed off the raw env vars, and are preserved so that no
+# return which used to happen stops happening. See licensing_method.ps1.
+$ReturnStrategy = Get-UnityLicenseReturnStrategy
 
 # A failed license *return* is worse than a failed activate/build: it leaks
 # the seat back to Unity's license pool - see mac/steps/return_license.sh's
@@ -25,7 +27,7 @@ $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
 try {
-  if ($LicensingMethod -eq 'floating') {
+  if ($ReturnStrategy -eq 'floating') {
     #
     # Return any floating license used.
     #
@@ -52,7 +54,7 @@ try {
     if ($ReturnExitCode -ne 0) {
       Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $MaxAttempts attempts - this seat may still be held by Unity's license server."
     }
-  } elseif ($LicensingMethod -eq 'personal') {
+  } elseif ($ReturnStrategy -eq 'personal') {
     #
     # PERSONAL (FREE) LICENSE MODE
     #
@@ -89,7 +91,7 @@ try {
       Write-Host '##[warning] run ''game-ci return-license'', otherwise later runs on this account'
       Write-Host '##[warning] will fail with ''no available seats''.'
     }
-  } elseif ($LicensingMethod -eq 'serial') {
+  } elseif ($ReturnStrategy -eq 'serial') {
     #
     # PROFESSIONAL (SERIAL) LICENSE MODE
     #

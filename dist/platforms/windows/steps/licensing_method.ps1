@@ -6,29 +6,80 @@
 #
 # Resolves which activation strategy the license steps should take.
 #
-# Normally UNITY_LICENSING_METHOD arrives pre-resolved from the CLI
-# (src/logic/unity/license/licensing-method.ts, via
-# UnityEnvironment.getVariables). The fallback below reproduces the same
-# priority order for the cases where it doesn't: an older CLI driving a newer
-# dist/, a container started by hand, or unity-builder invoking these scripts
-# directly. licensing-method.ts is the reference - keep the two in sync.
+# UNITY_LICENSING_METHOD, when set, is an explicit choice made by the caller
+# (`--unityLicensingMethod`, see src/logic/unity/license/licensing-method.ts)
+# and wins outright.
+#
+# Otherwise the chain below is used, and it is deliberately the *original*
+# order this script has always had - file -> serial -> floating - which matches
+# ubuntu and mac but NOT the container script set one directory up, which
+# checks floating before serial. That divergence predates this file and is
+# reproduced rather than unified, so no existing build silently changes which
+# license it consumes.
+#
+# `personal` is appended as a new terminal branch, so it can only be reached by
+# a credential combination that previously matched nothing and exited 1.
 #
 function Get-UnityLicensingMethod {
   if ($Env:UNITY_LICENSING_METHOD) {
     return $Env:UNITY_LICENSING_METHOD
   }
 
-  if ($Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
-    return 'serial'
-  }
-  if ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE) {
+  $hasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
+
+  if ((-not $hasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
     return 'file'
+  }
+  if ($hasSerialCredentials) {
+    return 'serial'
   }
   if ($Env:UNITY_LICENSING_SERVER) {
     return 'floating'
   }
   if ($Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
     return 'personal'
+  }
+
+  return ''
+}
+
+#
+# Resolves which license the return step should hand back.
+#
+# Deliberately not just "whatever activate.ps1 used". The original
+# return_license.ps1 keyed its branches off the raw env vars rather than off
+# the activation strategy, so a .ulf run with UNITY_SERIAL also set still
+# issued a serial return. Those conditions are reproduced verbatim.
+#
+# A return that used to happen and silently stops happening is a leaked seat,
+# which degrades every subsequent run on the account rather than just this one.
+# So this must never return '' for any combination where the original script
+# would have returned something.
+#
+function Get-UnityLicenseReturnStrategy {
+  $method = Get-UnityLicensingMethod
+
+  # An explicit --unityLicensingMethod governs the return too, otherwise
+  # forcing a strategy would activate one license and return another.
+  if ($Env:UNITY_LICENSING_METHOD) {
+    if ($method -eq 'personal' -or $method -eq 'floating' -or $method -eq 'serial') {
+      return $method
+    }
+    # 'file' has nothing to return - a .ulf is a file, not a seat.
+    return ''
+  }
+
+  # `personal` is only ever auto-selected when no serial, no license file and
+  # no server are set - exactly where the original conditions did nothing - so
+  # checking it first cannot shadow them.
+  if ($method -eq 'personal') {
+    return 'personal'
+  }
+  if ($Env:UNITY_LICENSING_SERVER) {
+    return 'floating'
+  }
+  if ($Env:UNITY_SERIAL) {
+    return 'serial'
   }
 
   return ''

@@ -8,8 +8,10 @@ source "$STEPS_DIR/licensing_method.sh"
 echo "Changing to \"$ACTIVATE_LICENSE_PATH\" directory."
 pushd "$ACTIVATE_LICENSE_PATH"
 
-# Must match whatever activate.sh acted on - see licensing_method.sh.
-LICENSING_METHOD="$(resolve_unity_licensing_method)"
+# Which license to hand back. Not simply activate.sh's strategy - the original
+# conditions here keyed off the raw env vars, and are preserved so that no
+# return which used to happen stops happening. See licensing_method.sh.
+RETURN_STRATEGY="$(resolve_unity_license_return_strategy)"
 
 # A failed license *return* is worse than a failed activate/build: it leaks
 # the seat back to Unity's license pool. Every subsequent job (this run and
@@ -26,7 +28,7 @@ UNITY_LICENSE_RETURN_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
 UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS=20
 UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
-if [[ "$LICENSING_METHOD" == "floating" ]]; then
+if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   #
   # Return any floating license used.
   #
@@ -55,7 +57,7 @@ if [[ "$LICENSING_METHOD" == "floating" ]]; then
     echo "##[warning] Failed to return floating license \"$FLOATING_LICENSE\" after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
   fi
   rm -f "$RETURN_LOG"
-elif [[ "$LICENSING_METHOD" == "personal" ]]; then
+elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
   #
   # PERSONAL (FREE) LICENSE MODE
   #
@@ -94,7 +96,7 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
     echo "##[warning] fail with 'no available seats'."
   fi
   rm -f "$RETURN_LOG"
-elif [[ "$LICENSING_METHOD" == "serial" ]]; then
+elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
   #
   # PROFESSIONAL (SERIAL) LICENSE MODE
   #

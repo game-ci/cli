@@ -38,6 +38,17 @@ exit "${STUB_EXIT:-0}"
 STUB
 chmod +x "$WORK/Unity.Licensing.Client"
 
+# The serial and .ulf strategies drive the editor rather than the licensing
+# client, so the backwards-compatibility checks below need it stubbed too.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
+exit "${STUB_EXIT:-0}"
+STUB
+chmod +x "$WORK/unity-editor"
+export PATH="$WORK:$PATH"
+
 export UNITY_LICENSING_CLIENT_PATH="$WORK/Unity.Licensing.Client"
 export ACTIVATE_LICENSE_PATH="$WORK/activate"
 mkdir -p "$ACTIVATE_LICENSE_PATH"
@@ -112,6 +123,108 @@ check "and actually takes the personal branch" "$(cat "$ARGV_LOG")" "--activate-
 OUT=$(run_step bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "no credentials still reports undetermined" "$OUT" "could not be determined"
 check "and lists the personal option" "$OUT" "UNITY_EMAIL + UNITY_PASSWORD"
+
+echo "Exhaustive precedence parity with the pre-personal script"
+# The strongest guard available here: for all 64 combinations of the six
+# licensing env vars, the strategy chosen today must equal the branch the
+# original activate.sh took, with `personal` allowed only where the original
+# matched nothing and exited 1.
+#
+# Spot checks miss this. Routing activation through a resolver is exactly the
+# kind of change that looks equivalent and quietly reorders one branch for one
+# credential combination that nobody on the team happens to use.
+source "$STEPS_SRC/licensing_method.sh"
+
+# The original chain, verbatim from before `personal` existed.
+original_strategy() {
+  if { [ -z "$UNITY_SERIAL" ] || [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; } &&
+     { [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_LICENSE_FILE" ]; }; then
+    echo "file"
+  elif [ -n "$UNITY_SERIAL" ] && [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ]; then
+    echo "serial"
+  elif [ -n "$UNITY_LICENSING_SERVER" ]; then
+    echo "floating"
+  else
+    echo ""
+  fi
+}
+
+MATRIX_MISMATCHES=0
+MATRIX_NEW=0
+for mask in $(seq 0 63); do
+  UNITY_LICENSING_METHOD=''
+  (( mask & 1 ))  && UNITY_SERIAL='F4-XXXX'          || UNITY_SERIAL=''
+  (( mask & 2 ))  && UNITY_EMAIL='ci@example.com'    || UNITY_EMAIL=''
+  (( mask & 4 ))  && UNITY_PASSWORD='pw123456'       || UNITY_PASSWORD=''
+  (( mask & 8 ))  && UNITY_LICENSE='<License/>'      || UNITY_LICENSE=''
+  (( mask & 16 )) && UNITY_LICENSE_FILE='/tmp/a.ulf' || UNITY_LICENSE_FILE=''
+  (( mask & 32 )) && UNITY_LICENSING_SERVER='http://ls:8080' || UNITY_LICENSING_SERVER=''
+
+  before="$(original_strategy)"
+  after="$(resolve_unity_licensing_method)"
+
+  if [ "$before" = "$after" ]; then
+    continue
+  fi
+
+  # The one sanctioned difference: a combination the original refused to
+  # activate at all now resolves to personal.
+  if [ -z "$before" ] && [ "$after" = "personal" ] &&
+     [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ]; then
+    MATRIX_NEW=$((MATRIX_NEW + 1))
+    continue
+  fi
+
+  echo "  FAIL mask=$mask changed strategy: '$before' -> '$after'"
+  echo "       SERIAL='$UNITY_SERIAL' EMAIL='$UNITY_EMAIL' PASSWORD='$UNITY_PASSWORD'"
+  echo "       LICENSE='$UNITY_LICENSE' LICENSE_FILE='$UNITY_LICENSE_FILE' SERVER='$UNITY_LICENSING_SERVER'"
+  MATRIX_MISMATCHES=$((MATRIX_MISMATCHES + 1))
+done
+unset UNITY_SERIAL UNITY_EMAIL UNITY_PASSWORD UNITY_LICENSE UNITY_LICENSE_FILE UNITY_LICENSING_SERVER UNITY_LICENSING_METHOD
+
+check "all 64 credential combinations keep their original strategy" "$MATRIX_MISMATCHES" "0"
+check "exactly one combination newly resolves to personal" "$MATRIX_NEW" "1"
+
+echo "Backwards compatibility (pre-existing setups must not change branch)"
+# These are the combinations most at risk from routing activation through a
+# resolved strategy instead of the original inline conditions. Each asserts the
+# branch this script took before `personal` existed.
+
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_LICENSING_SERVER="http://ls:8080" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "a .ulf still beats a licensing server" "$OUT" "Licensing method: file"
+
+OUT=$(run_step UNITY_SERIAL="F4-XXXX" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw" \
+  UNITY_LICENSING_SERVER="http://ls:8080" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "serial credentials still beat a licensing server" "$OUT" "Licensing method: serial"
+
+OUT=$(run_step UNITY_SERIAL="F4-XXXX" UNITY_LICENSE="<License/>" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+# Incomplete serial credentials must still fall through to the .ulf, which is
+# what the original "all three or nothing" condition did.
+check "a bare serial does not beat a .ulf" "$OUT" "Licensing method: file"
+
+# The dangerous direction: a return that used to happen must still happen.
+# The original return conditions keyed off the raw env vars, not the strategy.
+: > "$ARGV_LOG"
+run_step UNITY_SERIAL="F4-XXXX" UNITY_LICENSE="<License/>" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' > /dev/null 2>&1
+check "a .ulf run with UNITY_SERIAL set still issues a serial return" "$(cat "$ARGV_LOG")" "EDITOR"
+check "and it is a -returnlicense call" "$(cat "$ARGV_LOG")" "-returnlicense"
+
+: > "$ARGV_LOG"
+run_step UNITY_LICENSE="<License/>" UNITY_LICENSING_SERVER="http://ls:8080" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' > /dev/null 2>&1
+check "a run with a licensing server still issues a floating return" "$(cat "$ARGV_LOG")" "--return-floating"
+
+: > "$ARGV_LOG"
+run_step UNITY_LICENSING_METHOD="serial" UNITY_SERIAL="F4-XXXX" UNITY_LICENSING_SERVER="http://ls:8080" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' > /dev/null 2>&1
+# An explicit strategy has to govern the return too, or the run would activate
+# one license and hand back a different one.
+check "an explicit strategy governs the return" "$(cat "$ARGV_LOG")" "-returnlicense"
+refute "and does not fall back to floating" "$(cat "$ARGV_LOG")" "--return-floating"
 
 echo "Failure classification"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
