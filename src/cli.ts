@@ -186,11 +186,6 @@ export class Cli {
     // Parsing may happen many times before this point as well.
     const options = await this.finalParse();
 
-    // Registered as soon as the options exist, so every later log line - the
-    // -vv docker command, System.run's command/output dump - can scrub them.
-    // See SecretRedaction for why this isn't derived from process.env.
-    SecretRedaction.registerFromOptions(options);
-
     if (log.isVeryVerbose) {
       console.log("cliPath", this.cliPath);
       console.log("distPath", this.cliDistPath);
@@ -366,6 +361,12 @@ export class Cli {
   protected async finalParse() {
     const { _, $0, ...options } = await this.yargs.parseAsync();
 
+    // Registered before the dump below, not after finalParse returns: this
+    // line hands the whole options bag - unityPassword included - to the
+    // logger, so registering any later would leave the very first thing that
+    // logs a secret unredacted.
+    SecretRedaction.registerFromOptions(options);
+
     if (log.isVeryVerbose) log.info("parsed:", _, $0, options);
 
     return options;
@@ -387,9 +388,14 @@ export class Cli {
 
       try {
         rootConfig = JSON.parse(configFile);
+        // A .game-ci.yml/.json can carry unityPassword et al, and this runs
+        // well before the options bag exists, so register straight from the
+        // config block before logging it.
+        SecretRedaction.registerFromOptions(rootConfig?.cliOptions);
         if (log.isMaxVerbose) log.debug("jsonConfig", rootConfig?.cliOptions);
       } catch {
         rootConfig = yaml.parse(configFile) as any;
+        SecretRedaction.registerFromOptions(rootConfig?.cliOptions);
         if (log.isMaxVerbose) log.debug("yamlConfig", rootConfig?.cliOptions);
       }
     } catch (error) {

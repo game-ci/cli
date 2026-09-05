@@ -104,14 +104,19 @@ class System {
         // Log command output if verbose is enabled and we haven't already printed the output
         if (log.isVeryVerbose && options.silent) {
           const symbol = runResult.status.success ? '✅' : '⚠️';
-          const truncatedOutput = runResult.output.length >= 30 ? `${runResult.output.slice(0, 27)}...` : runResult.output;
+          // Redacted *before* truncating: truncating first can cut a secret in
+          // half, leaving a prefix that no longer matches the registered value
+          // and so survives redaction into the log.
+          //
           // Both the command and the captured output can carry secrets - the
           // command because it may be a `docker run ... --env UNITY_PASSWORD=`
           // line, the output because Unity echoes back some of what it was
           // given. See SecretRedaction.
+          const redactedOutput = SecretRedaction.redact(runResult.output);
+          const truncatedOutput = redactedOutput.length >= 30 ? `${redactedOutput.slice(0, 27)}...` : redactedOutput;
           log.debug('Command:', shell, SecretRedaction.redact(commandToRun), symbol, {
             status: runResult.status,
-            output: SecretRedaction.redact(log.isMaxVerbose ? runResult.output : truncatedOutput),
+            output: log.isMaxVerbose ? redactedOutput : truncatedOutput,
           });
         }
 

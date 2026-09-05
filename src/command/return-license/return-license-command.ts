@@ -30,7 +30,12 @@ import { UnityTargetPlatform } from '../../model/unity/target-platform/unity-tar
 export class ReturnLicenseCommand extends CommandBase implements CommandInterface {
   public async execute(options: Options): Promise<boolean> {
     const { hostPlatform } = options;
-    const returnLicenseOptions: Options = { ...options, returnLicenseOnly: true };
+    // activateOnly is cleared, not just left alone: the two are mutually
+    // exclusive, and a caller spreading in an options bag that still carries
+    // activateOnly would otherwise send both flags into the container. The
+    // step scripts check RETURN_LICENSE_ONLY first so it would still work
+    // today, but that ordering is not something this command should depend on.
+    const returnLicenseOptions: Options = { ...options, activateOnly: false, returnLicenseOnly: true };
 
     PlatformValidation.checkCompatibility(returnLicenseOptions);
 

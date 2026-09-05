@@ -123,7 +123,12 @@ class Docker {
       // UNITY_PASSWORD. See SecretRedaction.
       if (log.isVeryVerbose) log.debug(`docker command: ${SecretRedaction.redact(command)}`);
 
-      const dockerRun = await System.run(command);
+      // Multiline values (a .ulf's XML) are emitted as bare `--env NAME`, so
+      // the docker client has to inherit them from its own environment - see
+      // ImageEnvironmentFactory.getInheritedEnvVars.
+      const dockerRun = await System.run(command, undefined, {
+        env: ImageEnvironmentFactory.getInheritedEnvVars(options, engineEnvVars(options)),
+      });
 
       // Real bug (game-ci/unity-activate#111): validateBuild() requires a
       // "# Build results #" section, which only ever appears after a real

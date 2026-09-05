@@ -60,8 +60,13 @@ FAIL=0
 # Runs a step script with only the credentials a case explicitly sets, so a
 # stray UNITY_* in the ambient environment can't change which branch is taken.
 run_step() {
+  # RETURN_LICENSE_ONLY/ACTIVATE_ONLY are cleared too: they select which branch
+  # runsteps.sh takes, so one left set in the ambient environment would make a
+  # case exercise a different path than its name claims. Assignments in "$@"
+  # still win - env applies -u before them.
   env -u UNITY_LICENSING_METHOD -u UNITY_SERIAL -u UNITY_LICENSE \
       -u UNITY_LICENSE_FILE -u UNITY_LICENSING_SERVER -u UNITY_EMAIL -u UNITY_PASSWORD \
+      -u RETURN_LICENSE_ONLY -u ACTIVATE_ONLY \
       "$@"
 }
 

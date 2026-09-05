@@ -1,5 +1,3 @@
-import type { Options } from '../dependencies.ts';
-
 /**
  * Keeps secret values out of the CLI's own log output.
  *
@@ -60,7 +58,15 @@ const SecretRedaction = {
     }
   },
 
-  registerFromOptions(options: Options) {
+  /**
+   * Takes a plain record rather than the yargs Options type on purpose: the
+   * logger imports this module, so it must not pull in dependencies.ts and
+   * risk an import cycle. Accepts anything option-shaped, including a config
+   * file's cliOptions block, which is parsed before the options bag exists.
+   */
+  registerFromOptions(options: Record<string, unknown> | undefined | null) {
+    if (!options) return;
+
     SecretRedaction.register(...secretOptionKeys.map((key) => options[key] as string | undefined));
   },
 

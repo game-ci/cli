@@ -38,19 +38,20 @@ describe('ReturnLicenseCommand', () => {
     expect(optionsPassedToDocker.returnLicenseOnly).toBe(true);
   });
 
-  it('does not also set activateOnly, which would skip the return entirely', async () => {
-    // runsteps.sh's ACTIVATE_ONLY branch exits before return_license.sh runs,
-    // so the two flags are mutually exclusive by construction.
+  it('clears activateOnly, which would otherwise skip the return entirely', async () => {
+    // The two flags are mutually exclusive: runsteps.sh's ACTIVATE_ONLY branch
+    // exits without returning the license.
     PlatformValidation.checkCompatibility = mock(() => {});
     PlatformSetup.setup = mock(() => Promise.resolve());
     const dockerRunMock = mock(() => Promise.resolve());
     Docker.run = dockerRunMock;
 
     const command = new ReturnLicenseCommand('return-license');
-    await command.execute(baseOptions);
+    await command.execute({ ...baseOptions, activateOnly: true });
 
     const [, optionsPassedToDocker] = dockerRunMock.mock.calls[0];
-    expect(optionsPassedToDocker.activateOnly).toBeUndefined();
+    expect(optionsPassedToDocker.activateOnly).toBe(false);
+    expect(optionsPassedToDocker.returnLicenseOnly).toBe(true);
   });
 
   it('runs MacBuilder instead of Docker on darwin hosts', async () => {
