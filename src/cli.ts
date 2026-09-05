@@ -12,6 +12,7 @@ import { godotPlugin } from "./plugin/builtin/godot-plugin.ts";
 import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
 import { EmbeddedAssets } from "./model/embedded-assets.ts";
 import { Docker } from "./model/docker.ts";
+import { SecretRedaction } from "./model/secret-redaction.ts";
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -360,6 +361,12 @@ export class Cli {
   protected async finalParse() {
     const { _, $0, ...options } = await this.yargs.parseAsync();
 
+    // Registered before the dump below, not after finalParse returns: this
+    // line hands the whole options bag - unityPassword included - to the
+    // logger, so registering any later would leave the very first thing that
+    // logs a secret unredacted.
+    SecretRedaction.registerFromOptions(options);
+
     if (log.isVeryVerbose) log.info("parsed:", _, $0, options);
 
     return options;
@@ -381,9 +388,14 @@ export class Cli {
 
       try {
         rootConfig = JSON.parse(configFile);
+        // A .game-ci.yml/.json can carry unityPassword et al, and this runs
+        // well before the options bag exists, so register straight from the
+        // config block before logging it.
+        SecretRedaction.registerFromOptions(rootConfig?.cliOptions);
         if (log.isMaxVerbose) log.debug("jsonConfig", rootConfig?.cliOptions);
       } catch {
         rootConfig = yaml.parse(configFile) as any;
+        SecretRedaction.registerFromOptions(rootConfig?.cliOptions);
         if (log.isMaxVerbose) log.debug("yamlConfig", rootConfig?.cliOptions);
       }
     } catch (error) {

@@ -30,12 +30,22 @@ class MacBuilder {
   }
 
   public static async run(options: Options, silent = false) {
-    const { cliDistPath, engine } = options;
+    const { cliDistPath, engine, activateOnly, returnLicenseOnly } = options;
     log.warning('running the process');
     const macRun = await System.run(`bash ${cliDistPath}/platforms/mac/entrypoint.sh`, undefined, {
       silent,
       env: MacBuilder.buildEnv(options),
     });
+
+    // `game-ci activate` and `game-ci return-license` drive this same
+    // entrypoint but stop before build.sh, so there is no build output to
+    // validate. validateBuild throws unless it finds "Build succeeded!" or a
+    // "# Build results #" section, so running it here failed both commands on
+    // macOS *after* they had already done their work - the license was
+    // activated or returned, and the command still reported an error.
+    if (activateOnly || returnLicenseOnly) {
+      return;
+    }
 
     switch (engine) {
       case 'unity':

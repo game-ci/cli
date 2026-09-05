@@ -4,8 +4,18 @@
 # below) is an unset local PowerShell variable, not the environment
 # variable set by the caller - see activate.ps1 for the full explanation
 # and the confirmed live failure this caused (game-ci/cli#844).
+. (Join-Path $PSScriptRoot 'licensing_method.ps1')
+
 Write-Host "Changing to `"$Env:ACTIVATE_LICENSE_PATH`" directory."
 Push-Location $Env:ACTIVATE_LICENSE_PATH
+
+# Which license to hand back. Not simply activate.ps1's strategy - the original
+# conditions here keyed off the raw env vars, and are preserved so that no
+# return which used to happen stops happening. See licensing_method.ps1.
+$ReturnStrategy = Get-UnityLicenseReturnStrategy
+
+# See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
+$LicensingClientPath = "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe"
 
 # A failed license *return* is worse than a failed activate/build: it leaks
 # the seat back to Unity's license pool. Every subsequent job (this run and
@@ -23,16 +33,13 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
-if ($env:UNITY_LICENSING_SERVER) {
+if ($ReturnStrategy -eq 'floating') {
   #
   # Return any floating license used.
   #
   Write-Host "Returning floating license: `"$($global:FLOATING_LICENSE)`""
-  # Was single-quoted, so $Env:UNITY_VERSION was never interpolated at all
-  # (literal text) on top of pointing at the wrong install location -
-  # see build.ps1 for why UNITY_PATH (game-ci/cli#77).
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-    $ReturnOutput = & "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe" --return-floating $global:FLOATING_LICENSE 2>&1 | Tee-Object -Variable ReturnOutputVar
+    $ReturnOutput = & $LicensingClientPath --return-floating $global:FLOATING_LICENSE 2>&1 | Tee-Object -Variable ReturnOutputVar
     $ReturnOutput | Out-Host
     $ReturnExitCode = $LASTEXITCODE
     $ReturnText = ($ReturnOutputVar | Out-String)
@@ -52,7 +59,42 @@ if ($env:UNITY_LICENSING_SERVER) {
     Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $MaxAttempts attempts - this seat may still be held by Unity's license server."
   }
 }
-else {
+elseif ($ReturnStrategy -eq 'personal') {
+  #
+  # PERSONAL (FREE) LICENSE MODE
+  #
+  # Releases the Personal seat acquired by activate.ps1's matching branch.
+  # This branch did not exist before Unity moved Personal onto seats: a .ulf
+  # was a file, so there was nothing to give back, which is also why the
+  # `file` strategy still has no return step. Hold a Personal seat and every
+  # later run on the account fails with "no available seats".
+  Write-Host 'Returning personal license seat'
+
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    $ReturnOutput = & $LicensingClientPath --return-ulf 2>&1 | Tee-Object -Variable ReturnOutputVar
+    $ReturnOutput | Out-Host
+    $ReturnExitCode = $LASTEXITCODE
+    $ReturnText = ($ReturnOutputVar | Out-String)
+
+    if ($ReturnExitCode -eq 0) { break }
+
+    if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
+      # Exponential backoff - see mac/steps/activate.sh's matching comment.
+      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+      Write-Host "Personal license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      Start-Sleep -Seconds $CurrentRetryDelay
+      continue
+    }
+    break
+  }
+  if ($ReturnExitCode -ne 0) {
+    Write-Host "##[warning] Failed to return the Personal license seat after $MaxAttempts attempts."
+    Write-Host '##[warning] That seat is likely still held. Release it at https://id.unity.com or'
+    Write-Host '##[warning] run ''game-ci return-license'', otherwise later runs on this account'
+    Write-Host '##[warning] will fail with ''no available seats''.'
+  }
+}
+elseif ($ReturnStrategy -eq 'serial') {
   # -projectPath points at the scratch activation directory, not the built
   # project, so Unity doesn't reopen the real project (and reimport its
   # library against whatever the editor's default target is) just to

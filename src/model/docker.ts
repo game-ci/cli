@@ -4,6 +4,7 @@ import type { Options } from "../dependencies.ts";
 import { System } from "./system/system.ts";
 import { UnityBuildValidation } from "./unity/build-validation/unity-build-validation.ts";
 import { UnityEnvironment } from "../logic/unity/environment.ts";
+import { SecretRedaction } from "./secret-redaction.ts";
 
 /** UNITY_LICENSE/ANDROID_* etc. only make sense inside a Unity container. */
 function engineEnvVars(options: Options) {
@@ -118,9 +119,16 @@ class Docker {
     }
 
     try {
-      if (log.isVeryVerbose) log.debug(`docker command: ${command}`);
+      // Redacted: this string contains every --env value verbatim, including
+      // UNITY_PASSWORD. See SecretRedaction.
+      if (log.isVeryVerbose) log.debug(`docker command: ${SecretRedaction.redact(command)}`);
 
-      const dockerRun = await System.run(command);
+      // Multiline values (a .ulf's XML) are emitted as bare `--env NAME`, so
+      // the docker client has to inherit them from its own environment - see
+      // ImageEnvironmentFactory.getInheritedEnvVars.
+      const dockerRun = await System.run(command, undefined, {
+        env: ImageEnvironmentFactory.getInheritedEnvVars(options, engineEnvVars(options)),
+      });
 
       // Real bug (game-ci/unity-activate#111): validateBuild() requires a
       // "# Build results #" section, which only ever appears after a real

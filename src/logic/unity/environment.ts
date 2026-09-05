@@ -1,5 +1,6 @@
 import type { Options } from '../../dependencies.ts';
 import { DockerParameter } from '../../model/image-environment-factory.ts';
+import { resolveLicensingMethod } from './license/licensing-method.ts';
 
 /**
  * Unity-specific Docker env vars — moved out of the engine-agnostic
@@ -16,6 +17,13 @@ const UnityEnvironment = {
       { name: 'UNITY_PASSWORD', value: options.unityPassword },
       { name: 'UNITY_SERIAL', value: options.unitySerial },
       { name: 'UNITY_LICENSING_SERVER', value: options.unityLicensingServer },
+      // The single resolved activation strategy, so activate.sh/activate.ps1
+      // and return_license.sh/.ps1 branch on one value instead of each
+      // re-deriving it from the six vars above. Empty when nothing matched -
+      // the scripts keep their own "could not be determined" guidance for
+      // that case, and fall back to their original per-var detection when
+      // this is unset (e.g. an older CLI driving newer scripts).
+      { name: 'UNITY_LICENSING_METHOD', value: resolveLicensingMethod(options) },
       // Consumed by dist/platforms/mac/steps/activate.sh + build.sh's retry
       // loop around known-transient licensing errors. Currently mac-only
       // (Windows/Ubuntu build through Docker, where a container failure
@@ -46,6 +54,8 @@ const UnityEnvironment = {
       { name: 'BUILD_PROFILE', value: options.buildProfile },
       { name: 'SKIP_ACTIVATION', value: options.skipActivation ? 'true' : '' },
       { name: 'ACTIVATE_ONLY', value: options.activateOnly ? 'true' : '' },
+      // Counterpart to ACTIVATE_ONLY - see ReturnLicenseCommand.
+      { name: 'RETURN_LICENSE_ONLY', value: options.returnLicenseOnly ? 'true' : '' },
       { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
       { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
       { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },

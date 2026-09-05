@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 
+STEPS_DIR="${STEPS_DIR:-$ACTION_FOLDER/platforms/mac/steps}"
+source "$STEPS_DIR/resolve_unity_path.sh"
+source "$STEPS_DIR/licensing_method.sh"
+
 # Run in ACTIVATE_LICENSE_PATH directory
 echo "Changing to \"$ACTIVATE_LICENSE_PATH\" directory."
 pushd "$ACTIVATE_LICENSE_PATH"
+
+# Which strategy to activate with. Normally resolved by the CLI and passed in
+# as UNITY_LICENSING_METHOD; resolve_unity_licensing_method() falls back to
+# deriving it from the individual credentials. See licensing_method.sh.
+LICENSING_METHOD="$(resolve_unity_licensing_method)"
+echo "Licensing method: ${LICENSING_METHOD:-<none>}"
 
 # Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.sh's matching retry - set
 # from the real --licenseRetryMaxAttempts CLI option (see
@@ -21,9 +31,13 @@ ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access 
 # script's ubuntu counterpart but fails windows with "Machine bindings
 # don't match" every single time. Serial credentials have no such
 # constraint, so given a choice, prefer them.
-if [[ -z "$UNITY_SERIAL" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]] && { [[ -n "$UNITY_LICENSE" ]] || [[ -n "$UNITY_LICENSE_FILE" ]]; }; then
+if [[ "$LICENSING_METHOD" == "file" ]]; then
   #
-  # PERSONAL LICENSE MODE
+  # LICENSE FILE MODE
+  #
+  # Formerly the only way to activate a PERSONAL license; no longer available
+  # on a free seat, since Unity restricted manual (offline) activation to
+  # Enterprise and Industry. Free-tier users want the `personal` branch below.
   #
   # mac never had this branch at all - only ubuntu/steps/activate.sh did,
   # going all the way back to before the thin-wrapper migration (confirmed
@@ -78,7 +92,7 @@ if [[ -z "$UNITY_SERIAL" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]] && { [[
     break
   done
   rm -f "$ACTIVATE_LOG" "$FILE_PATH"
-elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
+elif [[ "$LICENSING_METHOD" == "serial" ]]; then
   #
   # SERIAL LICENSE MODE
   #
@@ -117,7 +131,7 @@ elif [[ -n "$UNITY_SERIAL" && -n "$UNITY_EMAIL" && -n "$UNITY_PASSWORD" ]]; then
     break
   done
   rm -f "$ACTIVATE_LOG"
-elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
+elif [[ "$LICENSING_METHOD" == "floating" ]]; then
   #
   # Custom Unity License Server
   #
@@ -127,17 +141,9 @@ elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
   # auditing for divergence from unity-builder's real source).
   echo "Requesting floating license"
 
-  # Unity 6000.3+ moved UnityLicensingClient from Contents/Frameworks to
-  # Contents/Helpers (https://docs.unity.com/en-us/licensing-server/client-config)
-  # - a hardcoded Frameworks path 127'd ("No such file or directory") on
-  # every 6000.3+ mac build using a license server (game-ci/unity-builder#842).
-  UNITY_LICENSING_CLIENT_SUBDIR="Frameworks"
-  if [[ "$UNITY_VERSION" =~ ^6000\.([3-9]|[1-9][0-9]) ]]; then
-    UNITY_LICENSING_CLIENT_SUBDIR="Helpers"
-  fi
-
-  "/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/$UNITY_LICENSING_CLIENT_SUBDIR/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client" \
-    --acquire-floating > license.txt
+  # The Frameworks -> Helpers move in Unity 6000.3+ now lives in
+  # resolve_unity_path.sh, so the acquire and return calls can't drift apart.
+  "$(unity_licensing_client_path)" --acquire-floating > license.txt
   UNITY_EXIT_CODE=$?
 
   if [ $UNITY_EXIT_CODE -eq 0 ]; then
@@ -148,11 +154,58 @@ elif [[ -n "$UNITY_LICENSING_SERVER" ]]; then
 
     echo "Acquired floating license: \"$FLOATING_LICENSE\" with timeout $FLOATING_LICENSE_TIMEOUT"
   fi
+elif [[ "$LICENSING_METHOD" == "personal" ]]; then
+  #
+  # PERSONAL (FREE) LICENSE MODE
+  #
+  # Acquires a Personal seat straight from Unity's licensing service using the
+  # account credentials - the replacement for the .ulf route, which Unity
+  # closed off for free seats. See ubuntu/steps/activate.sh's matching branch.
+  echo "Requesting activation (personal license via Unity account)"
+
+  # UNITY_PASSWORD is passed as an argument because the licensing client offers
+  # no stdin or file-based alternative, so it is briefly visible in the host's
+  # process list. Nothing here echoes it, and no `set -x` is in effect.
+  ACTIVATE_LOG="$(mktemp)"
+  for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
+    "$(unity_licensing_client_path)" \
+      --activate-all \
+      --include-personal \
+      --username "$UNITY_EMAIL" \
+      --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
+    UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
+      echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      sleep "$ACTIVATE_RETRY_DELAY"
+      continue
+    fi
+
+    break
+  done
+
+  # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
+  # completely different fixes - say which one it was.
+  if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
+    explain_personal_activation_failure "$ACTIVATE_LOG" || true
+  fi
+  rm -f "$ACTIVATE_LOG"
 else
   #
   # NO LICENSE ACTIVATION STRATEGY MATCHED
   #
   echo "License activation strategy could not be determined."
+  echo ""
+  echo "Set one of the following:"
+  echo "  * UNITY_EMAIL + UNITY_PASSWORD                 - Personal (free) seat"
+  echo "  * UNITY_EMAIL + UNITY_PASSWORD + UNITY_SERIAL  - Pro/Plus seat"
+  echo "  * UNITY_LICENSE or UNITY_LICENSE_FILE          - a .ulf (Enterprise/Industry)"
+  echo "  * UNITY_LICENSING_SERVER                       - floating license server"
   echo ""
   echo "Visit https://game.ci/docs/github/activation for more"
   echo "details on how to set up one of the possible activation strategies."

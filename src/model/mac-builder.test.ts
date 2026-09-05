@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { MacBuilder } from './mac-builder.ts';
+import { System } from './system/system.ts';
+import { UnityBuildValidation } from './unity/build-validation/unity-build-validation.ts';
 
 describe('MacBuilder', () => {
   describe('buildEnv (private, accessed via any-cast)', () => {
@@ -42,5 +44,45 @@ describe('MacBuilder', () => {
       expect('PROJECT_PATH' in env).toBe(false);
       expect('BUILD_NAME' in env).toBe(false);
     });
+  });
+});
+
+describe('MacBuilder.run build validation', () => {
+  const originalSystemRun = System.run;
+  const originalValidateBuild = UnityBuildValidation.validateBuild;
+
+  afterEach(() => {
+    System.run = originalSystemRun;
+    UnityBuildValidation.validateBuild = originalValidateBuild;
+  });
+
+  const baseOptions = { cliDistPath: '/dist', engine: 'unity' } as any;
+
+  // validateBuild throws unless the output contains "Build succeeded!" or a
+  // "# Build results #" section. `activate` and `return-license` drive the same
+  // mac entrypoint but stop before build.sh, so validating their output failed
+  // the command on macOS *after* it had already activated or returned the
+  // license.
+  it.each([
+    ['activateOnly', { activateOnly: true }],
+    ['returnLicenseOnly', { returnLicenseOnly: true }],
+  ])('skips build validation for %s runs', async (_name, flag) => {
+    System.run = mock(() => Promise.resolve({ output: 'Returning personal license seat', error: '' })) as any;
+    const validateMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateMock;
+
+    await MacBuilder.run({ ...baseOptions, ...flag });
+
+    expect(validateMock).not.toHaveBeenCalled();
+  });
+
+  it('still validates the build for a normal unity build', async () => {
+    System.run = mock(() => Promise.resolve({ output: 'Build succeeded!', error: '' })) as any;
+    const validateMock = mock(() => {});
+    UnityBuildValidation.validateBuild = validateMock;
+
+    await MacBuilder.run(baseOptions);
+
+    expect(validateMock).toHaveBeenCalled();
   });
 });

@@ -12,6 +12,45 @@ class ImageEnvironmentFactory {
    * merge in alongside the generic/engine-agnostic ones below. Omit for
    * engines (Godot, Unreal) that don't have their own env var set yet.
    */
+  /**
+   * Multiline values are emitted as a bare `--env NAME`, so the docker client
+   * takes the value from its own environment rather than the command string -
+   * which is what keeps a .ulf's XML blob out of the logged command.
+   *
+   * ANDROID_KEYSTORE_BASE64 is excluded: it is already single-line base64, and
+   * inlining it is the established behaviour.
+   */
+  private static isInheritedByName(p: DockerParameter): boolean {
+    return p.name !== 'ANDROID_KEYSTORE_BASE64' && String(p.value).includes(`\n`);
+  }
+
+  /**
+   * The values behind those bare `--env NAME` flags, to hand to the docker
+   * client as its own process environment.
+   *
+   * Inheritance only works if the value is actually in the child's env. When
+   * it came from `--unityLicense <path>`, the coercer in unity-options.ts read
+   * it off disk and nothing ever put it in the environment, so UNITY_LICENSE
+   * arrived *empty* in the container and activation failed with Unity's
+   * generic licensing error rather than anything pointing at the cause.
+   *
+   * Returned per call rather than written into process.env: mutating the
+   * process would make a second invocation with a different license silently
+   * reuse the first one's value.
+   */
+  public static getInheritedEnvVars(options: Options, extraVariables: DockerParameter[] = []): Record<string, string> {
+    const inherited: Record<string, string> = {};
+
+    for (const p of ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables)) {
+      if (p.value === '' || p.value === undefined) continue;
+      if (!ImageEnvironmentFactory.isInheritedByName(p)) continue;
+
+      inherited[p.name] = String(p.value);
+    }
+
+    return inherited;
+  }
+
   public static getEnvVarString(options: Options, extraVariables: DockerParameter[] = []) {
     const { hostOS } = options;
     const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
@@ -21,7 +60,7 @@ class ImageEnvironmentFactory {
       if (p.value === '' || p.value === undefined) {
         continue;
       }
-      if (p.name !== 'ANDROID_KEYSTORE_BASE64' && p.value.toString().includes(`\n`)) {
+      if (ImageEnvironmentFactory.isInheritedByName(p)) {
         lines.push(`--env ${p.name}`);
         continue;
       }

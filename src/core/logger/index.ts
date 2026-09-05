@@ -2,6 +2,7 @@ import { fileFormatter, consoleFormatter } from './formatter.ts';
 import { getHomeDir, fsSync as fs } from '../../dependencies.ts';
 import * as nodePath from 'node:path';
 import * as nodeFs from 'node:fs';
+import { SecretRedaction } from '../../model/secret-redaction.ts';
 
 export enum Verbosity {
   quiet = -1,
@@ -41,7 +42,14 @@ export const configureLogger = async (verbosity: Verbosity) => {
     for (const arg of args) {
       parts.push(typeof arg === 'string' ? arg : inspect(arg));
     }
-    return parts.join(' ');
+    // Redacted here rather than at each call site, because the call sites that
+    // matter most log whole objects: cli.ts's `parsed:` dump hands over the
+    // entire options bag (unityPassword included) and loadConfig logs the
+    // config file's cliOptions. Scrubbing at the single point where every
+    // argument has been flattened to a string covers those, the log file
+    // written just above, and any future caller, instead of relying on each
+    // one to remember. No-op until secrets are registered.
+    return SecretRedaction.redact(parts.join(' '));
   };
 
   const inspect = (value: any): string => {

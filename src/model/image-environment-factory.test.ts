@@ -61,3 +61,44 @@ describe('ImageEnvironmentFactory', () => {
     expect(envString).toContain('--env MANUAL_EXIT="true"');
   });
 });
+
+describe('ImageEnvironmentFactory.getInheritedEnvVars', () => {
+  const options = (unityLicense: string) =>
+    ({ engine: 'unity', hostOS: 'linux', unityLicense }) as any;
+
+  const multiline = '<root>\n  <License id="Terms"/>\n</root>';
+
+  it('returns multiline values so the docker client can inherit them', () => {
+    // getEnvVarString emits a bare `--env UNITY_LICENSE` for these, which only
+    // works if the value is actually in the child's environment.
+    const inherited = ImageEnvironmentFactory.getInheritedEnvVars(options(multiline), [
+      { name: 'UNITY_LICENSE', value: multiline },
+    ] as any);
+
+    expect(inherited.UNITY_LICENSE).toBe(multiline);
+  });
+
+  it('omits single-line values, which are inlined in the command instead', () => {
+    const inherited = ImageEnvironmentFactory.getInheritedEnvVars(options('single-line'), [
+      { name: 'UNITY_LICENSE', value: 'single-line' },
+    ] as any);
+
+    expect(inherited.UNITY_LICENSE).toBeUndefined();
+  });
+
+  it('does not carry a value over from a previous call', () => {
+    // Regression: this used to be cached in process.env and only written when
+    // unset, so a second invocation with a different license silently reused
+    // the first one's value.
+    const first = '<root>\n  <License id="A"/>\n</root>';
+    const second = '<root>\n  <License id="B"/>\n</root>';
+
+    ImageEnvironmentFactory.getInheritedEnvVars(options(first), [{ name: 'UNITY_LICENSE', value: first }] as any);
+    const inherited = ImageEnvironmentFactory.getInheritedEnvVars(options(second), [
+      { name: 'UNITY_LICENSE', value: second },
+    ] as any);
+
+    expect(inherited.UNITY_LICENSE).toBe(second);
+    expect(process.env.UNITY_LICENSE).toBeUndefined();
+  });
+});

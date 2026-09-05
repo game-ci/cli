@@ -3,6 +3,8 @@ import { UnityTargetPlatform } from '../model/unity/target-platform/unity-target
 import { UnityTargetPlatforms } from '../model/unity/target-platform/unity-target-platforms.ts';
 import { IOptions } from './options-interface.ts';
 import { UnityLicense } from '../model/unity/license/unity-license.ts';
+import { UnityLicensingMethod } from '../model/unity/license/unity-licensing-method.ts';
+import { UnityLicensingMethods } from '../model/unity/license/unity-licensing-methods.ts';
 import * as nodeFs from 'node:fs';
 
 export class UnityOptions implements IOptions {
@@ -49,6 +51,19 @@ export class UnityOptions implements IOptions {
           demandOption: false,
           default: process.env.UNITY_LICENSE || '',
         },
+        // Consumed by dist/platforms/*/steps/activate.{sh,ps1}, which have
+        // always branched on UNITY_LICENSE_FILE - but the option was never
+        // declared here, so environment.ts's `options.unityLicenseFile` read
+        // was always undefined and getEnvVarString dropped it. The env var
+        // therefore never reached the container and the documented flag was
+        // dead. Declared so it actually works.
+        unityLicenseFile: {
+          alias: 'lf',
+          description: 'Path to a Unity License File (.ulf) on the host filesystem',
+          type: 'string',
+          demandOption: false,
+          default: process.env.UNITY_LICENSE_FILE || '',
+        },
         unityLicensingServer: {
           alias: 'ls',
           description: 'Licensing server to use for Unity activation',
@@ -73,11 +88,33 @@ export class UnityOptions implements IOptions {
           demandOption: false,
           default: 4,
         },
+        unityLicensingMethod: {
+          description: String.dedent`
+            Which activation strategy to use.
+
+            'auto' (the default) picks one from the credentials you provided, in order:
+            serial -> file (.ulf) -> floating -> personal. Set it explicitly to force one.`,
+          choices: UnityLicensingMethods.all,
+          demandOption: false,
+          default: UnityLicensingMethod.default,
+        },
       })
       .coerce('unityLicense', async (arg: string) => {
         if (UnityLicense.isNonActivatedLicenseFile(arg)) {
+          // Unity removed manual (offline) activation for Personal licenses:
+          // license.unity3d.com/manual now redirects to /new and reports
+          // "Offline activation is available only for Enterprise and Industry
+          // seats". The old advice - "go activate the .alf and come back with
+          // a .ulf" - is unfollowable on a free seat, so point at the
+          // licensing-client path rather than at a dead end.
           throw new Error(String.dedent`Unity License File (.ulf) expected, but got .alf.
-          Please activate your license file first.`);
+
+          Turning an .alf into a .ulf requires manual (offline) activation, which Unity now
+          restricts to Enterprise and Industry seats.
+
+          On a Personal (free) seat, drop the license file entirely and activate with your
+          Unity account instead: set unityEmail (UNITY_EMAIL) and unityPassword
+          (UNITY_PASSWORD), which resolves to --unityLicensingMethod personal.`);
         }
 
         return UnityLicense.isValidLicenseFilePath(arg) ? nodeFs.readFileSync(arg, 'utf-8') : arg;

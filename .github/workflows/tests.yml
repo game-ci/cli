@@ -84,6 +84,16 @@ jobs:
       # default, so this needs no extra setup.
       - name: Validate platform scripts (dist/platforms)
         run: bash scripts/validate-platform-scripts.sh
+      # Parsing those scripts isn't enough for the licensing steps: what
+      # matters is which Unity.Licensing.Client invocation each credential
+      # combination produces, and whether the seat is handed back on every
+      # exit path - behaviour that lives in bash, so no TypeScript test can
+      # reach it. A leaked Personal seat breaks every later run on the
+      # account, not just the one that leaked it, which makes the
+      # "returned even though the build hard-exited" case a real regression
+      # test. Runs against a stub client: no Unity, no Docker, no network.
+      - name: Licensing step behaviour tests (dist/platforms/ubuntu/steps)
+        run: bash scripts/test-licensing-steps.sh
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just
