@@ -231,6 +231,35 @@ run_step UNITY_LICENSING_METHOD="serial" UNITY_SERIAL="F4-XXXX" UNITY_LICENSING_
 check "an explicit strategy governs the return" "$(cat "$ARGV_LOG")" "-returnlicense"
 refute "and does not fall back to floating" "$(cat "$ARGV_LOG")" "--return-floating"
 
+echo "License file activation output"
+# Regression test for game-ci/cli#252: the .ulf branch used to capture
+# unity-editor's output into a variable via command substitution instead of
+# streaming it through `tee` like every other strategy here, so a genuine
+# (non-transient) failure surfaced nothing but the generic "Unclassified
+# error" summary - the actual reason Unity gave was silently discarded.
+: > "$ARGV_LOG"
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "DistinctiveActivationFailureReason: seat already in use by another machine"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "a failed license-file activation surfaces Unity's actual output" "$OUT" \
+  "DistinctiveActivationFailureReason"
+check "and still reports the generic summary alongside it" "$OUT" "Unclassified error"
+
+# Restore the always-succeeding stub for every test below.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
+exit "${STUB_EXIT:-0}"
+STUB
+chmod +x "$WORK/unity-editor"
+
 echo "Failure classification"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_EXIT=1 STUB_OUTPUT="Error: no available seats for this organization" \
