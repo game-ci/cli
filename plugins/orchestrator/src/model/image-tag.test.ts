@@ -68,4 +68,41 @@ describe('ImageTag', () => {
       expect(image.toString()).toBe('unityci/windows-editor:6000.4.7f1-windows-mono-3');
     });
   });
+
+  // Real bug (game-ci/cli#248): several callers built the overrides object
+  // passed into BuildParameters.create() with `unityVersion:
+  // UnityVersioning.determineUnityVersion(...)` (an async function) without
+  // awaiting it. The unresolved Promise flowed through untyped properties
+  // all the way to this constructor and got silently stringified as
+  // "[object Promise]" inside the Docker image tag, which then failed to
+  // pull with no indication of the real cause.
+  describe('editorVersion validation', () => {
+    it('throws a clear error when editorVersion is a Promise instead of a resolved string', () => {
+      expect(
+        () =>
+          new ImageTag({
+            editorVersion: Promise.resolve('6000.4.7f1') as unknown as string,
+            targetPlatform: 'StandaloneLinux64',
+            builderPlatform: 'linux',
+          }),
+      ).toThrow(/forgot to `await`/);
+    });
+
+    it('does not throw for a normal resolved string', () => {
+      expect(
+        () =>
+          new ImageTag({
+            editorVersion: '6000.4.7f1',
+            targetPlatform: 'StandaloneLinux64',
+            builderPlatform: 'linux',
+          }),
+      ).not.toThrow();
+    });
+
+    it('does not throw for the default empty editorVersion', () => {
+      expect(
+        () => new ImageTag({ targetPlatform: 'StandaloneLinux64', builderPlatform: 'linux' }),
+      ).not.toThrow();
+    });
+  });
 });

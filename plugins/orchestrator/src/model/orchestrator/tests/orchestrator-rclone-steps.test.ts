@@ -55,13 +55,14 @@ describe('Orchestrator pre-built rclone steps', () => {
       it('Run build and prebuilt rclone cache pull, cache push and upload build', async () => {
         const remote =
           process.env.RCLONE_REMOTE || process.env.rcloneRemote || 'local:./temp/rclone-remote';
+        const unityVersion = await UnityVersioning.determineUnityVersion(
+          'test-project',
+          UnityVersioning.read('test-project'),
+        );
         const overrides = {
           versioning: 'None',
           projectPath: 'test-project',
-          unityVersion: UnityVersioning.determineUnityVersion(
-            'test-project',
-            UnityVersioning.read('test-project'),
-          ),
+          unityVersion,
           targetPlatform: 'StandaloneLinux64',
           cacheKey: `test-case-${uuidv4()}`,
           containerHookFiles: `rclone-pull-cache,rclone-upload-cache,rclone-upload-build`,
