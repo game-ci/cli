@@ -224,6 +224,7 @@ else
   # Activation failed so exit with the code from the license verification step
   echo "Unclassified error occured while trying to activate license."
   echo "Exit code was: $UNITY_EXIT_CODE"
+  echo "See the activation output above (starting at \"Requesting activation\") for the actual reason Unity gave."
   exit $UNITY_EXIT_CODE
 fi
 

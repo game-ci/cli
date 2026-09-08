@@ -51,15 +51,24 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
     cat "$UNITY_LICENSE_FILE" | tr -d '\r' > $FILE_PATH
   fi
 
+  # Unlike the serial/floating/personal branches below, this used to capture
+  # Unity's output into a variable via command substitution instead of
+  # streaming it through `tee` - so on a genuine (non-transient) activation
+  # failure, the user got nothing but the generic "Unclassified error occured
+  # while trying to activate license." at the bottom of this script, with the
+  # actual reason Unity gave silently discarded. `tee` now mirrors it live to
+  # the build log the same way every other licensing method here already
+  # does (game-ci/cli#252).
+  ACTIVATE_LOG="$(mktemp)"
   for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
     # Activate license
-    ACTIVATION_OUTPUT=$(${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
+    ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
         -logFile /dev/stdout \
         -quit \
-        -manualLicenseFile $FILE_PATH)
+        -manualLicenseFile $FILE_PATH 2>&1 | tee "$ACTIVATE_LOG"
 
     # Store the exit code from the verify command
-    UNITY_EXIT_CODE=$?
+    UNITY_EXIT_CODE=${PIPESTATUS[0]}
 
     # The exit code for personal activation is always 1;
     # Determine whether activation was successful.
@@ -68,15 +77,12 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
     #
     #   "LICENSE SYSTEM [2020120 18:51:20] Next license update check is after 2019-11-25T18:23:38"
     #
-    ACTIVATION_SUCCESSFUL=$(echo "$ACTIVATION_OUTPUT" | grep 'Next license update check is after' | wc -l)
-
-    # Set exit code to 0 if activation was successful
-    if [[ $ACTIVATION_SUCCESSFUL -eq 1 ]]; then
+    if grep -q 'Next license update check is after' "$ACTIVATE_LOG"; then
       UNITY_EXIT_CODE=0
       break
     fi
 
-    if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" <<< "$ACTIVATION_OUTPUT"; then
+    if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
       echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
@@ -86,6 +92,7 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     break
   done
+  rm -f "$ACTIVATE_LOG"
 
   # Remove license file
   rm -f $FILE_PATH
@@ -252,6 +259,7 @@ else
   # Activation failed so exit with the code from the license verification step
   echo "Unclassified error occured while trying to activate license."
   echo "Exit code was: $UNITY_EXIT_CODE"
+  echo "See the activation output above (starting at \"Requesting activation\") for the actual reason Unity gave."
   exit $UNITY_EXIT_CODE
 fi
 

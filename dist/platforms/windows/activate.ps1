@@ -205,6 +205,7 @@ else {
   # Activation failed so exit with the code from the license verification step
   Write-Host "Unclassified error occured while trying to activate license."
   Write-Host "Exit code was: $($global:UNITY_EXIT_CODE)"
+  Write-Host 'See the activation output above (starting at "Requesting activation") for the actual reason Unity gave.'
   exit $global:UNITY_EXIT_CODE
 }
 
