@@ -463,7 +463,20 @@ class Orchestrator {
    * retry-on-fallback (if enabled).
    */
   private static async setupWorkflowWithTimeout() {
-    const timeoutSeconds = Orchestrator.buildParameters.providerInitTimeout;
+    // Real bug: providerInitTimeout is never set anywhere in
+    // BuildParameters.create() or Input, so this was always `undefined`.
+    // `undefined <= 0` is false (comparisons against undefined are always
+    // false), so the "timeout disabled" fast path below was never taken;
+    // instead every run built a timeoutPromise with `undefined * 1000`
+    // (NaN) as the delay and logged "Provider init timeout: undefineds".
+    // setTimeout's handling of a NaN delay isn't something to rely on
+    // (Node's own clamping rule technically only covers delay < 1 and
+    // delay > 2^31-1, and NaN satisfies neither comparison), so this could
+    // race unpredictably against the real provider setup instead of
+    // reliably behaving as "no timeout". Default to 0 - already-defined as
+    // this method's own "timeout disabled" value - rather than invent a new
+    // fallback duration.
+    const timeoutSeconds = Orchestrator.buildParameters.providerInitTimeout || 0;
 
     const setupPromise = Orchestrator.Provider.setupWorkflow(
       Orchestrator.buildParameters.buildGuid,

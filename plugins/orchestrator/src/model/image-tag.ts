@@ -22,6 +22,24 @@ class ImageTag {
       customImage = '',
     } = imageProperties;
 
+    // Real bug (game-ci/cli#248): several call sites built the overrides
+    // object passed into BuildParameters.create() with
+    // `unityVersion: UnityVersioning.determineUnityVersion(...)` - an async
+    // function - without awaiting it. The unresolved Promise flowed through
+    // untyped `{ [key: string]: string }` properties all the way here and
+    // got silently stringified as "[object Promise]" inside the Docker image
+    // tag (e.g. `unityci/editor:[object Promise]-linux-il2cpp-3`), which
+    // then failed to pull with no indication of the real cause. Fail loudly
+    // at the point the bad value is actually consumed, rather than let it
+    // travel further as a corrupted tag string.
+    if (editorVersion !== '' && typeof (editorVersion as unknown as { then?: unknown })?.then === 'function') {
+      throw new TypeError(
+        'ImageTag received a Promise for editorVersion instead of a resolved string - ' +
+          'a caller almost certainly forgot to `await` an async Unity-version lookup ' +
+          '(e.g. UnityVersioning.determineUnityVersion) before building these parameters.',
+      );
+    }
+
     this.repository = 'unityci';
     this.editorVersion = editorVersion;
     this.targetPlatform = targetPlatform;

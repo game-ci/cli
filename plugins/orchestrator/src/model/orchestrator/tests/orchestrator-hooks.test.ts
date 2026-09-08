@@ -25,13 +25,11 @@ describe('Orchestrator Custom Hooks And Steps', () => {
 commands: echo "test"`;
     const yamlString2 = `- hook: before
   commands: echo "test"`;
+    const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
     const overrides = {
       versioning: 'None',
       projectPath: 'test-project',
-      unityVersion: UnityVersioning.determineUnityVersion(
-        'test-project',
-        UnityVersioning.read('test-project'),
-      ),
+      unityVersion,
       targetPlatform: 'StandaloneLinux64',
       image: 'ubuntu',
       cacheKey: `test-case-${uuidv4()}`,
@@ -53,14 +51,12 @@ commands: echo "test"`;
   });
   if (OrchestratorOptions.orchestratorDebug) {
     it('Should be 1 before and 1 after hook', async () => {
+      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
       const overrides = {
         versioning: 'None',
         image: 'ubuntu',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.determineUnityVersion(
-          'test-project',
-          UnityVersioning.read('test-project'),
-        ),
+        unityVersion,
         targetPlatform: 'StandaloneLinux64',
         cacheKey: `test-case-${uuidv4()}`,
         containerHookFiles: `my-test-step-pre-build,my-test-step-post-build`,
@@ -74,13 +70,11 @@ commands: echo "test"`;
       expect(afterHooks).toHaveLength(1);
     });
     it('Should be 1 before and 1 after step', async () => {
+      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
       const overrides = {
         versioning: 'None',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.determineUnityVersion(
-          'test-project',
-          UnityVersioning.read('test-project'),
-        ),
+        unityVersion,
         targetPlatform: 'StandaloneLinux64',
         cacheKey: `test-case-${uuidv4()}`,
         image: 'ubuntu',
@@ -106,13 +100,11 @@ commands: echo "test"`;
         return;
       }
 
+      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
       const overrides = {
         versioning: 'None',
         projectPath: 'test-project',
-        unityVersion: UnityVersioning.determineUnityVersion(
-          'test-project',
-          UnityVersioning.read('test-project'),
-        ),
+        unityVersion,
         targetPlatform: 'StandaloneLinux64',
         cacheKey: `test-case-${uuidv4()}`,
         containerHookFiles: `my-test-step-pre-build,my-test-step-post-build`,

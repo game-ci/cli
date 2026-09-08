@@ -29,7 +29,14 @@ const statusCommand: CommandModule = {
 
     if (hasProject) {
       try {
-        const unityVersion = UnityVersioning.determineUnityVersion(projectPath, 'auto');
+        // Real bug: determineUnityVersion is async and this call was missing
+        // await, so `unityVersion` was a Promise object and every invocation
+        // of this command printed "Unity Version: [object Promise]" instead
+        // of the actual detected version. The try/catch was also dead code
+        // for the async-rejection path as a result - a rejected promise
+        // isn't thrown synchronously, so it could never have been caught
+        // here; it's now meaningful.
+        const unityVersion = await UnityVersioning.determineUnityVersion(projectPath, 'auto');
         core.info(`Unity Version: ${unityVersion}`);
       } catch {
         core.info(`Unity Version: Unable to detect`);
