@@ -20,7 +20,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
   it('Responds', () => {});
   if (OrchestratorOptions.orchestratorDebug) {
     it(`Get locked workspace From No Workspace`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -39,7 +42,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
       ).toBeTruthy();
     }, 150000);
     it(`Get locked workspace from unlocked`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -62,7 +68,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
       expect(Orchestrator.lockedWorkspace).toMatch(newWorkspaceName);
     }, 300000);
     it(`Get locked workspace from locked`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -101,7 +110,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
       expect(Orchestrator.lockedWorkspace).not.toMatch(newWorkspaceName);
     }, 300000);
     it(`Get locked workspace after double lock and one unlock`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -149,7 +161,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
       expect(Orchestrator.lockedWorkspace).not.toContain(newWorkspaceName);
     }, 300000);
     it(`Get locked workspace after double lock and unlock`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -200,7 +215,10 @@ describe('Orchestrator Locking Get Locked Workspace', () => {
       expect(Orchestrator.lockedWorkspace).toContain(newWorkspaceName);
     }, 300000);
     it(`Get locked workspace from unlocked was locked`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',

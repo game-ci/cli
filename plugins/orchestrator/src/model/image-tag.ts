@@ -32,7 +32,10 @@ class ImageTag {
     // then failed to pull with no indication of the real cause. Fail loudly
     // at the point the bad value is actually consumed, rather than let it
     // travel further as a corrupted tag string.
-    if (editorVersion !== '' && typeof (editorVersion as unknown as { then?: unknown })?.then === 'function') {
+    if (
+      editorVersion !== '' &&
+      typeof (editorVersion as unknown as { then?: unknown })?.then === 'function'
+    ) {
       throw new TypeError(
         'ImageTag received a Promise for editorVersion instead of a resolved string - ' +
           'a caller almost certainly forgot to `await` an async Unity-version lookup ' +

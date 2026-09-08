@@ -25,7 +25,10 @@ describe('Orchestrator Custom Hooks And Steps', () => {
 commands: echo "test"`;
     const yamlString2 = `- hook: before
   commands: echo "test"`;
-    const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+    const unityVersion = await UnityVersioning.determineUnityVersion(
+      'test-project',
+      UnityVersioning.read('test-project'),
+    );
     const overrides = {
       versioning: 'None',
       projectPath: 'test-project',
@@ -51,7 +54,10 @@ commands: echo "test"`;
   });
   if (OrchestratorOptions.orchestratorDebug) {
     it('Should be 1 before and 1 after hook', async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides = {
         versioning: 'None',
         image: 'ubuntu',
@@ -70,7 +76,10 @@ commands: echo "test"`;
       expect(afterHooks).toHaveLength(1);
     });
     it('Should be 1 before and 1 after step', async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -100,7 +109,10 @@ commands: echo "test"`;
         return;
       }
 
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides = {
         versioning: 'None',
         projectPath: 'test-project',

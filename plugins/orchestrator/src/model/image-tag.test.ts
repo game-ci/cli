@@ -100,7 +100,9 @@ describe('ImageTag', () => {
     });
 
     it('does not throw for the default empty editorVersion', () => {
-      expect(() => new ImageTag({ targetPlatform: 'StandaloneLinux64', builderPlatform: 'linux' })).not.toThrow();
+      expect(
+        () => new ImageTag({ targetPlatform: 'StandaloneLinux64', builderPlatform: 'linux' }),
+      ).not.toThrow();
     });
   });
 });

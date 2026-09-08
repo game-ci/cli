@@ -47,7 +47,10 @@ describe('Orchestrator pre-built S3 steps', () => {
 
         // Use customJob to run only S3 hooks without a full Unity build
         // This is a quick validation test for S3 operations, not a full build test
-        const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+        const unityVersion = await UnityVersioning.determineUnityVersion(
+          'test-project',
+          UnityVersioning.read('test-project'),
+        );
         const overrides = {
           versioning: 'None',
           projectPath: 'test-project',

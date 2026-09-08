@@ -21,7 +21,10 @@ describe('Orchestrator Locking Core', () => {
   it('Responds', () => {});
   if (OrchestratorOptions.orchestratorDebug) {
     it(`Create Workspace`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -38,7 +41,10 @@ describe('Orchestrator Locking Core', () => {
       ).toBeTruthy();
     }, 150000);
     it(`Create Workspace And Lock Workspace`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
@@ -59,7 +65,10 @@ describe('Orchestrator Locking Core', () => {
       ).toBeTruthy();
     }, 150000);
     it(`0 free workspaces after locking`, async () => {
-      const unityVersion = await UnityVersioning.determineUnityVersion('test-project', UnityVersioning.read('test-project'));
+      const unityVersion = await UnityVersioning.determineUnityVersion(
+        'test-project',
+        UnityVersioning.read('test-project'),
+      );
       const overrides: any = {
         versioning: 'None',
         projectPath: 'test-project',
