@@ -197,11 +197,12 @@ jobs:
           TAG: ${{ needs.checksums.outputs.tag }}
         run: gh release download "$TAG" --repo ${{ github.repository }} --pattern checksums.txt --output checksums.txt --clobber
 
-      # TAP_BUCKET_PAT is a fine-grained PAT scoped to only these two repos
-      # (Contents: Read and write), not the broad token used elsewhere in
-      # this org - both target repos are public, so a wider-scoped secret
-      # sitting in a public repo's Actions secrets would be an unnecessarily
-      # large blast radius if it ever leaked.
+      # TAP_BUCKET_PAT is currently the maintainer's existing broad personal
+      # token (repo + workflow scope), reused here rather than a dedicated
+      # fine-grained PAT. That means it grants push access to every repo the
+      # token owner can write to, not just these two - worth tightening to a
+      # PAT scoped to only homebrew-tap/scoop-bucket if this secret's blast
+      # radius ever becomes a concern (both are public repos).
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
         with:
