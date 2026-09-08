@@ -173,3 +173,85 @@ jobs:
             game-ci-* checksums.txt \
             --repo ${{ github.repository }} \
             --clobber
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+  # Homebrew and Scoop pin an exact version + checksums per release and don't
+  # auto-track GitHub releases, so without this job every release needed a
+  # manual follow-up edit to game-ci/homebrew-tap and game-ci/scoop-bucket
+  # (missed entirely for v0.1.51). Only runs for an actual published release
+  # (not workflow_dispatch re-runs, which re-attach binaries to an existing
+  # tag rather than cutting a new one).
+  update-package-managers:
+    name: Update Homebrew tap and Scoop bucket
+    needs: checksums
+    if: github.event_name == 'release' && needs.checksums.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout game-ci/cli
+        uses: actions/checkout@v4
+
+      - name: Download checksums.txt from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.checksums.outputs.tag }}
+        run: gh release download "$TAG" --repo ${{ github.repository }} --pattern checksums.txt --output checksums.txt --clobber
+
+      # TAP_BUCKET_PAT is a fine-grained PAT scoped to only these two repos
+      # (Contents: Read and write), not the broad token used elsewhere in
+      # this org - both target repos are public, so a wider-scoped secret
+      # sitting in a public repo's Actions secrets would be an unnecessarily
+      # large blast radius if it ever leaked.
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: game-ci/homebrew-tap
+          token: ${{ secrets.TAP_BUCKET_PAT }}
+          path: homebrew-tap
+
+      - name: Checkout scoop-bucket
+        uses: actions/checkout@v4
+        with:
+          repository: game-ci/scoop-bucket
+          token: ${{ secrets.TAP_BUCKET_PAT }}
+          path: scoop-bucket
+
+      - name: Update Homebrew formula
+        env:
+          TAG: ${{ needs.checksums.outputs.tag }}
+        run: node scripts/release/update-homebrew-tap.mjs "$TAG" checksums.txt homebrew-tap/Formula/game-ci.rb
+
+      - name: Update Scoop manifest
+        env:
+          TAG: ${{ needs.checksums.outputs.tag }}
+        run: node scripts/release/update-scoop-bucket.mjs "$TAG" checksums.txt scoop-bucket/bucket/game-ci.json
+
+      - name: Commit and push homebrew-tap
+        env:
+          TAG: ${{ needs.checksums.outputs.tag }}
+        run: |
+          cd homebrew-tap
+          git config user.name "game-ci-bot"
+          git config user.email "actions@github.com"
+          if git diff --quiet; then
+            echo "No changes to Formula/game-ci.rb, skipping."
+            exit 0
+          fi
+          git add Formula/game-ci.rb
+          git commit -m "Update game-ci to $TAG"
+          git push
+
+      - name: Commit and push scoop-bucket
+        env:
+          TAG: ${{ needs.checksums.outputs.tag }}
+        run: |
+          cd scoop-bucket
+          git config user.name "game-ci-bot"
+          git config user.email "actions@github.com"
+          if git diff --quiet; then
+            echo "No changes to bucket/game-ci.json, skipping."
+            exit 0
+          fi
+          git add bucket/game-ci.json
+          git commit -m "Update game-ci to $TAG"
+          git push
