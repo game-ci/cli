@@ -43,9 +43,10 @@ const UnityEnvironment = {
       { name: 'ANDROID_VERSION_CODE', value: options.androidVersionCode },
       { name: 'ANDROID_KEYSTORE_NAME', value: options.androidKeystoreName },
       { name: 'ANDROID_KEYSTORE_BASE64', value: options.androidKeystoreBase64 },
-      { name: 'ANDROID_KEYSTORE_PASS', value: options.androidKeystorePass },
-      { name: 'ANDROID_KEYALIAS_NAME', value: options.androidKeyaliasName },
-      { name: 'ANDROID_KEYALIAS_PASS', value: options.androidKeyaliasPass },
+      // Prefer the documented options, retaining deprecated and legacy spellings as fallbacks.
+      { name: 'ANDROID_KEYSTORE_PASS', value: options.androidKeystorePassword || options.androidKeystorePass },
+      { name: 'ANDROID_KEYALIAS_NAME', value: options.androidKeyAlias || options.androidKeyAliasName || options.androidKeyaliasName },
+      { name: 'ANDROID_KEYALIAS_PASS', value: options.androidKeyAliasPassword || options.androidKeyAliasPass || options.androidKeyaliasPass },
       { name: 'ANDROID_TARGET_SDK_VERSION', value: options.androidTargetSdkVersion },
       { name: 'ANDROID_SDK_MANAGER_PARAMETERS', value: options.androidSdkManagerParameters },
       { name: 'ANDROID_EXPORT_TYPE', value: options.androidExportType },
