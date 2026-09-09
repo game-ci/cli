@@ -319,6 +319,7 @@ check "falls back to personal on a machine-binding mismatch" "$OUT" \
   "falling back to activating with the Unity account"
 check "and the fallback actually succeeds" "$OUT" "Activation complete."
 refute "and does not also report the generic failure summary" "$OUT" "Unclassified error"
+check "the file activation is attempted first" "$(head -n 1 "$ARGV_LOG")" "EDITOR"
 check "the fallback invokes the licensing client, not another editor call" "$(cat "$ARGV_LOG")" \
   "CLIENT --activate-all --include-personal --username ci@example.com --password pw123456"
 
