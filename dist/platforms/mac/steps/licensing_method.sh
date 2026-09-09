@@ -9,17 +9,13 @@
 # (`--unityLicensingMethod`, see src/logic/unity/license/licensing-method.ts)
 # and wins outright.
 #
-# Otherwise the chain below is used, and it is deliberately the *original*
-# order this script has always had - file -> serial -> floating - reproduced
-# condition for condition, including the "serial credentials must all three be
-# present" rule that lets a .ulf win when they are not. `personal` is appended
-# as a new terminal branch, so it can only ever be reached by a credential
-# combination that previously matched nothing and exited 1. Every setup that
-# works today keeps taking exactly the branch it takes today.
-#
-# Note the windows *container* script set intentionally has a different order
-# here (floating before serial) because that is the order it has always had -
-# see dist/platforms/windows/licensing_method.ps1.
+# Otherwise the chain below is used: file -> serial -> floating -> personal,
+# including the "serial credentials must all three be present" rule that lets
+# a .ulf win when they are not. This is now the one canonical order every
+# platform uses (game-ci/cli#256 unified the windows *container* script set,
+# which used to check floating before serial - see
+# dist/platforms/windows/licensing_method.ps1's own history for why that
+# divergence existed and why it was safe to remove).
 #
 resolve_unity_licensing_method() {
   if [[ -n "${UNITY_LICENSING_METHOD:-}" ]]; then
@@ -27,17 +23,47 @@ resolve_unity_licensing_method() {
     return 0
   fi
 
+  local resolved
   if { [[ -z "${UNITY_SERIAL:-}" ]] || [[ -z "${UNITY_EMAIL:-}" ]] || [[ -z "${UNITY_PASSWORD:-}" ]]; } &&
      { [[ -n "${UNITY_LICENSE:-}" ]] || [[ -n "${UNITY_LICENSE_FILE:-}" ]]; }; then
-    echo "file"
+    resolved="file"
   elif [[ -n "${UNITY_SERIAL:-}" && -n "${UNITY_EMAIL:-}" && -n "${UNITY_PASSWORD:-}" ]]; then
-    echo "serial"
+    resolved="serial"
   elif [[ -n "${UNITY_LICENSING_SERVER:-}" ]]; then
-    echo "floating"
+    resolved="floating"
   elif [[ -n "${UNITY_EMAIL:-}" && -n "${UNITY_PASSWORD:-}" ]]; then
-    echo "personal"
+    resolved="personal"
   else
-    echo ""
+    resolved=""
+  fi
+
+  warn_if_licensing_method_ambiguous "$resolved" >&2
+
+  echo "$resolved"
+}
+
+#
+# Warns whenever a credential that names a *specific* strategy was provided
+# but a different strategy was auto-resolved instead - silently ignoring a
+# credential like this is exactly what took two real regressions
+# (game-ci/cli#254, #255) to fully diagnose, because nothing said out loud
+# which of several plausible strategies actually got used.
+#
+# Only runs for auto resolution: an explicit UNITY_LICENSING_METHOD is a
+# deliberate choice and is never second-guessed (resolve_unity_licensing_method
+# returns before this is ever called in that case).
+#
+warn_if_licensing_method_ambiguous() {
+  local resolved="$1"
+
+  if [[ "$resolved" != "file" ]] && { [[ -n "${UNITY_LICENSE:-}" ]] || [[ -n "${UNITY_LICENSE_FILE:-}" ]]; }; then
+    echo "##[warning] A Unity license file (.ulf) was provided, but '$resolved' activation is being used instead - Unity account credentials take precedence when both are present. Set UNITY_LICENSING_METHOD=file to force loading the file directly."
+  fi
+  if [[ "$resolved" != "serial" ]] && [[ -n "${UNITY_SERIAL:-}" ]]; then
+    echo "##[warning] UNITY_SERIAL was provided, but '$resolved' activation is being used instead - serial activation needs UNITY_SERIAL, UNITY_EMAIL and UNITY_PASSWORD all set together. Set UNITY_LICENSING_METHOD=serial to force it, or provide the missing credential(s)."
+  fi
+  if [[ "$resolved" != "floating" ]] && [[ -n "${UNITY_LICENSING_SERVER:-}" ]]; then
+    echo "##[warning] UNITY_LICENSING_SERVER was provided, but '$resolved' activation is being used instead. Set UNITY_LICENSING_METHOD=floating to force it."
   fi
 }
 

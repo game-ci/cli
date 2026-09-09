@@ -10,15 +10,11 @@
 # (`--unityLicensingMethod`, see src/logic/unity/license/licensing-method.ts)
 # and wins outright.
 #
-# Otherwise the chain below is used, and it is deliberately the *original*
-# order this script has always had - file -> serial -> floating - which matches
-# ubuntu and mac but NOT the container script set one directory up, which
-# checks floating before serial. That divergence predates this file and is
-# reproduced rather than unified, so no existing build silently changes which
-# license it consumes.
-#
-# `personal` is appended as a new terminal branch, so it can only be reached by
-# a credential combination that previously matched nothing and exited 1.
+# Otherwise the chain below is used: file -> serial -> floating -> personal.
+# This is now the one canonical order every platform uses (game-ci/cli#256
+# unified the *container* script set one directory up, which used to check
+# floating before serial - see ../licensing_method.ps1's own history for why
+# that divergence existed and why it was safe to remove).
 #
 function Get-UnityLicensingMethod {
   if ($Env:UNITY_LICENSING_METHOD) {
@@ -26,21 +22,46 @@ function Get-UnityLicensingMethod {
   }
 
   $hasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
+  $resolved = ''
 
   if ((-not $hasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
-    return 'file'
-  }
-  if ($hasSerialCredentials) {
-    return 'serial'
-  }
-  if ($Env:UNITY_LICENSING_SERVER) {
-    return 'floating'
-  }
-  if ($Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
-    return 'personal'
+    $resolved = 'file'
+  } elseif ($hasSerialCredentials) {
+    $resolved = 'serial'
+  } elseif ($Env:UNITY_LICENSING_SERVER) {
+    $resolved = 'floating'
+  } elseif ($Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
+    $resolved = 'personal'
   }
 
-  return ''
+  Write-LicensingMethodAmbiguityWarning -Resolved $resolved
+
+  return $resolved
+}
+
+#
+# Warns whenever a credential that names a *specific* strategy was provided
+# but a different strategy was auto-resolved instead - silently ignoring a
+# credential like this is exactly what took two real regressions
+# (game-ci/cli#254, #255) to fully diagnose, because nothing said out loud
+# which of several plausible strategies actually got used.
+#
+# Only runs for auto resolution: an explicit UNITY_LICENSING_METHOD is a
+# deliberate choice and is never second-guessed (Get-UnityLicensingMethod
+# returns before this is ever called in that case).
+#
+function Write-LicensingMethodAmbiguityWarning {
+  param([string]$Resolved)
+
+  if ($Resolved -ne 'file' -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
+    Write-Host "##[warning] A Unity license file (.ulf) was provided, but '$Resolved' activation is being used instead - Unity account credentials take precedence when both are present. Set UNITY_LICENSING_METHOD=file to force loading the file directly."
+  }
+  if ($Resolved -ne 'serial' -and $Env:UNITY_SERIAL) {
+    Write-Host "##[warning] UNITY_SERIAL was provided, but '$Resolved' activation is being used instead - serial activation needs UNITY_SERIAL, UNITY_EMAIL and UNITY_PASSWORD all set together. Set UNITY_LICENSING_METHOD=serial to force it, or provide the missing credential(s)."
+  }
+  if ($Resolved -ne 'floating' -and $Env:UNITY_LICENSING_SERVER) {
+    Write-Host "##[warning] UNITY_LICENSING_SERVER was provided, but '$Resolved' activation is being used instead. Set UNITY_LICENSING_METHOD=floating to force it."
+  }
 }
 
 #

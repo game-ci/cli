@@ -5,21 +5,17 @@ import { UnityLicensingMethod } from '../../../model/unity/license/unity-licensi
  * Forwards an explicitly-chosen activation strategy to the platform scripts as
  * UNITY_LICENSING_METHOD, and forwards nothing at all on `auto`.
  *
- * Deliberately NOT an auto-detector. It would be tidier for the CLI to resolve
- * one strategy centrally, but the four activate scripts do not agree on
- * precedence and never have: ubuntu, mac and windows/steps check
- * file -> serial -> floating, while the windows *container* script checks
- * file -> floating -> serial. So `UNITY_SERIAL` + `UNITY_LICENSING_SERVER`
- * together select serial on three platforms and floating on the fourth.
- *
- * Any single central order would therefore silently change activation for
- * some existing configuration on some platform. Leaving `auto` to each
- * script's own unchanged chain keeps every currently-working setup byte-
- * identical; each chain gains `personal` only as a new terminal branch, which
- * can just be reached by credentials that previously matched nothing.
- *
- * Unifying that divergence is a real cleanup, but it is a behaviour change
- * that deserves its own PR rather than riding along inside a feature.
+ * Deliberately NOT an auto-detector - resolving a strategy centrally here
+ * would just be a second implementation of the same decision the platform
+ * scripts already make, with the two free to drift apart. All four scripts
+ * now share one canonical order - file -> serial -> floating -> personal
+ * (game-ci/cli#256 unified the windows *container* script set, which used to
+ * check floating before serial) - and each also now warns out loud whenever
+ * a credential naming a *specific* strategy gets silently overridden by
+ * `auto` resolving to a different one, so a surprising choice is visible in
+ * the log instead of only discoverable by reading this source (see
+ * warn_if_licensing_method_ambiguous / Write-LicensingMethodAmbiguityWarning
+ * in each platform's own licensing_method.{sh,ps1}).
  *
  * `--unityLicensingMethod <strategy>` is the explicit escape hatch: it wins
  * over every chain, on every platform, and is the only way to force one.
