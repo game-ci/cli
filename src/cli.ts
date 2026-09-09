@@ -13,7 +13,6 @@ import { unrealPlugin } from "./plugin/builtin/unreal-plugin.ts";
 import { EmbeddedAssets } from "./model/embedded-assets.ts";
 import { Docker } from "./model/docker.ts";
 import { SecretRedaction } from "./model/secret-redaction.ts";
-import { preferPersonalOverFile } from "./logic/unity/license/licensing-method.ts";
 
 export class Cli {
   private readonly yargs: ReturnType<typeof yargs>;
@@ -361,17 +360,6 @@ export class Cli {
 
   protected async finalParse() {
     const { _, $0, ...options } = await this.yargs.parseAsync();
-
-    // See preferPersonalOverFile's own doc comment for why this rewrite is
-    // safe to do unconditionally.
-    if (preferPersonalOverFile(options)) {
-      log.info(
-        "A Unity account (email/password) was provided alongside a license file (.ulf); " +
-          "activating with the account instead of loading the file directly, which only " +
-          "works on the machine it was originally activated for. Set " +
-          "--unityLicensingMethod=file to force loading the file as-is.",
-      );
-    }
 
     // Registered before the dump below, not after finalParse returns: this
     // line hands the whole options bag - unityPassword included - to the

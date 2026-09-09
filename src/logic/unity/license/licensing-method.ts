@@ -30,58 +30,21 @@ export function resolveLicensingMethod(options: Options): string {
   return unityLicensingMethod;
 }
 
-/**
- * Prefers account-based `personal` activation over loading a `.ulf` directly,
- * whenever both are available and no genuine serial was given.
- *
- * Unity removed manual (offline) activation for Personal seats, so any .ulf
- * still in circulation for a free/personal account is cryptographically
- * bound to whichever machine originally requested it - loading it directly
- * (`-manualLicenseFile`) on a *different* machine fails with "Machine
- * bindings don't match". Every ephemeral CI runner is a different machine on
- * every run, so a personal .ulf handed to one can essentially never load
- * directly there.
- *
- * An earlier version of this function tried to extract the serial embedded
- * in a personal .ulf's `<DeveloperData Value="...">` blob and forward it as
- * UNITY_SERIAL, reusing each platform's existing serial+email+password
- * precedence to activate portably instead of switching strategy outright.
- * That worked end-to-end against a synthetic license file (mutation, docker
- * env var construction, shell quoting - all verified directly), but still
- * failed against at least one real user's actual .ulf in production
- * (reported live against game-ci/unity-test-runner, MirrorNetworking/
- * Mirror#4127) - something about a real, current personal .ulf's shape
- * doesn't match closely enough for extraction to produce something Unity's
- * licensing client accepts, and there is no way to get a real sample to
- * debug further (it is, correctly, a secret). Two independent users
- * separately arrived at the same workaround by hand: drop the .ulf entirely
- * and provide just the account credentials. This function encodes that
- * workaround directly - forcing --unityLicensingMethod=personal through the
- * existing explicit-override mechanism (resolveLicensingMethod above) - the
- * same escape hatch a user would reach for by hand, so it needs no new
- * per-platform script logic either.
- *
- * Deliberately narrow, so it can only ever help, never surprise an existing
- * setup:
- *  - No-op whenever unitySerial is already set - a real Pro/Plus/Enterprise
- *    serial should never be second-guessed.
- *  - No-op whenever an explicit non-auto --unityLicensingMethod is already
- *    set - never second-guesses an explicit choice, including `file` for
- *    someone who deliberately wants the raw-file behaviour.
- *  - No-op without both unityEmail and unityPassword - there would be
- *    nothing to activate personally *with*, so the existing raw-file
- *    behaviour (correct for a self-hosted runner with a persistent,
- *    already-matching .ulf and no account credentials at all) is the only
- *    option left, and stays untouched.
- *  - No-op without a license file at all (unityLicense or
- *    unityLicenseFile) - nothing to prefer personal activation *over*.
- */
-export function preferPersonalOverFile(options: Options): boolean {
-  if (options.unitySerial) return false;
-  if (options.unityLicensingMethod && options.unityLicensingMethod !== UnityLicensingMethod.Auto) return false;
-  if (!options.unityEmail || !options.unityPassword) return false;
-  if (!options.unityLicense && !options.unityLicenseFile) return false;
-
-  options.unityLicensingMethod = UnityLicensingMethod.Personal;
-  return true;
-}
+// A third approach lived here briefly (game-ci/cli#255): unconditionally
+// preferring `personal` over `file` whenever a .ulf and full account
+// credentials were both present, forced through --unityLicensingMethod the
+// same way an explicit override works. It fixed the "Machine bindings don't
+// match" failure for the Unity versions that hit it, but broke activation
+// outright on older Unity versions (2020.3.49f1 confirmed live against
+// MirrorNetworking/Mirror), whose bundled Unity.Licensing.Client predates
+// the --activate-all/--include-personal flags `personal` activation needs -
+// versions where plain `file` activation was never broken in the first
+// place. A static, version-blind preference can't get both right at once.
+// The actual fix now lives in each platform's own activate.{sh,ps1}: try
+// `file` first, unconditionally (so every setup that already worked, on any
+// Unity version, keeps working exactly as before), and fall back to
+// `personal` only on the one specific, recognisable failure signature that
+// means the file's machine binding doesn't match this machine - see
+// resolve_unity_licensing_method's neighbouring comment in each
+// licensing_method.{sh,ps1} for where that fallback is recorded so
+// return_license.{sh,ps1} returns the right thing too.

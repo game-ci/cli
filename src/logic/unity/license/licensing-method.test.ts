@@ -1,4 +1,4 @@
-import { resolveLicensingMethod, preferPersonalOverFile } from './licensing-method.ts';
+import { resolveLicensingMethod } from './licensing-method.ts';
 
 const options = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -66,66 +66,3 @@ describe('resolveLicensingMethod', () => {
   });
 });
 
-describe('preferPersonalOverFile', () => {
-  it('switches to personal when a .ulf and full account credentials are both given', () => {
-    const opts = options({
-      unityLicense: '<License/>',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(preferPersonalOverFile(opts)).toBe(true);
-    expect(opts.unityLicensingMethod).toBe('personal');
-  });
-
-  it('does the same for unityLicenseFile (a container-side path, not content)', () => {
-    const opts = options({
-      unityLicenseFile: '/root/UnityLicenseFile.ulf',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(preferPersonalOverFile(opts)).toBe(true);
-    expect(opts.unityLicensingMethod).toBe('personal');
-  });
-
-  it('does nothing when unitySerial is already set - a real serial is never second-guessed', () => {
-    const opts = options({
-      unityLicense: '<License/>',
-      unitySerial: 'F4-XXXX-XXXX-XXXX-XXXX-XXXX',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(preferPersonalOverFile(opts)).toBe(false);
-    expect(opts.unityLicensingMethod).toBe('auto');
-  });
-
-  it('does nothing when an explicit non-auto unityLicensingMethod is already set', () => {
-    const opts = options({
-      unityLicensingMethod: 'file',
-      unityLicense: '<License/>',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(preferPersonalOverFile(opts)).toBe(false);
-    expect(opts.unityLicensingMethod).toBe('file');
-  });
-
-  it('does nothing without both unityEmail and unityPassword', () => {
-    expect(
-      preferPersonalOverFile(options({ unityLicense: '<License/>', unityEmail: 'ci@example.com' })),
-    ).toBe(false);
-    expect(
-      preferPersonalOverFile(options({ unityLicense: '<License/>', unityPassword: 'pw123456' })),
-    ).toBe(false);
-  });
-
-  it('does nothing without a license file at all - nothing to prefer personal over', () => {
-    const opts = options({ unityEmail: 'ci@example.com', unityPassword: 'pw123456' });
-
-    expect(preferPersonalOverFile(opts)).toBe(false);
-    expect(opts.unityLicensingMethod).toBe('auto');
-  });
-});

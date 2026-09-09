@@ -22,7 +22,7 @@ $stepsScript = Join-Path $repoRoot 'dist/platforms/windows/steps/licensing_metho
 
 $licenseVars = @(
   'UNITY_LICENSING_METHOD', 'UNITY_SERIAL', 'UNITY_LICENSE', 'UNITY_LICENSE_FILE',
-  'UNITY_LICENSING_SERVER', 'UNITY_EMAIL', 'UNITY_PASSWORD'
+  'UNITY_LICENSING_SERVER', 'UNITY_EMAIL', 'UNITY_PASSWORD', 'GAME_CI_ACTIVATED_VIA'
 )
 
 function Clear-LicenseEnv {
@@ -145,6 +145,23 @@ foreach ($set in @(
 
   Clear-LicenseEnv
   Check "$name`: no usable credentials returns nothing (not a doomed serial return)" (LastLine (RunMethod $scriptPath 'Get-UnityLicenseReturnStrategy')) ''
+
+  Write-Host "File-to-personal fallback return strategy ($name)"
+
+  # activate.ps1's fallback (see its own comment) sets GAME_CI_ACTIVATED_VIA
+  # when a .ulf's machine binding doesn't match this machine and it falls
+  # back to activating through the account instead - the return step must
+  # follow that, not the static env vars, which still say "file" (nothing to
+  # return) and would silently leak the seat the fallback actually consumed.
+  Clear-LicenseEnv
+  $Env:UNITY_LICENSE = '<License/>'; $Env:GAME_CI_ACTIVATED_VIA = 'personal'
+  Check "$name`: a successful fallback returns a personal seat, not nothing" `
+    (LastLine (RunMethod $scriptPath 'Get-UnityLicenseReturnStrategy')) 'personal'
+
+  Clear-LicenseEnv
+  $Env:UNITY_LICENSE = '<License/>'
+  Check "$name`: without the fallback marker, a .ulf still has nothing to return" `
+    (LastLine (RunMethod $scriptPath 'Get-UnityLicenseReturnStrategy')) ''
 
   Write-Host "Ambiguous licensing method warning ($name)"
 

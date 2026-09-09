@@ -37,7 +37,9 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
   # free-tier users want the `personal` branch below instead.
   #
   # Kept fully working for the seats that can still produce a .ulf, and for
-  # self-hosted runners with an existing valid one.
+  # self-hosted runners with an existing valid one. Falls back to activating
+  # through the Unity account instead, further down, specifically when this
+  # fails because the file's machine binding doesn't match this machine.
   echo "Requesting activation (license file)"
 
   # Set the license file path
@@ -92,6 +94,69 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     break
   done
+
+  # A personal .ulf is bound to whichever machine originally requested it,
+  # so loading it directly fails with "Machine bindings don't match" on any
+  # *other* machine - which is every ephemeral CI container, every run. When
+  # that is the exact failure and full account credentials are also
+  # available, fall back to activating through the account instead, which
+  # works on any machine. Gated on this one specific, recognisable failure
+  # signature (not "any failure", and not a blanket preference applied
+  # up front) so every setup that already worked keeps working exactly as
+  # before - a self-hosted runner with a persistent, genuinely-matching .ulf,
+  # or an older Unity version whose bundled licensing client never enforced
+  # this check at all (confirmed live: 2020.3.49f1's activation succeeded via
+  # plain file loading against MirrorNetworking/Mirror, the same repo that
+  # hit "Machine bindings don't match" on 6000.6.0f1 - two earlier, narrower
+  # fixes here either couldn't reliably reuse a real personal .ulf's embedded
+  # serial, or unconditionally preferred personal over file and broke that
+  # 2020.3.49f1 case outright, since its licensing client predates the
+  # --activate-all/--include-personal flags personal activation needs;
+  # see game-ci/cli#254/#255/#256's own history).
+  if [[ "$UNITY_EXIT_CODE" -ne 0 ]] && [[ -n "$UNITY_EMAIL" ]] && [[ -n "$UNITY_PASSWORD" ]] &&
+     grep -qi "Machine bindings don't match" "$ACTIVATE_LOG"; then
+    echo "##[warning] The license file's machine binding doesn't match this machine - falling back to activating with the Unity account (UNITY_EMAIL/UNITY_PASSWORD) instead."
+    rm -f "$ACTIVATE_LOG"
+    ACTIVATE_LOG="$(mktemp)"
+
+    for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
+      "$(unity_licensing_client_path)" \
+        --activate-all \
+        --include-personal \
+        --username "$UNITY_EMAIL" \
+        --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
+
+      UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+      if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+        break
+      fi
+
+      if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
+        # Exponential backoff - see mac/steps/activate.sh's matching comment.
+        UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+        echo "Personal activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+        sleep "$UNITY_ACTIVATE_RETRY_DELAY"
+        continue
+      fi
+
+      break
+    done
+
+    if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
+      explain_personal_activation_failure "$ACTIVATE_LOG" || true
+    fi
+
+    # Consumed by resolve_unity_license_return_strategy (licensing_method.sh),
+    # in the same shell session return_license.sh runs in (see runsteps.sh) -
+    # only ever set on a successful fallback, since runsteps.sh exits
+    # immediately on a failed activation without ever reaching the return
+    # step at all.
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      export GAME_CI_ACTIVATED_VIA=personal
+    fi
+  fi
+
   rm -f "$ACTIVATE_LOG"
 
   # Remove license file

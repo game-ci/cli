@@ -85,6 +85,19 @@ function Write-LicensingMethodAmbiguityWarning {
 # not floating, including combinations with no serial credentials at all.
 #
 function Get-UnityLicenseReturnStrategy {
+  # activate.ps1's file-mode fallback (see its own comment) activates through
+  # the Unity account when a .ulf's machine binding doesn't match this
+  # machine, regardless of what the static env vars below would resolve to -
+  # they still say "file", which has nothing to return, and would silently
+  # leak the personal seat that fallback actually consumed. GAME_CI_ACTIVATED_VIA
+  # is an actual process environment variable, set by that fallback - it
+  # survives into return_license.ps1 even though entrypoint.ps1 invokes each
+  # step script with `&` rather than dot-sourcing, because $Env: variables
+  # are process-wide, not scoped to the invoking script.
+  if ($Env:GAME_CI_ACTIVATED_VIA -eq 'personal') {
+    return 'personal'
+  }
+
   $method = Get-UnityLicensingMethod
 
   # An explicit --unityLicensingMethod governs the return too, otherwise
