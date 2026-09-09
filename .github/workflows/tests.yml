@@ -94,6 +94,15 @@ jobs:
       # test. Runs against a stub client: no Unity, no Docker, no network.
       - name: Licensing step behaviour tests (dist/platforms/ubuntu/steps)
         run: bash scripts/test-licensing-steps.sh
+      # Sibling of the bash test above, covering the same precedence/return/
+      # warning behaviour for dist/platforms/windows/licensing_method.ps1 (the
+      # container set) and dist/platforms/windows/steps/licensing_method.ps1
+      # (the native host-mode set) - pwsh is preinstalled on ubuntu-latest, so
+      # this doesn't need a Windows runner. No stub Unity/Docker/network here
+      # either.
+      - name: Licensing step behaviour tests (dist/platforms/windows)
+        shell: pwsh
+        run: ./scripts/test-licensing-steps.ps1
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just

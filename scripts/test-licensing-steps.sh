@@ -231,6 +231,35 @@ run_step UNITY_LICENSING_METHOD="serial" UNITY_SERIAL="F4-XXXX" UNITY_LICENSING_
 check "an explicit strategy governs the return" "$(cat "$ARGV_LOG")" "-returnlicense"
 refute "and does not fall back to floating" "$(cat "$ARGV_LOG")" "--return-floating"
 
+echo "Ambiguous licensing method warning"
+# A credential that names a specific strategy (a .ulf, a real serial, a
+# licensing server) but gets silently overridden by a different strategy is
+# exactly what took two real regressions (game-ci/cli#254, #255) to fully
+# diagnose - nothing said out loud which of several plausible strategies
+# actually got used. warn_if_licensing_method_ambiguous exists so it does.
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_SERIAL="F4-XXXX" UNITY_EMAIL="ci@example.com" \
+  UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/licensing_method.sh"; resolve_unity_licensing_method' 2>&1)
+check "warns when a .ulf is overridden by a complete serial triple" "$OUT" \
+  "A Unity license file (.ulf) was provided, but 'serial' activation is being used instead"
+
+OUT=$(run_step UNITY_SERIAL="F4-XXXX" UNITY_LICENSING_SERVER="http://ls:8080" \
+  bash -c 'source "$STEPS_DIR/licensing_method.sh"; resolve_unity_licensing_method' 2>&1)
+check "warns when a bare serial is overridden by floating" "$OUT" \
+  "UNITY_SERIAL was provided, but 'floating' activation is being used instead"
+
+OUT=$(run_step UNITY_SERIAL="F4-XXXX" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/licensing_method.sh"; resolve_unity_licensing_method' 2>&1)
+refute "does not warn when a complete serial triple is the only thing given" "$OUT" "##[warning]"
+
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/licensing_method.sh"; resolve_unity_licensing_method' 2>&1)
+refute "does not warn for a plain personal setup - nothing more specific was given" "$OUT" "##[warning]"
+
+OUT=$(run_step UNITY_LICENSING_METHOD="file" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/licensing_method.sh"; resolve_unity_licensing_method' 2>&1)
+refute "does not warn when an explicit UNITY_LICENSING_METHOD is set" "$OUT" "##[warning]"
+
 echo "License file activation output"
 # Regression test for game-ci/cli#252: the .ulf branch used to capture
 # unity-editor's output into a variable via command substitution instead of

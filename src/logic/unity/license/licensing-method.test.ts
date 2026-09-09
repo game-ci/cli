@@ -14,12 +14,10 @@ const options = (overrides: Record<string, unknown> = {}) =>
 
 describe('resolveLicensingMethod', () => {
   describe('auto (the default)', () => {
-    it('forwards nothing, leaving each platform script its own unchanged chain', () => {
-      // The four activate scripts do not agree on precedence and never have
-      // (windows containers check floating before serial; everything else
-      // checks serial before floating). Resolving centrally would silently
-      // change activation for some existing setup on some platform, so `auto`
-      // deliberately forwards no method at all.
+    it('forwards nothing, leaving the platform scripts to resolve their own (now unified) chain', () => {
+      // Not a second implementation of the platform scripts' own decision -
+      // see this function's own doc comment for why `auto` deliberately
+      // forwards nothing at all.
       expect(resolveLicensingMethod(options())).toBe('');
     });
 

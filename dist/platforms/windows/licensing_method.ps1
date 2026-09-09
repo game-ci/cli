@@ -10,22 +10,19 @@
 # (`--unityLicensingMethod`, see src/logic/unity/license/licensing-method.ts)
 # and wins outright.
 #
-# Otherwise the chain below is used, and it is deliberately the *original*
-# order this container script set has always had: file -> floating -> serial.
-#
-# That is NOT the order ubuntu, mac and steps/ use - they check serial before
-# floating. The divergence is real and predates this file: with both
-# UNITY_SERIAL and UNITY_LICENSING_SERVER set, a Windows container build takes
-# the license server while the same workflow on ubuntu takes the serial.
-# Reproduced here rather than unified, so no existing Windows container build
-# silently changes which license it consumes. Unifying the four chains is a
-# behaviour change that deserves its own PR.
-#
-# `personal` is appended as a new terminal branch. The original `else` was
-# serial, so serial is still chosen whenever any serial credential is present -
-# only a genuinely credential-less run (which previously ran Unity with empty
-# -serial/-username/-password and failed with Unity's generic licensing error)
-# now reaches personal or a clear message.
+# Otherwise the chain below is used: file -> serial -> floating -> personal.
+# This container script set used to check floating before serial, and its
+# catch-all attempted a serial activation with whatever credentials happened
+# to be set (including none at all) rather than reporting the same clear
+# "could not be determined" message ubuntu/mac/steps/ already gave. Both
+# divergences predated this file and are now removed (game-ci/cli#256):
+# ubuntu, mac and steps/ already checked serial before floating, so this
+# aligns the minority rather than the other way around, and only changes
+# behaviour for a Windows container build that set *both* a complete serial
+# triple *and* a licensing server (previously took floating, now takes serial,
+# matching every other platform), or that set no usable credentials at all
+# (previously attempted a doomed serial activation with empty credentials, now
+# reports the same guidance message every other platform already gives).
 #
 function Get-UnityLicensingMethod {
   if ($Env:UNITY_LICENSING_METHOD) {
@@ -33,37 +30,59 @@ function Get-UnityLicensingMethod {
   }
 
   $hasSerialCredentials = $Env:UNITY_SERIAL -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD
+  $resolved = ''
 
   if ((-not $hasSerialCredentials) -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
-    return 'file'
+    $resolved = 'file'
+  } elseif ($hasSerialCredentials) {
+    $resolved = 'serial'
+  } elseif ($Env:UNITY_LICENSING_SERVER) {
+    $resolved = 'floating'
+  } elseif ($Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
+    $resolved = 'personal'
   }
-  if ($Env:UNITY_LICENSING_SERVER) {
-    return 'floating'
+
+  Write-LicensingMethodAmbiguityWarning -Resolved $resolved
+
+  return $resolved
+}
+
+#
+# Warns whenever a credential that names a *specific* strategy was provided
+# but a different strategy was auto-resolved instead - silently ignoring a
+# credential like this is exactly what took two real regressions
+# (game-ci/cli#254, #255) to fully diagnose, because nothing said out loud
+# which of several plausible strategies actually got used.
+#
+# Only runs for auto resolution: an explicit UNITY_LICENSING_METHOD is a
+# deliberate choice and is never second-guessed (Get-UnityLicensingMethod
+# returns before this is ever called in that case).
+#
+function Write-LicensingMethodAmbiguityWarning {
+  param([string]$Resolved)
+
+  if ($Resolved -ne 'file' -and ($Env:UNITY_LICENSE -or $Env:UNITY_LICENSE_FILE)) {
+    Write-Host "##[warning] A Unity license file (.ulf) was provided, but '$Resolved' activation is being used instead - Unity account credentials take precedence when both are present. Set UNITY_LICENSING_METHOD=file to force loading the file directly."
   }
-  if ($Env:UNITY_SERIAL) {
-    return 'serial'
+  if ($Resolved -ne 'serial' -and $Env:UNITY_SERIAL) {
+    Write-Host "##[warning] UNITY_SERIAL was provided, but '$Resolved' activation is being used instead - serial activation needs UNITY_SERIAL, UNITY_EMAIL and UNITY_PASSWORD all set together. Set UNITY_LICENSING_METHOD=serial to force it, or provide the missing credential(s)."
   }
-  if ($Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD) {
-    return 'personal'
+  if ($Resolved -ne 'floating' -and $Env:UNITY_LICENSING_SERVER) {
+    Write-Host "##[warning] UNITY_LICENSING_SERVER was provided, but '$Resolved' activation is being used instead. Set UNITY_LICENSING_METHOD=floating to force it."
   }
-  # Preserves the original catch-all: anything else still attempts serial,
-  # exactly as before, rather than newly refusing to run.
-  return 'serial'
 }
 
 #
 # Resolves which license the return step should hand back.
 #
-# Deliberately not just "whatever activate.ps1 used". The original
-# return_license.ps1 in this container set keyed its branches off the raw env
-# vars: UNITY_LICENSING_SERVER selected a floating return, and *everything
-# else* fell through to a serial return as the catch-all. Both are reproduced
-# verbatim, including that catch-all.
-#
-# A return that used to happen and silently stops happening is a leaked seat,
-# which degrades every subsequent run on the account rather than just this one.
-# So this must never return '' for any combination where the original script
-# would have returned something.
+# Deliberately not just "whatever activate.ps1 used". A return keyed off the
+# activation strategy rather than the raw env vars would leak a seat the
+# moment those two ever disagreed, and a leaked seat degrades every
+# subsequent run on the account rather than just this one - so the rule is
+# that this must never return '' for any combination that names a real
+# strategy. Matches ubuntu/mac/steps/ exactly now (game-ci/cli#256); this set
+# used to have its own catch-all that attempted a serial return for anything
+# not floating, including combinations with no serial credentials at all.
 #
 function Get-UnityLicenseReturnStrategy {
   $method = Get-UnityLicensingMethod
@@ -78,18 +97,17 @@ function Get-UnityLicenseReturnStrategy {
     return ''
   }
 
-  # `personal` is only ever auto-selected when no serial, no license file and
-  # no server are set - exactly where the original catch-all ran a serial
-  # return with empty credentials, which could never succeed.
   if ($method -eq 'personal') {
     return 'personal'
   }
   if ($Env:UNITY_LICENSING_SERVER) {
     return 'floating'
   }
+  if ($Env:UNITY_SERIAL) {
+    return 'serial'
+  }
 
-  # The original catch-all, preserved.
-  return 'serial'
+  return ''
 }
 
 #
