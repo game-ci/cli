@@ -88,6 +88,18 @@ warn_if_licensing_method_ambiguous() {
 # checking it first cannot shadow any of them.
 #
 resolve_unity_license_return_strategy() {
+  # activate.sh's file-mode fallback (see its own comment) activates through
+  # the Unity account when a .ulf's machine binding doesn't match this
+  # machine, regardless of what the static env vars below would resolve to -
+  # they still say "file", which has nothing to return, and would silently
+  # leak the personal seat that fallback actually consumed. GAME_CI_ACTIVATED_VIA
+  # is set by that fallback, in the same shell session return_license.sh runs
+  # in (see runsteps.sh), and always wins here for exactly that reason.
+  if [[ "${GAME_CI_ACTIVATED_VIA:-}" == "personal" ]]; then
+    echo "personal"
+    return 0
+  fi
+
   local method
   method="$(resolve_unity_licensing_method)"
 

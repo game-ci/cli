@@ -74,6 +74,53 @@ if ($LicensingMethod -eq 'file') {
     }
     break
   }
+
+  # A personal .ulf is bound to whichever machine originally requested it,
+  # so loading it directly fails with "Machine bindings don't match" on any
+  # *other* machine - which is every ephemeral CI container, every run. When
+  # that is the exact failure and full account credentials are also
+  # available, fall back to activating through the account instead, which
+  # works on any machine. Gated on this one specific, recognisable failure
+  # signature (not "any failure", and not a blanket preference applied up
+  # front) so every setup that already worked keeps working exactly as
+  # before - see ubuntu/steps/activate.sh's matching comment for the full
+  # history of why a static, version-blind preference can't get this right.
+  if ($global:UNITY_EXIT_CODE -ne 0 -and $Env:UNITY_EMAIL -and $Env:UNITY_PASSWORD -and
+      $ActivationText -imatch "Machine bindings don't match") {
+    Write-Host "##[warning] The license file's machine binding doesn't match this machine - falling back to activating with the Unity account (UNITY_EMAIL/UNITY_PASSWORD) instead."
+
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+      $ActivationOutput = & $LicensingClientPath --activate-all --include-personal `
+                                                 --username $Env:UNITY_EMAIL `
+                                                 --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivationOutputVar
+      $ActivationOutput | Out-Host
+      $global:UNITY_EXIT_CODE = $LASTEXITCODE
+      $ActivationText = ($ActivationOutputVar | Out-String)
+
+      if ($global:UNITY_EXIT_CODE -eq 0) { break }
+
+      if ($Attempt -lt $MaxAttempts -and $ActivationText -match $TransientPattern) {
+        # Exponential backoff - see mac/steps/activate.sh's matching comment.
+        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
+        Write-Host "Personal activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        Start-Sleep -Seconds $CurrentRetryDelay
+        continue
+      }
+      break
+    }
+
+    if ($global:UNITY_EXIT_CODE -ne 0) {
+      Write-PersonalActivationFailureHelp -LogText $ActivationText | Out-Null
+    }
+
+    # Consumed by Get-UnityLicenseReturnStrategy (licensing_method.ps1) -
+    # only ever set on a successful fallback, since a failed activation
+    # exits immediately without ever reaching the return step at all.
+    if ($global:UNITY_EXIT_CODE -eq 0) {
+      $Env:GAME_CI_ACTIVATED_VIA = 'personal'
+    }
+  }
+
   Remove-Item -Force -ErrorAction SilentlyContinue $FilePath
 }
 elseif ($LicensingMethod -eq 'floating') {

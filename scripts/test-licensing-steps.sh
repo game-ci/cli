@@ -289,6 +289,86 @@ exit "${STUB_EXIT:-0}"
 STUB
 chmod +x "$WORK/unity-editor"
 
+echo "File-to-personal activation fallback"
+# Regression coverage for game-ci/cli#254/#255/#256's own history: a personal
+# .ulf is bound to whichever machine originally requested it, so loading it
+# directly fails with "Machine bindings don't match" on any other machine -
+# every ephemeral CI container, every run (reported live against
+# MirrorNetworking/Mirror). Two earlier, narrower fixes here didn't hold up -
+# one couldn't reliably reuse a real personal .ulf's embedded serial, the
+# other unconditionally preferred personal over file and broke activation on
+# Unity versions whose bundled licensing client predates the
+# --activate-all/--include-personal flags personal activation needs (also
+# confirmed live: 2020.3.49f1 had been activating fine via plain file
+# loading). The fix that actually holds for both: try file first,
+# unconditionally, and fall back to personal only on this one specific,
+# recognisable failure signature.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Client] Error: Code 400 while processing request (status: Machine bindings don't match)"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "falls back to personal on a machine-binding mismatch" "$OUT" \
+  "falling back to activating with the Unity account"
+check "and the fallback actually succeeds" "$OUT" "Activation complete."
+refute "and does not also report the generic failure summary" "$OUT" "Unclassified error"
+check "the file activation is attempted first" "$(head -n 1 "$ARGV_LOG")" "EDITOR"
+check "the fallback invokes the licensing client, not another editor call" "$(cat "$ARGV_LOG")" \
+  "CLIENT --activate-all --include-personal --username ci@example.com --password pw123456"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "does not fall back without account credentials to fall back with" "$OUT" \
+  "falling back to activating with the Unity account"
+refute "and never invokes the licensing client" "$(cat "$ARGV_LOG")" "CLIENT"
+check "so it still reports the generic failure summary" "$OUT" "Unclassified error"
+
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "Some other, unrelated activation failure"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "does not fall back for a different, unrelated failure" "$OUT" \
+  "falling back to activating with the Unity account"
+refute "and never invokes the licensing client either" "$(cat "$ARGV_LOG")" "CLIENT"
+
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Client] Error: Code 400 while processing request (status: Machine bindings don't match)"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"; resolve_unity_license_return_strategy' 2>&1)
+check "a successful fallback returns a personal seat, not nothing" "$OUT" "personal"
+
+# Restore the always-succeeding stub for every test below.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
+exit "${STUB_EXIT:-0}"
+STUB
+chmod +x "$WORK/unity-editor"
+
 echo "Failure classification"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_EXIT=1 STUB_OUTPUT="Error: no available seats for this organization" \

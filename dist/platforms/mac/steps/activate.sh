@@ -91,6 +91,57 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     break
   done
+
+  # A personal .ulf is bound to whichever machine originally requested it,
+  # so loading it directly fails with "Machine bindings don't match" on any
+  # *other* machine - which is every ephemeral CI runner, every run. When
+  # that is the exact failure and full account credentials are also
+  # available, fall back to activating through the account instead, which
+  # works on any machine. Gated on this one specific, recognisable failure
+  # signature (not "any failure", and not a blanket preference applied up
+  # front) so every setup that already worked keeps working exactly as
+  # before - see ubuntu/steps/activate.sh's matching comment for the full
+  # history of why a static, version-blind preference can't get this right.
+  if [[ "$UNITY_EXIT_CODE" -ne 0 ]] && [[ -n "$UNITY_EMAIL" ]] && [[ -n "$UNITY_PASSWORD" ]] &&
+     grep -qi "Machine bindings don't match" "$ACTIVATE_LOG"; then
+    echo "##[warning] The license file's machine binding doesn't match this machine - falling back to activating with the Unity account (UNITY_EMAIL/UNITY_PASSWORD) instead."
+    rm -f "$ACTIVATE_LOG"
+    ACTIVATE_LOG="$(mktemp)"
+
+    for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
+      "$(unity_licensing_client_path)" \
+        --activate-all \
+        --include-personal \
+        --username "$UNITY_EMAIL" \
+        --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
+      UNITY_EXIT_CODE=${PIPESTATUS[0]}
+
+      if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+        break
+      fi
+
+      if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+        ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
+        echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+        sleep "$ACTIVATE_RETRY_DELAY"
+        continue
+      fi
+
+      break
+    done
+
+    if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
+      explain_personal_activation_failure "$ACTIVATE_LOG" || true
+    fi
+
+    # Consumed by resolve_unity_license_return_strategy (licensing_method.sh)
+    # - only ever set on a successful fallback, since a failed activation
+    # exits immediately without ever reaching the return step at all.
+    if [ "$UNITY_EXIT_CODE" -eq 0 ]; then
+      export GAME_CI_ACTIVATED_VIA=personal
+    fi
+  fi
+
   rm -f "$ACTIVATE_LOG" "$FILE_PATH"
 elif [[ "$LICENSING_METHOD" == "serial" ]]; then
   #
