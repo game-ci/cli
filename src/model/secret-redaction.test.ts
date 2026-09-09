@@ -32,6 +32,16 @@ describe('SecretRedaction', () => {
     expect(SecretRedaction.redact('docker run a+b(c) image')).toBe('docker run *** image');
   });
 
+  it('redacts a secret in its shell-escaped form as well as raw', () => {
+    // The docker command string backslash-escapes `"` and `$` inside double
+    // quotes, so the logged form of the password differs from the raw one.
+    SecretRedaction.register('pa$$"word');
+
+    expect(SecretRedaction.redact('--env UNITY_PASSWORD="pa\\$\\$\\"word" raw: pa$$"word')).toBe(
+      '--env UNITY_PASSWORD="***" raw: ***',
+    );
+  });
+
   it('ignores values too short to match safely', () => {
     // A two-character secret would match unrelated substrings everywhere.
     SecretRedaction.register('ab');

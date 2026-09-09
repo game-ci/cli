@@ -46,6 +46,20 @@ function escapeForRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
+/**
+ * Matches the secret both raw and as ImageEnvironmentFactory inlines it into
+ * the sh command string, where backslash, `"`, `$` and backtick carry a
+ * backslash prefix. Reusing that module's escape helper would be more direct,
+ * but the logger loads this module, so it stays free of imports.
+ */
+function secretPattern(secret: string): RegExp {
+  const pattern = [...secret]
+    .map((char) => (/[\\"$`]/.test(char) ? `\\\\?${escapeForRegExp(char)}` : escapeForRegExp(char)))
+    .join('');
+
+  return new RegExp(pattern, 'g');
+}
+
 const SecretRedaction = {
   register(...values: (string | undefined)[]) {
     for (const value of values) {
@@ -78,7 +92,7 @@ const SecretRedaction = {
     let redacted = text;
 
     for (const secret of secrets) {
-      redacted = redacted.replaceAll(new RegExp(escapeForRegExp(secret), 'g'), placeholder);
+      redacted = redacted.replaceAll(secretPattern(secret), placeholder);
     }
 
     return redacted;
