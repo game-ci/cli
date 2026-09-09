@@ -1,11 +1,4 @@
-import { resolveLicensingMethod, deriveSerialFromLicenseIfNeeded } from './licensing-method.ts';
-
-/** A minimal, real-shaped personal .ulf: <DeveloperData Value="..."/> whose
- * base64 decodes to 4 garbage bytes followed by the serial. */
-function ulfContentFor(serial: string): string {
-  const encoded = Buffer.from(`XXXX${serial}`).toString('base64');
-  return `<License id="Terms"><DeveloperData Value="${encoded}"/></License>`;
-}
+import { resolveLicensingMethod, preferPersonalOverFile } from './licensing-method.ts';
 
 const options = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -75,99 +68,66 @@ describe('resolveLicensingMethod', () => {
   });
 });
 
-describe('deriveSerialFromLicenseIfNeeded', () => {
-  it('extracts the serial and mutates unitySerial in place', () => {
+describe('preferPersonalOverFile', () => {
+  it('switches to personal when a .ulf and full account credentials are both given', () => {
     const opts = options({
-      unityLicense: ulfContentFor('F4-XXXX-XXXX-XXXX-XXXX-XXXX'),
+      unityLicense: '<License/>',
       unityEmail: 'ci@example.com',
       unityPassword: 'pw123456',
     });
 
-    expect(deriveSerialFromLicenseIfNeeded(opts)).toBe(true);
-    expect(opts.unitySerial).toBe('F4-XXXX-XXXX-XXXX-XXXX-XXXX');
+    expect(preferPersonalOverFile(opts)).toBe(true);
+    expect(opts.unityLicensingMethod).toBe('personal');
   });
 
-  it('completing the triple makes resolveLicensingMethod-adjacent auto precedence pick serial', () => {
-    // Doesn't call resolveLicensingMethod itself (that deliberately still
-    // forwards '' on auto) - this documents the actual point of the
-    // mutation: activate.sh's own auto chain now sees a complete
-    // serial+email+password triple, which every platform's existing
-    // precedence already puts ahead of `file`.
+  it('does the same for unityLicenseFile (a container-side path, not content)', () => {
     const opts = options({
-      unityLicense: ulfContentFor('F4-XXXX-XXXX-XXXX-XXXX-XXXX'),
+      unityLicenseFile: '/root/UnityLicenseFile.ulf',
       unityEmail: 'ci@example.com',
       unityPassword: 'pw123456',
     });
 
-    deriveSerialFromLicenseIfNeeded(opts);
-
-    expect(opts.unitySerial).toBeTruthy();
-    expect(opts.unityEmail).toBeTruthy();
-    expect(opts.unityPassword).toBeTruthy();
+    expect(preferPersonalOverFile(opts)).toBe(true);
+    expect(opts.unityLicensingMethod).toBe('personal');
   });
 
-  it('does nothing when unitySerial is already set', () => {
+  it('does nothing when unitySerial is already set - a real serial is never second-guessed', () => {
     const opts = options({
-      unityLicense: ulfContentFor('F4-XXXX-XXXX-XXXX-XXXX-XXXX'),
-      unitySerial: 'ALREADY-SET',
+      unityLicense: '<License/>',
+      unitySerial: 'F4-XXXX-XXXX-XXXX-XXXX-XXXX',
       unityEmail: 'ci@example.com',
       unityPassword: 'pw123456',
     });
 
-    expect(deriveSerialFromLicenseIfNeeded(opts)).toBe(false);
-    expect(opts.unitySerial).toBe('ALREADY-SET');
+    expect(preferPersonalOverFile(opts)).toBe(false);
+    expect(opts.unityLicensingMethod).toBe('auto');
   });
 
-  it('does nothing when an explicit non-auto unityLicensingMethod is set', () => {
+  it('does nothing when an explicit non-auto unityLicensingMethod is already set', () => {
     const opts = options({
       unityLicensingMethod: 'file',
-      unityLicense: ulfContentFor('F4-XXXX-XXXX-XXXX-XXXX-XXXX'),
+      unityLicense: '<License/>',
       unityEmail: 'ci@example.com',
       unityPassword: 'pw123456',
     });
 
-    expect(deriveSerialFromLicenseIfNeeded(opts)).toBe(false);
-    expect(opts.unitySerial).toBe('');
+    expect(preferPersonalOverFile(opts)).toBe(false);
+    expect(opts.unityLicensingMethod).toBe('file');
   });
 
   it('does nothing without both unityEmail and unityPassword', () => {
     expect(
-      deriveSerialFromLicenseIfNeeded(
-        options({ unityLicense: ulfContentFor('F4-XXXX'), unityEmail: 'ci@example.com' }),
-      ),
+      preferPersonalOverFile(options({ unityLicense: '<License/>', unityEmail: 'ci@example.com' })),
     ).toBe(false);
     expect(
-      deriveSerialFromLicenseIfNeeded(
-        options({ unityLicense: ulfContentFor('F4-XXXX'), unityPassword: 'pw123456' }),
-      ),
+      preferPersonalOverFile(options({ unityLicense: '<License/>', unityPassword: 'pw123456' })),
     ).toBe(false);
   });
 
-  it('does nothing without a license file', () => {
-    expect(
-      deriveSerialFromLicenseIfNeeded(options({ unityEmail: 'ci@example.com', unityPassword: 'pw123456' })),
-    ).toBe(false);
-  });
+  it('does nothing without a license file at all - nothing to prefer personal over', () => {
+    const opts = options({ unityEmail: 'ci@example.com', unityPassword: 'pw123456' });
 
-  it('falls through safely for content that is not a valid personal .ulf', () => {
-    const opts = options({
-      unityLicense: '<xml>not a license file</xml>',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(deriveSerialFromLicenseIfNeeded(opts)).toBe(false);
-    expect(opts.unitySerial).toBe('');
-  });
-
-  it('falls through safely for a DeveloperData tag with no closing marker', () => {
-    const opts = options({
-      unityLicense: '<DeveloperData Value="not-terminated-properly',
-      unityEmail: 'ci@example.com',
-      unityPassword: 'pw123456',
-    });
-
-    expect(deriveSerialFromLicenseIfNeeded(opts)).toBe(false);
-    expect(opts.unitySerial).toBe('');
+    expect(preferPersonalOverFile(opts)).toBe(false);
+    expect(opts.unityLicensingMethod).toBe('auto');
   });
 });

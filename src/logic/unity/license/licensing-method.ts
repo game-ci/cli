@@ -1,6 +1,5 @@
 import type { Options } from '../../../dependencies.ts';
 import { UnityLicensingMethod } from '../../../model/unity/license/unity-licensing-method.ts';
-import { UnityLicense } from '../../../model/unity/license/unity-license.ts';
 
 /**
  * Forwards an explicitly-chosen activation strategy to the platform scripts as
@@ -36,72 +35,57 @@ export function resolveLicensingMethod(options: Options): string {
 }
 
 /**
- * Upgrades a `.ulf` + Unity-account combination to a portable, account-bound
- * serial activation, in place, before any script or docker env var is built.
+ * Prefers account-based `personal` activation over loading a `.ulf` directly,
+ * whenever both are available and no genuine serial was given.
  *
  * Unity removed manual (offline) activation for Personal seats, so any .ulf
  * still in circulation for a free/personal account is cryptographically
  * bound to whichever machine originally requested it - loading it directly
  * (`-manualLicenseFile`) on a *different* machine fails with "Machine
  * bindings don't match". Every ephemeral CI runner is a different machine on
- * every run, so a personal .ulf handed to one can basically never load
- * directly there. It can only ever have worked for someone in this situation
- * because something else was deriving a portable serial from it instead -
- * exactly what unity-test-runner's own pre-thin-wrapper Docker logic did,
- * silently, before it started shelling out to this CLI (reported live
- * against game-ci/unity-test-runner#310's migration).
+ * every run, so a personal .ulf handed to one can essentially never load
+ * directly there.
  *
- * A personal .ulf's `<DeveloperData Value="...">` blob decodes to that same
- * serial - the standard, documented shape of a personal license file - so it
- * can be extracted here and forwarded as UNITY_SERIAL instead of the raw
- * file. That needs no new activation strategy and no change to the four
- * platform scripts' own precedence chains, which resolveLicensingMethod
- * above already commits to leaving alone: every chain already puts a
- * *complete* serial+email+password triple ahead of `file` (see
- * licensing_method.sh's own precedence comment - `file`'s condition is
- * gated on the triple being incomplete, even though it's checked textually
- * first). Simply completing that triple here is enough to make each
- * platform's own existing `serial` branch win, unchanged, everywhere.
+ * An earlier version of this function tried to extract the serial embedded
+ * in a personal .ulf's `<DeveloperData Value="...">` blob and forward it as
+ * UNITY_SERIAL, reusing each platform's existing serial+email+password
+ * precedence to activate portably instead of switching strategy outright.
+ * That worked end-to-end against a synthetic license file (mutation, docker
+ * env var construction, shell quoting - all verified directly), but still
+ * failed against at least one real user's actual .ulf in production
+ * (reported live against game-ci/unity-test-runner, MirrorNetworking/
+ * Mirror#4127) - something about a real, current personal .ulf's shape
+ * doesn't match closely enough for extraction to produce something Unity's
+ * licensing client accepts, and there is no way to get a real sample to
+ * debug further (it is, correctly, a secret). Two independent users
+ * separately arrived at the same workaround by hand: drop the .ulf entirely
+ * and provide just the account credentials. This function encodes that
+ * workaround directly - forcing --unityLicensingMethod=personal through the
+ * existing explicit-override mechanism (resolveLicensingMethod above) - the
+ * same escape hatch a user would reach for by hand, so it needs no new
+ * per-platform script logic either.
  *
  * Deliberately narrow, so it can only ever help, never surprise an existing
  * setup:
- *  - No-op whenever unitySerial, or an explicit non-auto
- *    --unityLicensingMethod, is already set - never second-guesses an
- *    explicit choice.
+ *  - No-op whenever unitySerial is already set - a real Pro/Plus/Enterprise
+ *    serial should never be second-guessed.
+ *  - No-op whenever an explicit non-auto --unityLicensingMethod is already
+ *    set - never second-guesses an explicit choice, including `file` for
+ *    someone who deliberately wants the raw-file behaviour.
  *  - No-op without both unityEmail and unityPassword - there would be
- *    nothing to activate a derived serial *with*, so the existing raw-file
+ *    nothing to activate personally *with*, so the existing raw-file
  *    behaviour (correct for a self-hosted runner with a persistent,
- *    already-matching .ulf) is the only option left, and stays untouched.
- *  - No-op whenever extraction fails - an Enterprise/Industry .ulf isn't
- *    guaranteed to carry this same embedded-serial shape, so a miss here
- *    just falls through to the existing file behaviour rather than erroring.
- *  - Only reads options.unityLicense (already resolved to real file content
- *    by this option's own .coerce, whether the input was inline XML or a
- *    host path) - never options.unityLicenseFile, which names a path meant
- *    to be read *inside the container*, not necessarily one that exists on
- *    the host process running this function.
- *
- * Mutates options.unitySerial in place (rather than returning a value) so
- * every existing consumer of the options bag - SecretRedaction.
- * registerFromOptions, UnityEnvironment.getVariables, and each platform's
- * own unchanged chain - picks it up for free, with no new plumbing anywhere
- * else. Returns whether it did, purely so the caller can log it.
+ *    already-matching .ulf and no account credentials at all) is the only
+ *    option left, and stays untouched.
+ *  - No-op without a license file at all (unityLicense or
+ *    unityLicenseFile) - nothing to prefer personal activation *over*.
  */
-export function deriveSerialFromLicenseIfNeeded(options: Options): boolean {
+export function preferPersonalOverFile(options: Options): boolean {
   if (options.unitySerial) return false;
   if (options.unityLicensingMethod && options.unityLicensingMethod !== UnityLicensingMethod.Auto) return false;
   if (!options.unityEmail || !options.unityPassword) return false;
-  if (!options.unityLicense || !UnityLicense.isValidLicenseFileContents(options.unityLicense)) return false;
+  if (!options.unityLicense && !options.unityLicenseFile) return false;
 
-  try {
-    const serial = UnityLicense.getLicenseSerialFromUlf(options.unityLicense);
-    if (!serial) return false;
-
-    options.unitySerial = serial;
-    return true;
-  } catch {
-    // Not the expected personal-license shape - leave the raw .ulf as the
-    // only option, exactly as if this function didn't exist.
-    return false;
-  }
+  options.unityLicensingMethod = UnityLicensingMethod.Personal;
+  return true;
 }
