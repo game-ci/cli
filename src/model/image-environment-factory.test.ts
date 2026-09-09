@@ -49,6 +49,37 @@ describe('ImageEnvironmentFactory', () => {
     expect(envString).toContain('--env PROJECT_PATH="test-project"');
   });
 
+  it('escapes double quotes so sh cannot close the value early', () => {
+    // A customParameters value with embedded quotes ended the `"..."` wrapper
+    // at the first inner quote; the `;` after it then split the docker command
+    // in two, and `docker run` was left without an image.
+    const customParameters =
+      '-testCategory "!IgnoreCI;!Integration" -testHelperScreenshotDirectory /github/workspace/artifacts/Screenshots';
+    const envString = ImageEnvironmentFactory.getEnvVarString({ hostOS: 'linux', customParameters } as any);
+
+    expect(envString).toContain(
+      '--env CUSTOM_PARAMETERS="-testCategory \\"!IgnoreCI;!Integration\\" -testHelperScreenshotDirectory /github/workspace/artifacts/Screenshots"',
+    );
+  });
+
+  it('escapes backslash, dollar and backtick so sh passes them through literally', () => {
+    const envString = ImageEnvironmentFactory.getEnvVarString({
+      hostOS: 'linux',
+      customParameters: 'a$HOME `id` b\\c',
+    } as any);
+
+    expect(envString).toContain('--env CUSTOM_PARAMETERS="a\\$HOME \\`id\\` b\\\\c"');
+  });
+
+  it('doubles single quotes inside PowerShell single-quoted values', () => {
+    const envString = ImageEnvironmentFactory.getEnvVarString({
+      hostOS: 'windows',
+      customParameters: "-name O'Brien",
+    } as any);
+
+    expect(envString).toContain("--env CUSTOM_PARAMETERS='-name O''Brien'");
+  });
+
   it('omits MANUAL_EXIT by default', () => {
     const options = { hostOS: 'linux' } as any;
     const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));

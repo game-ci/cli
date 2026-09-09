@@ -51,6 +51,19 @@ class ImageEnvironmentFactory {
     return inherited;
   }
 
+  /**
+   * The command string goes through `sh -c` (System.run), so a value is only
+   * safe inside `"..."` once backslash, `"`, `$` and backtick are backslash-escaped -
+   * those four are the only characters POSIX sh interprets between double
+   * quotes. Wrapping in single quotes instead would also work, but it changes
+   * every emitted line and the tests/redaction that match on `NAME="value"`.
+   * Newlines never reach here: isInheritedByName routes them around the
+   * command string entirely.
+   */
+  private static escapeForDoubleQuotes(value: unknown): string {
+    return String(value).replaceAll(/[\\"$`]/g, String.raw`\$&`);
+  }
+
   public static getEnvVarString(options: Options, extraVariables: DockerParameter[] = []) {
     const { hostOS } = options;
     const environmentVariables = ImageEnvironmentFactory.getEnvironmentVariables(options, extraVariables);
@@ -68,10 +81,11 @@ class ImageEnvironmentFactory {
       if (hostOS === 'windows') {
         // The ampersand (&) character is not allowed. The & operator is reserved for future use; wrap an ampersand in
         // double quotation marks ("&") to pass it as part of a string.
-        const escapedValue = typeof p.value !== 'string' ? p.value : p.value?.replace(/&/, '\\"&\\"');
+        const escapedValue =
+          typeof p.value !== 'string' ? p.value : p.value.replaceAll(`'`, `''`).replace(/&/, '\\"&\\"');
         lines.push(`--env ${p.name}='${escapedValue}'`);
       } else {
-        lines.push(`--env ${p.name}="${p.value}"`);
+        lines.push(`--env ${p.name}="${ImageEnvironmentFactory.escapeForDoubleQuotes(p.value)}"`);
       }
     }
 
