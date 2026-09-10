@@ -73,6 +73,24 @@ else
 fi
 
 #
+# Copy in the GameCI settings applier, if a settings spec was provided.
+#
+# Deliberately outside the BUILD_METHOD branch above: a user who brings their
+# own build method is precisely who needs this, since they otherwise have to
+# hand-write every setting into that method themselves. Nothing is copied when
+# no spec is set, so projects that do not use the feature are untouched.
+#
+if [ -n "$GAME_CI_UNITY_SETTINGS" ]; then
+  if [ -d "/GameCISettingsApplier/Assets/Editor" ]; then
+    echo "Applying GameCI Unity settings spec - copying settings applier into the project."
+    mkdir -p "$UNITY_PROJECT_PATH/Assets/Editor/"
+    cp -R "/GameCISettingsApplier/Assets/Editor/." "$UNITY_PROJECT_PATH/Assets/Editor/"
+  else
+    echo "##[warning] GAME_CI_UNITY_SETTINGS is set but the settings applier was not mounted - settings will not be applied."
+  fi
+fi
+
+#
 # Pre-build debug information
 #
 

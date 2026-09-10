@@ -256,6 +256,11 @@ class Docker {
       `--volume "${home}":"/root:z"`,
       `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
       isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
+      // Mounted for BOTH flows, unlike default-build-script: the settings
+      // applier has to be available even when the user brings their own
+      // buildMethod, since that is exactly the case it exists to serve. The
+      // build step only copies it into the project when a spec is set.
+      `--volume "${cliDistPath}/settings-applier:/GameCISettingsApplier:z"`,
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/steps:/steps:z"` : "",
       isUnityDefaultFlow ? `--volume "${cliDistPath}/platforms/ubuntu/entrypoint.sh:/entrypoint.sh:z"` : "",
       isUnityDefaultFlow ? `--volume "${cliDistPath}/unity-config:/usr/share/unity3d/config:z"` : "",
@@ -350,6 +355,7 @@ class Docker {
         ? '  --volume="C:/ProgramData/Microsoft/VisualStudio":"C:/ProgramData/Microsoft/VisualStudio" `'
         : "",
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/default-build-script":"c:/UnityBuilderAction" \`` : "",
+      `  --volume="${cliDistPath}/settings-applier":"c:/GameCISettingsApplier" \``,
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/platforms/windows":"c:/steps" \`` : "",
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/BlankProject":"c:/BlankProject" \`` : "",
       isUnityDefaultFlow ? `  --volume="${cliDistPath}/unity-config":"c:/ProgramData/Unity/config" \`` : "",
