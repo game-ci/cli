@@ -180,8 +180,23 @@ verify_checksum() {
     return 0
   fi
 
+  # GNU sha256sum prepends a literal backslash to the whole output line
+  # (before the hash, with no separating space) whenever the hashed path
+  # contains a backslash or newline, to flag that the filename field further
+  # along the line is backslash-escaped - see its own info page ("If the
+  # string is not a valid Unicode string... a backslash is printed before
+  # the checksum"). $archive_path is Windows-style (or Git Bash's mixed
+  # Windows/POSIX style) whenever this runs on a Windows runner, which
+  # always contains at least one backslash - confirmed live via
+  # unity-builder@v6 on windows-2022, where every fresh (cache-miss) install
+  # failed checksum verification because `awk '{print $1}'` faithfully
+  # captured that leading backslash as part of the hash. Stripping it is
+  # safe unconditionally: a path with no backslash never triggers GNU
+  # sha256sum's escaping in the first place, and shasum (macOS) never emits
+  # it at all, so this is a no-op there.
   local actual
   actual="$($sha_cmd "$archive_path" | awk '{ print $1 }')"
+  actual="${actual#\\}"
 
   if [ "$expected" != "$actual" ]; then
     rm -f "$archive_path"
