@@ -129,49 +129,147 @@ describe("Cli plugin loading", () => {
 });
 
 describe("Cli env var option mapping", () => {
+  // Mirrors the ProjectSettings + git-init setup the profile tests use -
+  // `activate` needs a real-looking Unity project dir, and vcsDetection
+  // shells out to git and throws if it isn't a repo.
+  async function makeProjectDir() {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-env-"));
+    await fs.mkdir(path.join(tempDir, "ProjectSettings"), { recursive: true });
+    await fs.writeFile(
+      path.join(tempDir, "ProjectSettings", "ProjectVersion.txt"),
+      "m_EditorVersion: 2022.3.20f1\n",
+      "utf8",
+    );
+    await new Promise((resolve, reject) => {
+      const child = spawn("git", ["init", tempDir]);
+      child.on("error", reject);
+      child.on("exit", (code) => (code === 0 ? resolve(undefined) : reject(new Error(`git init exited with ${code}`))));
+    });
+
+    return tempDir;
+  }
+
+  // Sets env vars for the duration of one parse and restores them after,
+  // including vars that were previously unset (deleted, not set to "").
+  async function withEnv(vars: Record<string, string>, run: () => Promise<any>) {
+    const previous = new Map<string, string | undefined>();
+    for (const [key, value] of Object.entries(vars)) {
+      previous.set(key, process.env[key]);
+      process.env[key] = value;
+    }
+    try {
+      return await run();
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }
+
+  async function parseOptions(tempDir: string, extraArgs: string[] = []) {
+    const cli = new Cli(["activate", tempDir, ...extraArgs], process.cwd());
+    await cli.setup();
+    await cli.registerCommands();
+    await cli.registerSchemaForChosenCommand();
+    const { options } = await cli.validateAndParseArguments();
+
+    return options;
+  }
+
   // Secrets (Unity credentials, license contents) must reach the CLI via
   // environment variables, not argv - argv can leak through process
   // listings and gets echoed by exec loggers. UnityOptions defaults each
   // credential option to its matching UNITY_* env var (see
-  // unity-options.ts) rather than using yargs' blanket .env(), which
-  // combined with strict(true) rejects every unrelated process env var as
-  // an unrecognized argument.
+  // unity-options.ts). These unprefixed names are long-standing public
+  // contract and are unaffected by the GAME_CI_* prefix mapping below.
   it("populates unityEmail from the UNITY_EMAIL env var", async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-"));
+    const tempDir = await makeProjectDir();
     try {
-      await fs.mkdir(path.join(tempDir, "ProjectSettings"), { recursive: true });
-      await fs.writeFile(
-        path.join(tempDir, "ProjectSettings", "ProjectVersion.txt"),
-        "m_EditorVersion: 2022.3.20f1\n",
-        "utf8",
-      );
-      // vcsDetection shells out to git and throws if the project path isn't a repo.
-      await new Promise((resolve, reject) => {
-        const child = spawn("git", ["init", tempDir]);
-        child.on("error", reject);
-        child.on("exit", (code) =>
-          code === 0 ? resolve(undefined) : reject(new Error(`git init exited with ${code}`)),
-        );
-      });
+      const options = await withEnv({ UNITY_EMAIL: "bot@game.ci" }, () => parseOptions(tempDir));
 
-      const previousEmail = process.env.UNITY_EMAIL;
-      process.env.UNITY_EMAIL = "bot@game.ci";
-      try {
-        const cli = new Cli(["activate", tempDir], process.cwd());
-        await cli.setup();
-        await cli.registerCommands();
-        await cli.registerSchemaForChosenCommand();
-        const { options } = await cli.validateAndParseArguments();
-
-        expect(options.unityEmail).toBe("bot@game.ci");
-      } finally {
-        if (previousEmail === undefined) delete process.env.UNITY_EMAIL;
-        else process.env.UNITY_EMAIL = previousEmail;
-      }
+      expect(options.unityEmail).toBe("bot@game.ci");
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  // The thin wrappers (unity-builder, unity-test-runner, unity-activate)
+  // spawn this CLI as a host child process that inherits the workflow
+  // environment, so GAME_CI_* is how a workflow reaches an option the
+  // wrapper's action.yml has no input for - no wrapper release required.
+  it("maps GAME_CI_<SCREAMING_SNAKE_CASE> onto the matching option", async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const options = await withEnv({ GAME_CI_ENGINE_VERSION: "6000.0.36f1" }, () => parseOptions(tempDir));
+
+      expect(options.engineVersion).toBe("6000.0.36f1");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  // Precedence has to be arg > env > default, so a wrapper that already
+  // passes an explicit flag keeps winning and GAME_CI_* only fills in what
+  // the wrapper left unset.
+  it("lets an explicit argument win over the GAME_CI_* env var", async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const options = await withEnv({ GAME_CI_ENGINE_VERSION: "6000.0.36f1" }, () =>
+        parseOptions(tempDir, ["--engineVersion", "2022.3.20f1"]),
+      );
+
+      expect(options.engineVersion).toBe("2022.3.20f1");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  // The whole reason a blanket .env() was previously avoided: under
+  // strict(true) it maps every process env var to an option name and then
+  // rejects the invocation wholesale. The prefix confines the mapping, so
+  // unrelated vars - including ones that would camelize into a real option
+  // name if the prefix were dropped - must be ignored entirely.
+  it("ignores env vars that do not carry the GAME_CI_ prefix", async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const options = await withEnv(
+        { SOME_UNRELATED_VARIABLE: "should be ignored", ENGINE_VERSION: "1234.5.6f7" },
+        () => parseOptions(tempDir),
+      );
+
+      expect(options.engineVersion).not.toBe("1234.5.6f7");
+      expect(options).not.toHaveProperty("someUnrelatedVariable");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  // Documents the deliberate tradeoff of reserving the namespace: a
+  // GAME_CI_* var matching no option is a hard failure rather than being
+  // silently dropped, so typos surface immediately instead of leaving the
+  // user wondering why their setting had no effect. Asserted out-of-process
+  // because strict-mode failures route through Cli.handleFailure, which
+  // process.exit(1)s - in-process it would take the test runner down with it.
+  it("rejects a GAME_CI_* var that matches no known option", async () => {
+    const tempDir = await makeProjectDir();
+    try {
+      const result = await new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
+        const child = spawn(process.execPath, ["run", path.join(process.cwd(), "src", "index.ts"), "activate", tempDir], {
+          env: { ...process.env, GAME_CI_NOT_A_REAL_OPTION: "x" },
+        });
+        let stderr = "";
+        child.stderr.on("data", (chunk) => (stderr += chunk));
+        child.on("error", reject);
+        child.on("exit", (code) => resolve({ code, stderr }));
+      });
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("notARealOption");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe("Cli config profiles", () => {

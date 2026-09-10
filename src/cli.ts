@@ -252,13 +252,37 @@ export class Cli {
       .epilogue("for more information, find our manual at https://game.ci/docs/cli")
       .middleware([])
       .exitProcess(true) // Fixes broken `_handle` in yargs 17.0.0
-      .strict(true);
-
-    // Deliberately not using yargs' blanket .env(): combined with strict(true)
-    // it treats every process env var (not just game-ci-relevant ones) as an
-    // unrecognized argument and fails. Secret-bearing options set their own
-    // env fallback in their .option() default instead - see unityEmail etc.
-    // in unity-options.ts.
+      .strict(true)
+      // Every option is also settable as GAME_CI_<SCREAMING_SNAKE_CASE>, so
+      // `--dockerMemoryLimit 14g` and GAME_CI_DOCKER_MEMORY_LIMIT=14g are
+      // equivalent. This exists for the thin wrappers (unity-builder,
+      // unity-test-runner, unity-activate): each one spawns this CLI as a
+      // host child process that inherits the workflow environment, so a
+      // workflow `env:` block reaches options the wrapper's action.yml has
+      // no input for. Without it, every new option here needs a matching
+      // input added to - and a release cut for - each wrapper before anyone
+      // can use it.
+      //
+      // The prefix is what makes this safe. A blanket .env() genuinely does
+      // break under strict(true) - it maps EVERY process env var to an
+      // option name, and strict then rejects the whole invocation with
+      // "Unknown arguments: allusersprofile, appdata, ..." - which is why
+      // this was previously avoided altogether. .env(prefix) only maps vars
+      // that carry the prefix, so unrelated environment variables are never
+      // considered in the first place.
+      //
+      // Precedence is arg > GAME_CI_* env > option default, so a wrapper
+      // passing an explicit flag still wins and these only fill what it
+      // left unset. The tradeoff is that GAME_CI_* is now a reserved
+      // namespace: a GAME_CI_ var matching no option is a hard strict-mode
+      // failure rather than being ignored, which surfaces typos instead of
+      // silently dropping them.
+      //
+      // Note this is a superset of, not a replacement for, the unprefixed
+      // env fallbacks that secret-bearing options set in their own
+      // .option() default (UNITY_EMAIL etc. - see unity-options.ts). Those
+      // are long-standing public contract and keep working unchanged.
+      .env("GAME_CI");
   }
 
   protected configureGlobalOptions() {
