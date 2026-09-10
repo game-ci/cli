@@ -155,6 +155,25 @@ export class BuildOptions implements IOptions {
         demandOption: false,
         default: [],
       })
+      .option('unitySettings', {
+        description: String.dedent`Unity Editor, Project and Player settings to apply at build time, one directive
+        per line. Two forms: assignment (EditorUserSettings.desiredImportWorkerCount = 4) for properties and
+        fields, and invocation (PlayerSettings.SetIl2CppCodeGeneration(Standalone, OptimizeSize)) for setter
+        methods. Applied by reflection against the loaded editor assemblies, so any static settings API Unity
+        exposes is reachable without a matching option here - including settings with no command line argument
+        and no environment variable, such as the asset import worker counts. Directives that do not resolve are
+        warnings, not build failures; set unitySettingsStrict to make them fatal.`,
+        type: 'string',
+        demandOption: false,
+        default: '',
+      })
+      .option('unitySettingsStrict', {
+        description: String.dedent`Fail the build if any unitySettings directive cannot be applied, instead of
+        warning and continuing. Use when building with the wrong settings would be worse than not building.`,
+        type: 'boolean',
+        demandOption: false,
+        default: false,
+      })
       .option('dockerShmSize', {
         description: String.dedent`Size of /dev/shm to assign the docker container, using the format <number><unit>
         (m or g). Unity 6.6+ editors request 1GiB of shared memory and fail with "Insufficient shared memory

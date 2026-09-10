@@ -2,6 +2,44 @@ import { ImageEnvironmentFactory } from './image-environment-factory.ts';
 import { UnityEnvironment } from '../logic/unity/environment.ts';
 
 describe('ImageEnvironmentFactory', () => {
+  // The settings applier reads these from inside the container, so they have
+  // to survive the fixed env allowlist - the container never inherits the
+  // workflow environment, which is the whole reason this plumbing exists.
+  it('forwards the Unity settings spec into the container', () => {
+    const options = {
+      hostOS: 'linux',
+      unityLicense: 'ci-stub-license',
+      engineVersion: '2019.4.40f1',
+      projectPath: 'test-project',
+      targetPlatform: 'StandaloneLinux64',
+      unitySettings: 'EditorUserSettings.desiredImportWorkerCount = 4',
+      unitySettingsStrict: true,
+    } as any;
+
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
+
+    expect(envString).toContain('--env GAME_CI_UNITY_SETTINGS="EditorUserSettings.desiredImportWorkerCount = 4"');
+    expect(envString).toContain('--env GAME_CI_UNITY_SETTINGS_STRICT="true"');
+  });
+
+  // An unset spec must not reach the container as the string "undefined",
+  // which the build step's `-n` check would treat as a real spec and then
+  // copy the applier in for a project that never asked for it.
+  it('omits the settings spec entirely when none is configured', () => {
+    const options = {
+      hostOS: 'linux',
+      unityLicense: 'ci-stub-license',
+      engineVersion: '2019.4.40f1',
+      projectPath: 'test-project',
+      targetPlatform: 'StandaloneLinux64',
+    } as any;
+
+    const envString = ImageEnvironmentFactory.getEnvVarString(options, UnityEnvironment.getVariables(options));
+
+    expect(envString).not.toContain('GAME_CI_UNITY_SETTINGS="undefined"');
+    expect(envString).not.toContain('GAME_CI_UNITY_SETTINGS_STRICT="true"');
+  });
+
   it('adds shell line continuations for Linux docker env flags', () => {
     const options = {
       hostOS: 'linux',

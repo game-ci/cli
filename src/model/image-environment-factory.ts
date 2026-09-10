@@ -176,6 +176,10 @@ class ImageEnvironmentFactory {
       { name: 'BUILD_METHOD', value: options.buildMethod },
       { name: 'VERSION', value: options.buildVersion },
       { name: 'CUSTOM_PARAMETERS', value: options.customParameters },
+      // Read by the settings applier editor script (dist/settings-applier),
+      // which is only copied into the project when this is non-empty.
+      { name: 'GAME_CI_UNITY_SETTINGS', value: options.unitySettings },
+      { name: 'GAME_CI_UNITY_SETTINGS_STRICT', value: options.unitySettingsStrict ? 'true' : '' },
       { name: 'CHOWN_FILES_TO', value: options.chownFilesTo },
       { name: 'GITHUB_REF', value: process.env.GITHUB_REF },
       { name: 'GITHUB_SHA', value: process.env.GITHUB_SHA },
