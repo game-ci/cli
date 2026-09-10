@@ -156,6 +156,17 @@ export class DockerTestOptions implements IOptions {
         demandOption: false,
         default: defaultDockerMemoryLimit(),
       })
+      .option('dockerEnv', {
+        description: String.dedent`Extra environment variables to set inside the build container, as NAME=value.
+        Repeat the flag, or pass a newline-separated list (a YAML block scalar in GitHub Actions). The container
+        does not otherwise inherit the surrounding environment, so this is the supported way to reach Unity
+        settings driven by environment variables - for example IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2 to limit
+        IL2CPP compile parallelism on a memory-constrained runner. Values containing '=' are preserved; only the
+        first '=' separates name from value.`,
+        type: 'array',
+        demandOption: false,
+        default: [],
+      })
       .option('dockerShmSize', {
         description: String.dedent`Size of /dev/shm to assign the docker container, using the format <number><unit>
         (m or g). Unity 6.6+ editors request 1GiB of shared memory and fail with "Insufficient shared memory

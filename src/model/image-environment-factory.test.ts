@@ -133,3 +133,73 @@ describe('ImageEnvironmentFactory.getInheritedEnvVars', () => {
     expect(process.env.UNITY_LICENSE).toBeUndefined();
   });
 });
+
+describe('ImageEnvironmentFactory dockerEnv', () => {
+  // The container inherits a fixed allowlist rather than the surrounding
+  // environment, so a user with an env-var-driven Unity setting (most often
+  // IL2CPP_ADDITIONAL_ARGS) had no supported way to reach it at all. --dockerEnv
+  // is that way; these cover the shapes it actually arrives in.
+  it('parses a newline-separated block, as a GitHub Actions block scalar produces', () => {
+    const parsed = ImageEnvironmentFactory.parseUserEnvironmentVariables(
+      'IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2\nFOO=bar\n',
+    );
+
+    expect(parsed).toEqual([
+      { name: 'IL2CPP_ADDITIONAL_ARGS', value: '--maxcpucount=2' },
+      { name: 'FOO', value: 'bar' },
+    ] as any);
+  });
+
+  it('parses repeated flags', () => {
+    expect(ImageEnvironmentFactory.parseUserEnvironmentVariables(['A=1', 'B=2'])).toEqual([
+      { name: 'A', value: '1' },
+      { name: 'B', value: '2' },
+    ] as any);
+  });
+
+  it('splits on the first = only, so values containing = survive', () => {
+    // IL2CPP arguments essentially always contain one.
+    const [parsed] = ImageEnvironmentFactory.parseUserEnvironmentVariables('IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2');
+
+    expect(parsed.value).toBe('--maxcpucount=2');
+  });
+
+  it('skips blank lines and # comments so a block can be annotated', () => {
+    expect(ImageEnvironmentFactory.parseUserEnvironmentVariables('# limit workers\n\nA=1\n')).toEqual([
+      { name: 'A', value: '1' },
+    ] as any);
+  });
+
+  it('rejects an entry with no =, rather than silently dropping it', () => {
+    expect(() => ImageEnvironmentFactory.parseUserEnvironmentVariables('NOEQUALS')).toThrow(/Expected NAME=value/);
+  });
+
+  it('is a no-op when unset', () => {
+    expect(ImageEnvironmentFactory.parseUserEnvironmentVariables(undefined)).toEqual([]);
+    expect(ImageEnvironmentFactory.parseUserEnvironmentVariables([])).toEqual([]);
+  });
+
+  it('appends after the built-ins so a user value wins on collision', () => {
+    // Docker takes the last --env for a given name.
+    const vars = ImageEnvironmentFactory.getEnvironmentVariables({
+      projectPath: '.',
+      targetPlatform: 'StandaloneWindows64',
+      dockerEnv: ['BUILD_TARGET=Overridden'],
+    } as any);
+
+    const matches = vars.filter((p) => p.name === 'BUILD_TARGET');
+
+    expect(matches).toHaveLength(2);
+    expect(matches[matches.length - 1].value).toBe('Overridden');
+  });
+
+  it('reaches the docker command as a real --env flag', () => {
+    const envString = ImageEnvironmentFactory.getEnvVarString({
+      hostOS: 'linux',
+      projectPath: '.',
+      dockerEnv: ['IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2'],
+    } as any);
+
+    expect(envString).toContain('--env IL2CPP_ADDITIONAL_ARGS="--maxcpucount=2"');
+  });
+});
