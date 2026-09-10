@@ -92,8 +92,80 @@ class ImageEnvironmentFactory {
     return lines.join(` ${lineContinuation}\n`);
   }
 
+  /**
+   * Names this factory sets itself. A user-supplied `--dockerEnv` entry that
+   * collides with one of these still wins (it is appended last, and Docker
+   * takes the last `--env NAME=value` for a given name), but it is worth
+   * saying out loud - silently shadowing UNITY_LICENSE or BUILD_TARGET is
+   * the kind of thing that costs an afternoon to work out from a build log.
+   */
+  private static reservedEnvNames(options: Options, extraVariables: DockerParameter[]): Set<string> {
+    return new Set(
+      ImageEnvironmentFactory.builtInEnvironmentVariables(options, extraVariables).map((p) => p.name),
+    );
+  }
+
+  /**
+   * Parses `--dockerEnv` into env vars to pass into the container.
+   *
+   * Accepts repeated flags (`--dockerEnv A=1 --dockerEnv B=2`) and, because a
+   * GitHub Actions input arrives as one string, newline-separated entries in a
+   * single value - which is what a YAML block scalar produces:
+   *
+   *   dockerEnv: |
+   *     IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2
+   *     FOO=bar
+   *
+   * Split on the FIRST `=` only, so values containing `=` (IL2CPP arguments
+   * invariably do) survive intact. Blank lines and `#` comments are skipped so
+   * a block scalar can be annotated.
+   */
+  public static parseUserEnvironmentVariables(dockerEnv: unknown): DockerParameter[] {
+    const entries = (Array.isArray(dockerEnv) ? dockerEnv : [dockerEnv])
+      .filter((entry): entry is string => typeof entry === 'string')
+      .flatMap((entry) => entry.split(/\r?\n/))
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('#'));
+
+    return entries.map((line) => {
+      const separatorIndex = line.indexOf('=');
+
+      if (separatorIndex <= 0) {
+        throw new Error(
+          `Invalid --dockerEnv entry "${line}". Expected NAME=value (for example IL2CPP_ADDITIONAL_ARGS=--maxcpucount=2).`,
+        );
+      }
+
+      return {
+        name: line.slice(0, separatorIndex).trim(),
+        value: line.slice(separatorIndex + 1),
+      } as DockerParameter;
+    });
+  }
+
   /** Engine-agnostic env vars — apply to any engine's Docker build, not Unity-specific. */
   public static getEnvironmentVariables(options: Options, extraVariables: DockerParameter[] = []) {
+    const environmentVariables = ImageEnvironmentFactory.builtInEnvironmentVariables(options, extraVariables);
+    const userVariables = ImageEnvironmentFactory.parseUserEnvironmentVariables(options.dockerEnv);
+
+    if (userVariables.length > 0) {
+      const reserved = ImageEnvironmentFactory.reservedEnvNames(options, extraVariables);
+
+      for (const { name } of userVariables) {
+        if (reserved.has(name)) {
+          log.warning(
+            `--dockerEnv ${name} overrides a value game-ci sets itself. The value you provided wins.`,
+          );
+        }
+      }
+    }
+
+    // Appended last so a user-supplied value wins over the built-in of the
+    // same name - Docker uses the last --env for a given name.
+    return [...environmentVariables, ...userVariables];
+  }
+
+  private static builtInEnvironmentVariables(options: Options, extraVariables: DockerParameter[] = []) {
     const environmentVariables: DockerParameter[] = [
       ...extraVariables,
       { name: 'PROJECT_PATH', value: options.projectPath },
