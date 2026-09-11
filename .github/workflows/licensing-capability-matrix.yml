@@ -204,7 +204,28 @@ jobs:
           # cannot activate" unless the two are separated here. A capability
           # matrix that cannot tell a broken probe from a real finding is
           # worse than no matrix, because it looks authoritative.
-          if grep -q "Activation complete" activation.log; then
+          # "Activation complete" alone is not proof: the licensing client
+          # exits 0 for a processed request that assigned no seat, and the
+          # scripts printed this line anyway. The first successful run of this
+          # matrix reported 2020.3.49f1/personal as a pass while its own log
+          # said "No seat available".
+          #
+          # So a pass now requires POSITIVE evidence that a licence was
+          # actually granted, not merely the absence of a known failure string
+          # - absence-based checks only ever catch the failure modes already
+          # seen. The evidence differs by method, measured from real logs:
+          #
+          #   personal -> "Seat ID: <id>-UnityPersonal" / "Status: [200] ASSIGN_SEAT"
+          #   serial   -> "[Licensing::Module] Serial number assigned to (masked): ..."
+          case "${{ matrix.method }}" in
+            personal) GRANTED='Status: \[200\] ASSIGN_SEAT|Seat ID:' ;;
+            serial)   GRANTED='Serial number assigned to' ;;
+            *)        GRANTED='Activation complete' ;;
+          esac
+
+          if grep -qiE "No seat available|No license activation found for this computer" activation.log; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          elif grep -qE "$GRANTED" activation.log && grep -q "Activation complete" activation.log; then
             echo "result=pass" >> "$GITHUB_OUTPUT"
           elif grep -qE "Licensing method:|Unity\.Licensing\.Client|Requesting activation" activation.log; then
             echo "result=fail" >> "$GITHUB_OUTPUT"
