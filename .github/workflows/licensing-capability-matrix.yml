@@ -143,6 +143,22 @@ jobs:
         if: steps.gate.outputs.run_cell == 'true'
         run: bun install --frozen-lockfile
 
+      # `activate` resolves the engine from the project directory, so it needs
+      # a real Unity project - pointing it at the repo root fails with
+      # "Engine not detected from projectPath" before Unity is ever launched,
+      # which reports as a licensing failure that never happened.
+      # dist/BlankProject is the minimal project the CLI already ships.
+      - name: Prepare a Unity project for the probe
+        if: steps.gate.outputs.run_cell == 'true'
+        run: |
+          PROJECT_DIR="$RUNNER_TEMP/probe-project"
+          cp -R dist/BlankProject "$PROJECT_DIR"
+          # Its committed ProjectVersion pins one editor; the matrix cell
+          # decides the version, so rewrite it to match rather than relying on
+          # --engineVersion alone to override a mismatched project.
+          echo "m_EditorVersion: ${{ matrix.unityVersion }}" > "$PROJECT_DIR/ProjectSettings/ProjectVersion.txt"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
       # `activate` acquires a seat and holds it (it sets activateOnly itself),
       # so the seat is explicitly returned below rather than by a build. The
       # return runs with `if: always()` because a leaked Personal seat breaks
@@ -160,13 +176,22 @@ jobs:
           UNITY_SERIAL: ${{ matrix.method == 'serial' && secrets.UNITY_SERIAL || '' }}
         run: |
           set -o pipefail
-          bun run src/index.ts activate . \
+          bun run src/index.ts activate "$PROJECT_DIR" \
             --engineVersion "${{ matrix.unityVersion }}" 2>&1 | tee activation.log || true
 
+          # Three states, not two. The first run of this workflow reported
+          # "fail" for every cell because the probe pointed at a non-Unity
+          # directory and died with "Engine not detected" before Unity ever
+          # started - which is indistinguishable from "this combination
+          # cannot activate" unless the two are separated here. A capability
+          # matrix that cannot tell a broken probe from a real finding is
+          # worse than no matrix, because it looks authoritative.
           if grep -q "Activation complete" activation.log; then
             echo "result=pass" >> "$GITHUB_OUTPUT"
-          else
+          elif grep -qE "Licensing method:|Unity\.Licensing\.Client|Requesting activation" activation.log; then
             echo "result=fail" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=error" >> "$GITHUB_OUTPUT"
           fi
 
       # The facts that took four rounds to learn by hand, recorded
@@ -194,7 +219,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ matrix.method == 'serial' && secrets.UNITY_SERIAL || '' }}
         run: |
-          bun run src/index.ts return-license . \
+          bun run src/index.ts return-license "$PROJECT_DIR" \
             --engineVersion "${{ matrix.unityVersion }}" || true
 
       - name: Write the result
@@ -259,9 +284,10 @@ jobs:
             # shellcheck disable=SC1090
             . "$f"
             case "$result" in
-              pass) icon="✅ activates" ;;
-              fail) icon="❌ cannot activate" ;;
-              *)    icon="⏭️ skipped" ;;
+              pass)  icon="✅ activates" ;;
+              fail)  icon="❌ cannot activate" ;;
+              error) icon="⚠️ probe never reached Unity" ;;
+              *)     icon="⏭️ skipped" ;;
             esac
             case "${includePersonal:-}" in
               absent) flag="❌ not supported by this client" ;;
