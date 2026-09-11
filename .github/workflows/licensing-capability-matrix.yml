@@ -151,12 +151,30 @@ jobs:
       - name: Prepare a Unity project for the probe
         if: steps.gate.outputs.run_cell == 'true'
         run: |
-          PROJECT_DIR="$RUNNER_TEMP/probe-project"
+          # Inside the workspace, not RUNNER_TEMP: the CLI refuses a project
+          # path that is not under the working directory, because it has to
+          # mount it into the build container ("Run game-ci from inside the
+          # project, or from a parent directory of it"). A project in
+          # RUNNER_TEMP fails that assertion before Unity is launched.
+          PROJECT_DIR="$GITHUB_WORKSPACE/probe-project"
           cp -R dist/BlankProject "$PROJECT_DIR"
           # Its committed ProjectVersion pins one editor; the matrix cell
           # decides the version, so rewrite it to match rather than relying on
           # --engineVersion alone to override a mismatched project.
           echo "m_EditorVersion: ${{ matrix.unityVersion }}" > "$PROJECT_DIR/ProjectSettings/ProjectVersion.txt"
+
+          # The project sits in RUNNER_TEMP, outside the checkout, and version
+          # detection shells out to git - without a repository here it exits
+          # with "fatal: not a git repository" before Unity is ever launched.
+          # Committing as well as initialising matters: an uncommitted tree is
+          # a dirty branch, which versioning also refuses to build from.
+          # scripts/test-licensing-steps.sh does the same for the same reason.
+          git -C "$PROJECT_DIR" init --quiet
+          git -C "$PROJECT_DIR" config user.email "ci@game.ci"
+          git -C "$PROJECT_DIR" config user.name "GameCI licensing probe"
+          git -C "$PROJECT_DIR" add -A
+          git -C "$PROJECT_DIR" commit --quiet -m "Licensing probe fixture"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       # `activate` acquires a seat and holds it (it sets activateOnly itself),
