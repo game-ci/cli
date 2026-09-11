@@ -288,6 +288,21 @@ run_step UNITY_LICENSING_METHOD="serial" UNITY_SERIAL="F4-XXXX" UNITY_LICENSING_
 check "an explicit strategy governs the return" "$(cat "$ARGV_LOG")" "-returnlicense"
 refute "and does not fall back to floating" "$(cat "$ARGV_LOG")" "--return-floating"
 
+# A serial-mode return has to authenticate, exactly like the activation it
+# undoes. Without credentials the returning editor starts a fresh licensing
+# client with no session and reports "Access token is unavailable; failed to
+# update", then "Failed to return entitlement license" - and because that
+# string is in the transient pattern above, it is retried through the full
+# backoff before the seat is leaked anyway. mac/steps/return_license.sh and
+# both windows return scripts have always passed these; the ubuntu steps
+# script lost them, which is what this asserts can not happen again.
+: > "$ARGV_LOG"
+run_step UNITY_LICENSING_METHOD="serial" UNITY_SERIAL="F4-XXXX" \
+  UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' > /dev/null 2>&1
+check "a serial return authenticates with the account username" "$(cat "$ARGV_LOG")" "-username ci@example.com"
+check "a serial return authenticates with the account password" "$(cat "$ARGV_LOG")" "-password pw123456"
+
 echo "Ambiguous licensing method warning"
 # A credential that names a specific strategy (a .ulf, a real serial, a
 # licensing server) but gets silently overridden by a different strategy is

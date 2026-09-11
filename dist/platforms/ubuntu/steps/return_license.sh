@@ -106,12 +106,20 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
   # project, so Unity doesn't reopen the real project (and reimport its
   # library against whatever the editor's default target is) just to
   # return the license (game-ci/cli#33).
+  #
+  # -username/-password mirror the serial branch of activate.sh, and Unity
+  # documents them on -returnlicense exactly as on activation:
+  # https://docs.unity3d.com/Manual/ManagingYourUnityLicense.html (documented identically
+  # for every Unity line game-ci tests: 2018.4, 2019.4, 2020.3, 2022.3, 6000.x)
+  # Without them the returning editor starts a fresh licensing client that then fails to return the license.
   RETURN_LOG="$(mktemp)"
   for ATTEMPT in $(seq 1 "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS"); do
     unity-editor \
       -logFile /dev/stdout \
       -quit \
       -returnlicense \
+      -username "$UNITY_EMAIL" \
+      -password "$UNITY_PASSWORD" \
       -projectPath "$ACTIVATE_LICENSE_PATH" 2>&1 | tee "$RETURN_LOG"
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
 
