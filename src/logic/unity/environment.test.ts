@@ -87,4 +87,55 @@ describe('UnityEnvironment', () => {
       expect(byName.ACTIVATE_ONLY).toBe('');
     });
   });
+
+  describe('android signing credential forwarding', () => {
+    const byNameFor = (options: Record<string, unknown>) =>
+      Object.fromEntries(UnityEnvironment.getVariables(options as any).map((v) => [v.name, v.value]));
+
+    it('forwards the canonical parser flags (androidKeyAlias/…Password) to the ANDROID_* env vars', () => {
+      // Regression: getVariables read androidKeystorePass / androidKeyaliasName
+      // / androidKeyaliasPass, but the parser exposes androidKeystorePassword /
+      // androidKeyAlias / androidKeyAliasPassword - so a signed Android build
+      // configured with the documented flags reached the container with the
+      // keystore password and key alias silently blank.
+      const byName = byNameFor({
+        androidKeystoreName: 'user.keystore',
+        androidKeystorePassword: 'STOREPW',
+        androidKeyAlias: 'release-alias',
+        androidKeyAliasPassword: 'ALIASPW',
+      });
+
+      expect(byName.ANDROID_KEYSTORE_NAME).toBe('user.keystore');
+      expect(byName.ANDROID_KEYSTORE_PASS).toBe('STOREPW');
+      expect(byName.ANDROID_KEYALIAS_NAME).toBe('release-alias');
+      expect(byName.ANDROID_KEYALIAS_PASS).toBe('ALIASPW');
+    });
+
+    it('still honours the deprecated aliases as a fallback', () => {
+      const byName = byNameFor({
+        androidKeystorePass: 'STOREPW',
+        androidKeyAliasName: 'release-alias',
+        androidKeyAliasPass: 'ALIASPW',
+      });
+
+      expect(byName.ANDROID_KEYSTORE_PASS).toBe('STOREPW');
+      expect(byName.ANDROID_KEYALIAS_NAME).toBe('release-alias');
+      expect(byName.ANDROID_KEYALIAS_PASS).toBe('ALIASPW');
+    });
+
+    it('prefers the canonical flag over the deprecated alias when both are set', () => {
+      const byName = byNameFor({
+        androidKeystorePassword: 'NEWSTORE',
+        androidKeystorePass: 'OLDSTORE',
+        androidKeyAlias: 'new-alias',
+        androidKeyAliasName: 'old-alias',
+        androidKeyAliasPassword: 'NEWALIAS',
+        androidKeyAliasPass: 'OLDALIAS',
+      });
+
+      expect(byName.ANDROID_KEYSTORE_PASS).toBe('NEWSTORE');
+      expect(byName.ANDROID_KEYALIAS_NAME).toBe('new-alias');
+      expect(byName.ANDROID_KEYALIAS_PASS).toBe('NEWALIAS');
+    });
+  });
 });

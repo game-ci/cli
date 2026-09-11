@@ -135,9 +135,10 @@ class SetupMac {
     process.env.ANDROID_VERSION_CODE = options.androidVersionCode;
     process.env.ANDROID_KEYSTORE_NAME = options.androidKeystoreName;
     process.env.ANDROID_KEYSTORE_BASE64 = options.androidKeystoreBase64;
-    process.env.ANDROID_KEYSTORE_PASS = options.androidKeystorePass;
-    process.env.ANDROID_KEYALIAS_NAME = options.androidKeyaliasName;
-    process.env.ANDROID_KEYALIAS_PASS = options.androidKeyaliasPass;
+    // Match the documented-option precedence used by UnityEnvironment.
+    process.env.ANDROID_KEYSTORE_PASS = options.androidKeystorePassword || options.androidKeystorePass;
+    process.env.ANDROID_KEYALIAS_NAME = options.androidKeyAlias || options.androidKeyAliasName || options.androidKeyaliasName;
+    process.env.ANDROID_KEYALIAS_PASS = options.androidKeyAliasPassword || options.androidKeyAliasPass || options.androidKeyaliasPass;
     process.env.ANDROID_TARGET_SDK_VERSION = options.androidTargetSdkVersion;
     process.env.ANDROID_SDK_MANAGER_PARAMETERS = options.androidSdkManagerParameters;
     process.env.ANDROID_EXPORT_TYPE = options.androidExportType;
