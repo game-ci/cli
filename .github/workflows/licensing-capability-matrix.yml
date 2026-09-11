@@ -218,7 +218,14 @@ jobs:
           #   personal -> "Seat ID: <id>-UnityPersonal" / "Status: [200] ASSIGN_SEAT"
           #   serial   -> "[Licensing::Module] Serial number assigned to (masked): ..."
           case "${{ matrix.method }}" in
-            personal) GRANTED='Status: \[200\] ASSIGN_SEAT|Seat ID:' ;;
+            # Two shapes, because there are two routes. The licensing client
+            # reports a seat assignment; the editor route (used where the
+            # client cannot request a Personal seat, e.g. Unity 2020.3)
+            # instead reports a Personal serial being assigned:
+            #   [Licensing::Module] Serial number assigned to: "<id>-UnityPersonal"
+            # Matching only the client shape marked a genuinely successful
+            # 2020.3 activation as a failure.
+            personal) GRANTED='Status: \[200\] ASSIGN_SEAT|Seat ID:|UnityPers' ;;
             serial)   GRANTED='Serial number assigned to' ;;
             *)        GRANTED='Activation complete' ;;
           esac
