@@ -94,7 +94,7 @@ try {
       $LicensingClientPath = Get-UnityLicensingClientExePath
 
       for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-        $ActivateOutput = & $LicensingClientPath --activate-all --include-personal `
+        $ActivateOutput = & $LicensingClientPath @(Get-UnityLicensingPersonalFlags) `
                                                  --username $Env:UNITY_EMAIL `
                                                  --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivateOutputVar
         $ActivateOutput | Out-Host
@@ -207,7 +207,7 @@ try {
     # offers no stdin or file-based alternative, so it is briefly visible in
     # the host's process list. Nothing here echoes it.
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-      $ActivateOutput = & $LicensingClientPath --activate-all --include-personal `
+      $ActivateOutput = & $LicensingClientPath @(Get-UnityLicensingPersonalFlags) `
                                                --username $Env:UNITY_EMAIL `
                                                --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivateOutputVar
       $ActivateOutput | Out-Host

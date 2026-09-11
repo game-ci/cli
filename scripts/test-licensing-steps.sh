@@ -32,6 +32,20 @@ export ARGV_LOG="$WORK/argv.log"
 
 cat > "$WORK/Unity.Licensing.Client" <<'STUB'
 #!/usr/bin/env bash
+# --help is a capability probe, not an activation - it is answered without
+# touching ARGV_LOG so it cannot perturb the argv assertions below.
+# STUB_CLIENT_NO_INCLUDE_PERSONAL=1 emulates Unity.Licensing.Client 1.12.1
+# (bundled with 2020.3.49f1), which has --activate-all but not
+# --include-personal. Default is a modern client that has both.
+if [ "$1" = "--help" ]; then
+  echo "  --username     Optional user name"
+  echo "  --password     Optional password"
+  echo "  --activate-all (Default: false) Activate all subscriptions"
+  if [ -z "${STUB_CLIENT_NO_INCLUDE_PERSONAL:-}" ]; then
+    echo "  --include-personal (Default: false) Include personal license"
+  fi
+  exit 0
+fi
 echo "CLIENT $*" >> "$ARGV_LOG"
 echo "${STUB_OUTPUT:-stub output}"
 exit "${STUB_EXIT:-0}"
@@ -306,6 +320,11 @@ echo "File-to-personal activation fallback"
 cat > "$WORK/unity-editor" <<'STUB'
 #!/usr/bin/env bash
 echo "EDITOR $*" >> "$ARGV_LOG"
+# Mirrors the real failure exactly (MirrorNetworking/Mirror 2020.3.49f1): a
+# machine-binding mismatch also emits "Access token is unavailable", which IS a
+# transient signature. Without both lines the retry-budget test below passes
+# trivially, because nothing would have triggered a retry in the first place.
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
 echo "[Licensing::Client] Error: Code 400 while processing request (status: Machine bindings don't match)"
 exit 1
 STUB
@@ -322,6 +341,36 @@ refute "and does not also report the generic failure summary" "$OUT" "Unclassifi
 check "the file activation is attempted first" "$(head -n 1 "$ARGV_LOG")" "EDITOR"
 check "the fallback invokes the licensing client, not another editor call" "$(cat "$ARGV_LOG")" \
   "CLIENT --activate-all --include-personal --username ci@example.com --password pw123456"
+
+# Regression: the fallback used to pass --include-personal unconditionally, which
+# Unity.Licensing.Client 1.12.1 (bundled with 2020.3.49f1) rejects outright with
+# "Option 'include-personal' is unknown" and exit 33 - so the fallback failed on
+# exactly the older editors it existed to rescue. Observed against
+# MirrorNetworking/Mirror's 2020.3.49f1 matrix cell. The flags are now probed from
+# the client's own --help output.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "falls back to personal on an older licensing client too" "$OUT" \
+  "falling back to activating with the Unity account"
+check "and that fallback succeeds rather than erroring on an unknown option" "$OUT" \
+  "Activation complete."
+check "and omits --include-personal when the client does not support it" "$(cat "$ARGV_LOG")" \
+  "CLIENT --activate-all --username ci\example.com --password pw123456"
+refute "and really does not pass --include-personal" "$(cat "$ARGV_LOG")" "--include-personal"
+
+# A machine-binding mismatch is permanent, so it must not burn the retry budget
+# before reaching the fallback - the same failing activation also emits
+# "Access token is unavailable", which IS a transient signature.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "does not retry a machine-binding mismatch as though it were transient" "$OUT" \
+  "known-transient licensing error (attempt 1/4)"
+check "the file activation is tried exactly once before falling back" \
+  "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
 
 : > "$ARGV_LOG"
 OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \

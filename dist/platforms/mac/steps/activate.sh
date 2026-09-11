@@ -23,6 +23,32 @@ ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
 ACTIVATE_RETRY_DELAY_SECONDS=20
 ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
+# A machine-binding mismatch is permanent, not flaky: the .ulf is cryptographically
+# bound to the machine that requested it, and no amount of retrying will bind it to
+# this one. Checked separately because the same failing activation also emits
+# "Access token is unavailable" and "License activation has failed", both of which
+# ARE in the transient list - so without this the run burns every attempt and its
+# full backoff before reaching the fallback that was going to handle it anyway.
+ACTIVATE_PERMANENT_LICENSE_ERROR_PATTERN="Machine bindings don't match"
+
+# `--include-personal` does not exist on every licensing client. Unity 2020.3.49f1
+# ships Unity.Licensing.Client 1.12.1, which supports --activate-all/--username/
+# --password but rejects --include-personal outright ("Option 'include-personal' is
+# unknown", exit 33), so passing it unconditionally made the machine-binding
+# fallback fail on exactly the older versions it needed to rescue. Probe the
+# client's own help text rather than inferring from the editor version - the client
+# is versioned independently of the editor that bundles it.
+unity_licensing_personal_flags() {
+  local client_help
+  client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
+
+  if grep -q -- '--include-personal' <<< "$client_help"; then
+    printf '%s' '--activate-all --include-personal'
+  else
+    printf '%s' '--activate-all'
+  fi
+}
+
 # Serial mode is preferred over personal-license (below) whenever both are
 # configured: a manually-activated .ulf is bound to the machine fingerprint
 # of whatever machine originally requested it, which real CI evidence shows
@@ -77,6 +103,11 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
     fi
     UNITY_EXIT_CODE=1
 
+    if grep -qF "$ACTIVATE_PERMANENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+      # Permanent - stop here so the fallback below runs immediately.
+      break
+    fi
+
     if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff (20s, 40s, 80s, ...): a genuine Unity license-
       # server outage can outlast a flat delay's total retry window, seen
@@ -110,8 +141,7 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
       "$(unity_licensing_client_path)" \
-        --activate-all \
-        --include-personal \
+        $(unity_licensing_personal_flags) \
         --username "$UNITY_EMAIL" \
         --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
       UNITY_EXIT_CODE=${PIPESTATUS[0]}
@@ -220,8 +250,7 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
   ACTIVATE_LOG="$(mktemp)"
   for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
     "$(unity_licensing_client_path)" \
-      --activate-all \
-      --include-personal \
+      $(unity_licensing_personal_flags) \
       --username "$UNITY_EMAIL" \
       --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
     UNITY_EXIT_CODE=${PIPESTATUS[0]}

@@ -90,7 +90,7 @@ if ($LicensingMethod -eq 'file') {
     Write-Host "##[warning] The license file's machine binding doesn't match this machine - falling back to activating with the Unity account (UNITY_EMAIL/UNITY_PASSWORD) instead."
 
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-      $ActivationOutput = & $LicensingClientPath --activate-all --include-personal `
+      $ActivationOutput = & $LicensingClientPath @(Get-UnityLicensingPersonalFlags) `
                                                  --username $Env:UNITY_EMAIL `
                                                  --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivationOutputVar
       $ActivationOutput | Out-Host
@@ -159,7 +159,7 @@ elseif ($LicensingMethod -eq 'personal') {
   # no stdin or file-based alternative, so it is briefly visible in the
   # container's process list. Nothing here echoes it.
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-    $ActivationOutput = & $LicensingClientPath --activate-all --include-personal `
+    $ActivationOutput = & $LicensingClientPath @(Get-UnityLicensingPersonalFlags) `
                                                --username $Env:UNITY_EMAIL `
                                                --password $Env:UNITY_PASSWORD 2>&1 | Tee-Object -Variable ActivationOutputVar
     $ActivationOutput | Out-Host
