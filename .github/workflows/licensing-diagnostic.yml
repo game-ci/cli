@@ -1,0 +1,127 @@
+# One-shot, dispatch-only probe for "is there any way to activate this?".
+#
+# The capability matrix answers "does our current code path work". This answers
+# the different and harder question of whether a *different* path would, which
+# is what you need before telling someone their Unity version is unsupported.
+#
+# It exists because the matrix measured account activation failing on Unity
+# 2020.3 (client 1.12.1 has no --include-personal, and --activate-all alone
+# does not cover Personal seats) and that was nearly reported as "2020.3 cannot
+# do Personal activation at all" - a much broader claim, resting on a single
+# untried code path. These probes try the alternatives directly.
+#
+# Read-only in intent: every probe that could take a seat returns it in the
+# same step, and the whole thing runs on demand rather than on any trigger.
+name: Licensing diagnostic (one-shot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      unityVersion:
+        description: Unity version to probe, e.g. 2020.3.49f1
+        type: string
+        required: true
+        default: '2020.3.49f1'
+      image:
+        description: Editor image tag suffix (base, linux-il2cpp, ...)
+        type: string
+        required: false
+        default: 'base'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Shares the seat pool with the capability matrix, so it must not run
+  # alongside it - a probe that fails for want of a seat would be read as a
+  # probe that cannot work at all.
+  group: licensing-capability-matrix
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe ${{ inputs.unityVersion }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run activation probes inside the editor image
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          IMAGE: unityci/editor:ubuntu-${{ inputs.unityVersion }}-${{ inputs.image }}-3
+        run: |
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
+            echo "::error::Account credentials unavailable - nothing to probe."
+            exit 1
+          fi
+
+          cat > probe.sh <<'PROBE'
+          #!/usr/bin/env bash
+          # Intentionally not `set -e`: every probe must run even when an
+          # earlier one fails, because the point is to compare their outcomes.
+          CLIENT=/opt/unity/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client
+
+          banner() { echo; echo "=============== $* ==============="; }
+
+          # The client prints its version banner on --help; there is no
+          # --version option on 1.12.1.
+          banner "client version"
+          "$CLIENT" --help 2>&1 | head -n 2
+
+          banner "PROBE 1: what does this account actually hold? (--showEntitlements)"
+          "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 60
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "PROBE 2: current code path (--activate-all, no --include-personal)"
+          "$CLIENT" --activate-all --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 40
+          echo "exit=${PIPESTATUS[0]}"
+          "$CLIENT" --return-ulf >/dev/null 2>&1 || true
+
+          banner "PROBE 3: editor, account only, NO serial (historical personal path)"
+          # This is the route never tried on this version. The serial path uses
+          # -serial as well; Unity documents that as not applying to Personal,
+          # which is exactly why account-only is worth testing on its own.
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+            -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 | tail -n 40
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "PROBE 4: --syncEntitlements"
+          "$CLIENT" --syncEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 30
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "PROBE 5: entitlements again, after the attempts above"
+          "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 60
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "cleanup: return anything that was taken"
+          "$CLIENT" --return-ulf 2>&1 | head -n 10 || true
+          PROBE
+          chmod +x probe.sh
+
+          docker run --rm \
+            --env UNITY_EMAIL --env UNITY_PASSWORD \
+            --volume "$PWD/probe.sh:/probe.sh:ro" \
+            "$IMAGE" /bin/bash /probe.sh 2>&1 | tee diagnostic.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: licensing-diagnostic-${{ inputs.unityVersion }}
+          path: diagnostic.log
+          if-no-files-found: warn
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Licensing diagnostic - ${{ inputs.unityVersion }}"
+            echo ""
+            echo "Probes tried, in order: entitlements, current code path,"
+            echo "editor account-only (no serial), syncEntitlements, entitlements again."
+            echo ""
+            echo "Look for a seat assignment (\`ASSIGN_SEAT\`) or a serial being"
+            echo "assigned in any probe. If one appears in a probe other than #2,"
+            echo "there is a route this version supports that the CLI does not use."
+          } >> "$GITHUB_STEP_SUMMARY"
