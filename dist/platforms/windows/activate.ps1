@@ -23,6 +23,26 @@ Write-Host "Licensing method: $(if ($LicensingMethod) { $LicensingMethod } else 
 # See build.ps1 for why UNITY_PATH (game-ci/cli#77), not Hub's default install location.
 $LicensingClientPath = "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe"
 
+# Whether the bundled licensing client can request a Personal seat, and which
+# flags to use if so. Unity 2020.3 ships client 1.12.1, which rejects
+# --include-personal ("Option 'include-personal' is unknown", exit 33) and
+# whose --activate-all covers only subscriptions. Probed from the client's own
+# help rather than the editor version, because the two are versioned
+# independently.
+#
+# Defined here rather than shared from steps/resolve_unity_path.ps1 because
+# this container script does not dot-source that file - it builds
+# $LicensingClientPath itself, above.
+function Get-UnityLicensingPersonalFlags {
+  $HelpText = (& $LicensingClientPath --help 2>&1 | Out-String)
+
+  if ($HelpText -match '--include-personal') {
+    return @('--activate-all', '--include-personal')
+  }
+
+  return @('--activate-all')
+}
+
 # Same UNITY_LICENSE_RETRY_MAX_ATTEMPTS as build.ps1's matching retry - one
 # knob covers every activation mode below since they're the same underlying
 # flakiness.

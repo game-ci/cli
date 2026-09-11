@@ -44,6 +44,14 @@ UNITY_ACTIVATE_PERMANENT_PATTERN="Machine bindings don't match"
 # rather than guessing from the editor version - the client is versioned
 # independently of the editor that bundles it, so a version comparison would be
 # wrong the moment Unity backports or skips a client release.
+# Whether the bundled licensing client can request a Personal seat at all.
+# 1.12.1 (Unity 2020.3) cannot: it has no --include-personal, and
+# --activate-all alone covers only subscriptions, so it returns "No seat
+# available" for a Personal account. Newer clients can.
+unity_licensing_client_supports_personal() {
+  "$(unity_licensing_client_path)" --help 2>&1 | grep -q -- '--include-personal'
+}
+
 unity_licensing_personal_flags() {
   local client_help
   client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
@@ -299,6 +307,65 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
   # run on the account, not just this one.
   echo "Requesting activation (personal license via Unity account)"
 
+  # Two routes, because no single one works on every editor.
+  #
+  # The licensing client is preferred where it can do the job. Where it
+  # cannot - Unity 2020.3 and older, whose client 1.12.1 has no
+  # --include-personal - the EDITOR can, using account credentials with no
+  # serial. Measured on 2020.3.49f1 by
+  # .github/workflows/licensing-diagnostic.yml:
+  #
+  #   [Licensing::Client] Successfully resolved entitlements
+  #   [Licensing::Module] Serial number assigned to: "<id>-UnityPersonal"
+  #   Pro License: NO
+  #
+  # This route was never tried before because the editor invocation elsewhere
+  # in this file always passes -serial, which Unity documents as not applying
+  # to Personal - so account-only was assumed not to work, and 2020.3 was
+  # nearly documented as unable to use Personal seats at all.
+  if ! unity_licensing_client_supports_personal; then
+    echo "This editor's licensing client cannot request a Personal seat - activating through the editor instead."
+
+    ACTIVATE_LOG="$(mktemp)"
+    for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
+      ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
+        -logFile /dev/stdout \
+        -quit \
+        -username "$UNITY_EMAIL" \
+        -password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
+
+      # Deliberately not the exit code: a personal activation run outside a
+      # project exits non-zero for unrelated reasons (no manifest, no
+      # project to open), while having successfully taken the seat. The
+      # licensing lines are the real signal.
+      if grep -q "Serial number assigned to" "$ACTIVATE_LOG" ||
+         grep -q "Successfully resolved entitlements" "$ACTIVATE_LOG"; then
+        UNITY_EXIT_CODE=0
+        break
+      fi
+
+      UNITY_EXIT_CODE=1
+
+      if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
+        UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
+        echo "Personal activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+        sleep "$UNITY_ACTIVATE_RETRY_DELAY"
+        continue
+      fi
+
+      break
+    done
+
+    if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
+      explain_personal_activation_failure "$ACTIVATE_LOG" || true
+    fi
+    rm -f "$ACTIVATE_LOG"
+
+    # The seat is held in the same licensing state either way, so
+    # return_license.sh's existing --return-ulf branch releases it.
+    export GAME_CI_ACTIVATED_VIA=personal
+  else
+
   # UNITY_PASSWORD is passed as an argument because the licensing client
   # offers no stdin or file-based alternative. It is therefore visible in this
   # container's process list for the duration of the call. Nothing here echoes
@@ -352,9 +419,8 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
      grep -qiE "No seat available|No license activation found for this computer" "$ACTIVATE_LOG"; then
     UNITY_EXIT_CODE=1
     echo "##[error] Unity processed the activation request but assigned no seat."
-    echo "This happens when the account has no Personal seat available, or when"
-    echo "the editor's licensing client cannot request one (Unity 2020.3 and"
-    echo "older). Use UNITY_SERIAL with a Plus/Pro seat on those versions."
+    echo "This usually means the account has no Personal seat available -"
+    echo "check https://id.unity.com for seats already in use elsewhere."
   fi
 
   # Seat exhaustion and 2FA both surface as a generic non-zero exit, and need
@@ -364,6 +430,7 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
     explain_personal_activation_failure "$ACTIVATE_LOG" || true
   fi
   rm -f "$ACTIVATE_LOG"
+  fi
 
 else
   #

@@ -38,6 +38,14 @@ ACTIVATE_PERMANENT_LICENSE_ERROR_PATTERN="Machine bindings don't match"
 # fallback fail on exactly the older versions it needed to rescue. Probe the
 # client's own help text rather than inferring from the editor version - the client
 # is versioned independently of the editor that bundles it.
+# Whether the bundled licensing client can request a Personal seat at all.
+# 1.12.1 (Unity 2020.3) cannot: no --include-personal, and --activate-all
+# alone covers only subscriptions. The editor can, using account credentials
+# with no serial - see the matching comment in ubuntu/steps/activate.sh.
+unity_licensing_client_supports_personal() {
+  "$(unity_licensing_client_path)" --help 2>&1 | grep -q -- '--include-personal'
+}
+
 unity_licensing_personal_flags() {
   local client_help
   client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
@@ -252,6 +260,49 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
   # closed off for free seats. See ubuntu/steps/activate.sh's matching branch.
   echo "Requesting activation (personal license via Unity account)"
 
+  # Two routes - see ubuntu/steps/activate.sh for the full rationale and the
+  # measurement. Short version: the licensing client is preferred, but 2020.3's
+  # 1.12.1 cannot request a Personal seat, and the editor can, with account
+  # credentials and no serial.
+  if ! unity_licensing_client_supports_personal; then
+    echo "This editor's licensing client cannot request a Personal seat - activating through the editor instead."
+
+    ACTIVATE_LOG="$(mktemp)"
+    for ACTIVATE_ATTEMPT in $(seq 1 "$ACTIVATE_MAX_ATTEMPTS"); do
+      ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
+        -logFile /dev/stdout \
+        -quit \
+        -username "$UNITY_EMAIL" \
+        -password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
+
+      # Not the exit code: a personal activation run outside a project exits
+      # non-zero for unrelated reasons while having taken the seat.
+      if grep -q "Serial number assigned to" "$ACTIVATE_LOG" ||
+         grep -q "Successfully resolved entitlements" "$ACTIVATE_LOG"; then
+        UNITY_EXIT_CODE=0
+        break
+      fi
+
+      UNITY_EXIT_CODE=1
+
+      if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
+        ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
+        echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+        sleep "$ACTIVATE_RETRY_DELAY"
+        continue
+      fi
+
+      break
+    done
+
+    if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
+      explain_personal_activation_failure "$ACTIVATE_LOG" || true
+    fi
+    rm -f "$ACTIVATE_LOG"
+
+    export GAME_CI_ACTIVATED_VIA=personal
+  else
+
   # UNITY_PASSWORD is passed as an argument because the licensing client offers
   # no stdin or file-based alternative, so it is briefly visible in the host's
   # process list. Nothing here echoes it, and no `set -x` is in effect.
@@ -289,9 +340,8 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
      grep -qiE "No seat available|No license activation found for this computer" "$ACTIVATE_LOG"; then
     UNITY_EXIT_CODE=1
     echo "##[error] Unity processed the activation request but assigned no seat."
-    echo "This happens when the account has no Personal seat available, or when"
-    echo "the editor's licensing client cannot request one (Unity 2020.3 and"
-    echo "older). Use UNITY_SERIAL with a Plus/Pro seat on those versions."
+    echo "This usually means the account has no Personal seat available -"
+    echo "check https://id.unity.com for seats already in use elsewhere."
   fi
 
   # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
@@ -300,6 +350,7 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
     explain_personal_activation_failure "$ACTIVATE_LOG" || true
   fi
   rm -f "$ACTIVATE_LOG"
+  fi
 else
   #
   # NO LICENSE ACTIVATION STRATEGY MATCHED

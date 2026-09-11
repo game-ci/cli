@@ -58,6 +58,17 @@ cat > "$WORK/unity-editor" <<'STUB'
 #!/usr/bin/env bash
 echo "EDITOR $*" >> "$ARGV_LOG"
 echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
+# Account credentials with no serial is the personal-activation route. The
+# real editor answers it with an entitlement resolution and a Personal serial
+# assignment, and exits non-zero anyway when run outside a project - so the
+# stub reproduces both, or success detection would be tested against output
+# the editor never actually produces.
+if [[ "$*" == *"-username"* && "$*" != *"-serial"* ]]; then
+  echo "[Licensing::Client] Successfully resolved entitlements"
+  echo "[Licensing::Module] Serial number assigned to: 1375199680824-UnityPersXXXX"
+  echo "Pro License: NO"
+  exit "${STUB_EXIT:-1}"
+fi
 exit "${STUB_EXIT:-0}"
 STUB
 chmod +x "$WORK/unity-editor"
@@ -157,6 +168,31 @@ Seat ID: 1375199680824-UnityPersonal
 Status: [200] ASSIGN_SEAT" \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "still reports success when a seat was assigned" "$OUT" "Activation complete."
+
+# On editors whose licensing client cannot request a Personal seat (2020.3's
+# 1.12.1 has no --include-personal), activation goes through the EDITOR with
+# account credentials and no serial. Measured working on 2020.3.49f1 by
+# .github/workflows/licensing-diagnostic.yml - the route had never been tried,
+# and 2020.3 was nearly documented as unable to use Personal seats at all.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "uses the editor when the client cannot request a Personal seat" "$OUT" \
+  "activating through the editor instead"
+check "and the editor call carries no serial" "$(cat "$ARGV_LOG")" \
+  "EDITOR -logFile /dev/stdout -quit -username ci\example.com -password pw123456"
+refute "and really passes no -serial" "$(cat "$ARGV_LOG")" "-serial"
+check "and reports success" "$OUT" "Activation complete."
+
+# The modern client must keep using the client route, not regress onto the
+# editor - the editor route exists only for editors that cannot do it.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "still prefers the licensing client where it is capable" "$OUT" \
+  "activating through the editor instead"
+check "and that is the client, not the editor" "$(cat "$ARGV_LOG")" "CLIENT --activate-all"
 
 echo "Personal return"
 : > "$ARGV_LOG"
