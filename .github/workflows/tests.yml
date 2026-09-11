@@ -17,6 +17,7 @@ jobs:
       cli: ${{ steps.filter.outputs.cli }}
       orchestrator: ${{ steps.filter.outputs.orchestrator }}
       unity: ${{ steps.filter.outputs.unity }}
+      licensing: ${{ steps.filter.outputs.licensing }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -42,6 +43,20 @@ jobs:
             unity:
               - 'plugins/unity/**'
               - '.github/workflows/tests.yml'
+            # Narrower than `cli` on purpose: the licensing capability matrix
+            # activates against real editors and consumes real seats, so it is
+            # gated on the activation scripts themselves rather than on all of
+            # dist/ or src/.
+            licensing:
+              - 'dist/platforms/*/steps/activate.sh'
+              - 'dist/platforms/*/steps/licensing_method.sh'
+              - 'dist/platforms/*/steps/return_license.sh'
+              - 'dist/platforms/windows/activate.ps1'
+              - 'dist/platforms/windows/return_license.ps1'
+              - 'src/logic/unity/license/**'
+              - 'src/command/activate/**'
+              - 'src/command/return-license/**'
+              - '.github/workflows/licensing-capability-matrix.yml'
 
   tests:
     name: Tests
@@ -278,13 +293,28 @@ jobs:
     uses: ./.github/workflows/orchestrator-integration.yml
     secrets: inherit
 
+  # Runs only when the activation scripts themselves change. This is the one
+  # suite that exercises a real licensing client rather than a stub, which is
+  # the gap that let game-ci/cli#264 ship: the unit tests stub the client, and
+  # a stub cannot reject a flag the real 1.12.1 client does not have.
+  licensing-matrix:
+    name: Licensing capability matrix
+    needs: changes
+    if: needs.changes.outputs.licensing == 'true'
+    uses: ./.github/workflows/licensing-capability-matrix.yml
+    secrets: inherit
+
   # Aggregate gate: stays green when a suite is legitimately skipped, but
   # fails if any suite that DID run failed. Branch protection should
   # require this single check rather than the individual suites above -
   # otherwise a skipped-but-required job blocks every scoped PR.
   tests-gate:
     name: Tests gate
-    needs: [tests, unity-tests, orchestrator-tests, orchestrator-integration]
+    # licensing-matrix is included deliberately even though it is
+    # reporting-only: its probe steps are continue-on-error, so an
+    # unsupported combination cannot fail it, and anything that DOES fail
+    # it is real breakage in the workflow itself rather than a red cell.
+    needs: [tests, unity-tests, orchestrator-tests, orchestrator-integration, licensing-matrix]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

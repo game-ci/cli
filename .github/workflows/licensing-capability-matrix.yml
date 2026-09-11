@@ -1,0 +1,287 @@
+# Answers one question with evidence instead of inference: which Unity
+# licensing methods actually work, on which Unity versions.
+#
+# It exists because we repeatedly could not answer that. A community report
+# (MirrorNetworking/Mirror, 2020.3.49f1) took four rounds and three shipped
+# "fixes" to diagnose, and the decisive facts - that 2020.3.49f1 bundles
+# Unity.Licensing.Client 1.12.1, and that 1.12.1 has no --include-personal -
+# were only ever learned by reading a failing log in someone else's repo. Our
+# own unit tests could not have caught it: they stub the licensing client, and
+# a stub cannot tell you which flags a real client rejects.
+#
+# Deliberately NOT scheduled. It runs when it is useful:
+#   - called from tests.yml when licensing code actually changes
+#   - on demand via workflow_dispatch, when investigating a report
+#   - before a release, via the same call
+#
+# The output is a capability table in the job summary, not a pass/fail buried
+# in logs. A cell that cannot activate is information, not necessarily a
+# failure - `required: true` marks the combinations we consider supported, and
+# only those gate the build.
+name: Licensing capability matrix
+
+on:
+  workflow_call:
+    inputs:
+      versions:
+        description: Optional JSON array of Unity versions, overriding the default set.
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: 'JSON array of Unity versions, e.g. ["2020.3.49f1","6000.6.0f1"]. Blank uses the default set.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  # Activation consumes real seats on a shared account. Two runs of this
+  # workflow at once would compete for them and report failures that are
+  # really contention, which is exactly the kind of misleading signal this
+  # workflow exists to eliminate.
+  group: licensing-capability-matrix
+  cancel-in-progress: false
+
+jobs:
+  # Secrets are unavailable to fork PRs. Without this the whole matrix would
+  # report "cannot activate" for every cell and look like a catastrophic
+  # regression, when it is really just an unprivileged context.
+  preflight:
+    name: Check credentials are available
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_account: ${{ steps.check.outputs.has_account }}
+      has_serial: ${{ steps.check.outputs.has_serial }}
+      versions: ${{ steps.check.outputs.versions }}
+    steps:
+      - id: check
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          VERSIONS_INPUT: ${{ inputs.versions }}
+        run: |
+          if [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ]; then
+            echo "has_account=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_account=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::UNITY_EMAIL/UNITY_PASSWORD unavailable - account activation cells will be skipped."
+          fi
+
+          if [ -n "$UNITY_SERIAL" ]; then
+            echo "has_serial=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_serial=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::UNITY_SERIAL unavailable - serial cells will be skipped."
+          fi
+
+          # The default set is chosen by licensing-client boundary, not by
+          # popularity: 2020.3 ships client 1.12.1 (no --include-personal),
+          # 6000.6 ships 1.18.3, and the middle entries cover where the
+          # behaviour changed between them.
+          if [ -n "$VERSIONS_INPUT" ]; then
+            echo "versions=$VERSIONS_INPUT" >> "$GITHUB_OUTPUT"
+          else
+            echo 'versions=["2020.3.49f1","2022.3.62f3","6000.0.36f1","6000.6.0f1"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  probe:
+    name: ${{ matrix.unityVersion }} · ${{ matrix.method }}
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Every cell must report. fail-fast would abort the run on the first
+      # unsupported combination and destroy the very table this produces -
+      # and an aborted matrix is what made Mirror's 2020.3 failure cancel
+      # its sibling jobs and hide their results.
+      fail-fast: false
+      # Seats are finite and shared. Serialising keeps a red cell meaningful
+      # (this combination cannot activate) rather than ambiguous (we ran out
+      # of seats).
+      max-parallel: 1
+      matrix:
+        unityVersion: ${{ fromJSON(needs.preflight.outputs.versions) }}
+        method: [personal, serial]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide whether this cell can run
+        id: gate
+        env:
+          HAS_ACCOUNT: ${{ needs.preflight.outputs.has_account }}
+          HAS_SERIAL: ${{ needs.preflight.outputs.has_serial }}
+          METHOD: ${{ matrix.method }}
+        run: |
+          run_cell=true
+          reason=""
+
+          if [ "$HAS_ACCOUNT" != "true" ]; then
+            run_cell=false
+            reason="no account credentials"
+          elif [ "$METHOD" = "serial" ] && [ "$HAS_SERIAL" != "true" ]; then
+            run_cell=false
+            reason="no serial configured"
+          fi
+
+          echo "run_cell=$run_cell" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+      - name: Build the CLI under test
+        if: steps.gate.outputs.run_cell == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run_cell == 'true'
+        run: bun install --frozen-lockfile
+
+      # `activate` acquires a seat and holds it (it sets activateOnly itself),
+      # so the seat is explicitly returned below rather than by a build. The
+      # return runs with `if: always()` because a leaked Personal seat breaks
+      # every later run on the account, not just this one.
+      - name: Probe activation
+        id: probe
+        if: steps.gate.outputs.run_cell == 'true'
+        continue-on-error: true
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          # Only the serial cells receive a serial. The personal cells must
+          # not see one, or they would silently exercise the serial path and
+          # report a false positive for account activation.
+          UNITY_SERIAL: ${{ matrix.method == 'serial' && secrets.UNITY_SERIAL || '' }}
+        run: |
+          set -o pipefail
+          bun run src/index.ts activate . \
+            --engineVersion "${{ matrix.unityVersion }}" 2>&1 | tee activation.log || true
+
+          if grep -q "Activation complete" activation.log; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The facts that took four rounds to learn by hand, recorded
+      # automatically for every version: which licensing client this editor
+      # actually bundles, and which flags it actually accepts.
+      - name: Record licensing client capabilities
+        id: caps
+        if: steps.gate.outputs.run_cell == 'true'
+        continue-on-error: true
+        run: |
+          client_version="$(grep -oiE 'Unity\.Licensing\.Client [0-9]+\.[0-9]+\.[0-9]+' activation.log | head -n 1 || true)"
+          echo "client=${client_version:-unknown}" >> "$GITHUB_OUTPUT"
+
+          if grep -q "include-personal' is unknown" activation.log; then
+            echo "include_personal=absent" >> "$GITHUB_OUTPUT"
+          else
+            echo "include_personal=-" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Return the seat
+        if: always() && steps.gate.outputs.run_cell == 'true'
+        continue-on-error: true
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ matrix.method == 'serial' && secrets.UNITY_SERIAL || '' }}
+        run: |
+          bun run src/index.ts return-license . \
+            --engineVersion "${{ matrix.unityVersion }}" || true
+
+      - name: Write the result
+        if: always()
+        run: |
+          mkdir -p results
+          # Values are quoted because the report job sources this file, and
+          # the client version legitimately contains a space
+          # ("Unity.Licensing.Client 1.12.1") - unquoted, sourcing it would
+          # try to execute the version number as a command.
+          {
+            echo "unityVersion='${{ matrix.unityVersion }}'"
+            echo "method='${{ matrix.method }}'"
+            if [ "${{ steps.gate.outputs.run_cell }}" != "true" ]; then
+              echo "result='skipped'"
+              echo "note='${{ steps.gate.outputs.reason }}'"
+            else
+              echo "result='${{ steps.probe.outputs.result }}'"
+              echo "note='${{ steps.caps.outputs.client }}'"
+              echo "includePersonal='${{ steps.caps.outputs.include_personal }}'"
+            fi
+          } > "results/${{ matrix.unityVersion }}-${{ matrix.method }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: licensing-probe-${{ matrix.unityVersion }}-${{ matrix.method }}
+          path: |
+            results/
+            activation.log
+          if-no-files-found: warn
+
+  report:
+    name: Capability report
+    needs: [preflight, probe]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: licensing-probe-*
+          merge-multiple: true
+          path: collected
+
+      # The whole point of this workflow: one table a human can read, rather
+      # than a conclusion someone has to reconstruct from six job logs.
+      - name: Render capability table
+        run: |
+          {
+            echo "## Unity licensing capability matrix"
+            echo ""
+            echo "What actually works, measured against real editors."
+            echo ""
+            echo "| Unity version | Method | Result | Licensing client | --include-personal |"
+            echo "| --- | --- | --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          shopt -s nullglob
+          for f in collected/*.txt; do
+            unset unityVersion method result note includePersonal
+            # shellcheck disable=SC1090
+            . "$f"
+            case "$result" in
+              pass) icon="✅ activates" ;;
+              fail) icon="❌ cannot activate" ;;
+              *)    icon="⏭️ skipped" ;;
+            esac
+            case "${includePersonal:-}" in
+              absent) flag="❌ not supported by this client" ;;
+              *)      flag="–" ;;
+            esac
+            echo "| \`$unityVersion\` | $method | $icon | ${note:-–} | $flag |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          {
+            echo ""
+            echo "A red cell is a finding, not necessarily a fault: some"
+            echo "combinations are genuinely unsupported by Unity. What matters"
+            echo "is when a cell changes colour between runs."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Reports rather than gates, for now. Turning specific cells into
+      # required checks is a deliberate second step: the first run of this
+      # workflow establishes what the real baseline is, and asserting a
+      # baseline we have not yet measured would just encode today's guesses -
+      # which is the mistake this workflow exists to stop making.
+      - name: Note the gating policy
+        run: |
+          echo "Capability matrix is reporting-only until a measured baseline exists." >> "$GITHUB_STEP_SUMMARY"
