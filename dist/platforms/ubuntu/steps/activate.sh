@@ -23,6 +23,38 @@ UNITY_ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
 UNITY_ACTIVATE_RETRY_DELAY_SECONDS=20
 UNITY_ACTIVATE_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
+# A machine-binding mismatch is permanent, not flaky: the .ulf is cryptographically
+# bound to the machine that requested it, and no amount of retrying will bind it to
+# this one. It has to be checked separately because the same failing activation also
+# emits "Access token is unavailable" and "License activation has failed", both of
+# which ARE in the transient list - so without this the run burned four attempts and
+# ~2.5 minutes of backoff before reaching the fallback that was going to handle it
+# anyway (observed on MirrorNetworking/Mirror, 2020.3.49f1).
+UNITY_ACTIVATE_PERMANENT_PATTERN="Machine bindings don't match"
+
+# `--include-personal` does not exist on every licensing client. Unity 2020.3.49f1
+# ships Unity.Licensing.Client 1.12.1, which supports --activate-all/--username/
+# --password but rejects --include-personal outright:
+#
+#   Option 'include-personal' is unknown.
+#   ... CommandLine.UnknownOptionError ... Exit code was: 33
+#
+# Passing it unconditionally therefore made the machine-binding fallback fail on
+# exactly the older versions it needed to rescue. Probe the client's own help text
+# rather than guessing from the editor version - the client is versioned
+# independently of the editor that bundles it, so a version comparison would be
+# wrong the moment Unity backports or skips a client release.
+unity_licensing_personal_flags() {
+  local client_help
+  client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
+
+  if grep -q -- '--include-personal' <<< "$client_help"; then
+    printf '%s' '--activate-all --include-personal'
+  else
+    printf '%s' '--activate-all'
+  fi
+}
+
 if [[ "$LICENSING_METHOD" == "file" ]]; then
   #
   # LICENSE FILE MODE
@@ -84,6 +116,11 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
       break
     fi
 
+    if grep -qF "$UNITY_ACTIVATE_PERMANENT_PATTERN" "$ACTIVATE_LOG"; then
+      # Permanent - stop here so the fallback below runs immediately.
+      break
+    fi
+
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
@@ -121,8 +158,7 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
       "$(unity_licensing_client_path)" \
-        --activate-all \
-        --include-personal \
+        $(unity_licensing_personal_flags) \
         --username "$UNITY_EMAIL" \
         --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
 
@@ -262,8 +298,7 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
   ACTIVATE_LOG="$(mktemp)"
   for ATTEMPT in $(seq 1 "$UNITY_ACTIVATE_MAX_ATTEMPTS"); do
     "$(unity_licensing_client_path)" \
-      --activate-all \
-      --include-personal \
+      $(unity_licensing_personal_flags) \
       --username "$UNITY_EMAIL" \
       --password "$UNITY_PASSWORD" 2>&1 | tee "$ACTIVATE_LOG"
 
