@@ -225,7 +225,9 @@ jobs:
             #   [Licensing::Module] Serial number assigned to: "<id>-UnityPersonal"
             # Matching only the client shape marked a genuinely successful
             # 2020.3 activation as a failure.
-            personal) GRANTED='Status: \[200\] ASSIGN_SEAT|Seat ID:|UnityPers' ;;
+            # Anchored on the assignment line rather than a bare UnityPers
+            # substring, which would also match unrelated diagnostic text.
+            personal) GRANTED='Status: \[200\] ASSIGN_SEAT|Seat ID:|Serial number assigned to:.*UnityPers' ;;
             serial)   GRANTED='Serial number assigned to' ;;
             *)        GRANTED='Activation complete' ;;
           esac
