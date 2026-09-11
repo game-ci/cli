@@ -113,6 +113,20 @@ try {
         break
       }
 
+      # The licensing client exits 0 when it has *processed* the request, not
+      # when it has been given a seat. Unity 2020.3's client ends a personal
+      # activation with "No seat available." / "No license activation found for
+      # this computer." and still exits 0 - see the matching comment in
+      # ubuntu/steps/activate.sh, and the measurements in
+      # .github/workflows/licensing-capability-matrix.yml.
+      if ($global:UNITY_EXIT_CODE -eq 0 -and
+          $ActivateText -match 'No seat available|No license activation found for this computer') {
+        $global:UNITY_EXIT_CODE = 1
+        Write-Host "##[error] Unity processed the activation request but assigned no seat."
+        Write-Host "This happens when the account has no Personal seat available, or when"
+        Write-Host "the editor's licensing client cannot request one (Unity 2020.3 and"
+        Write-Host "older). Use UNITY_SERIAL with a Plus/Pro seat on those versions."
+      }
       if ($global:UNITY_EXIT_CODE -ne 0) {
         Write-PersonalActivationFailureHelp -LogText $ActivateText | Out-Null
       }
@@ -228,6 +242,20 @@ try {
 
     # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
     # completely different fixes - say which one it was.
+    # The licensing client exits 0 when it has *processed* the request, not
+    # when it has been given a seat. Unity 2020.3's client ends a personal
+    # activation with "No seat available." / "No license activation found for
+    # this computer." and still exits 0 - see the matching comment in
+    # ubuntu/steps/activate.sh, and the measurements in
+    # .github/workflows/licensing-capability-matrix.yml.
+    if ($global:UNITY_EXIT_CODE -eq 0 -and
+        $ActivateText -match 'No seat available|No license activation found for this computer') {
+      $global:UNITY_EXIT_CODE = 1
+      Write-Host "##[error] Unity processed the activation request but assigned no seat."
+      Write-Host "This happens when the account has no Personal seat available, or when"
+      Write-Host "the editor's licensing client cannot request one (Unity 2020.3 and"
+      Write-Host "older). Use UNITY_SERIAL with a Plus/Pro seat on those versions."
+    }
     if ($global:UNITY_EXIT_CODE -ne 0) {
       Write-PersonalActivationFailureHelp -LogText $ActivateText | Out-Null
     }

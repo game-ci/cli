@@ -115,6 +115,31 @@ check "activation succeeds" "$OUT" "Activation complete."
 check "invokes the licensing client, not the editor" "$(cat "$ARGV_LOG")" \
   "CLIENT --activate-all --include-personal --username ci@example.com --password pw123456"
 
+# Regression: the licensing client exits 0 when it has *processed* an
+# activation request, not when it has been granted a seat. Unity 2020.3.49f1's
+# client 1.12.1 ends a personal activation with "No seat available." and still
+# exits 0, so activate.sh reported "Activation complete." and the build went on
+# to fail later with an unrelated-looking licensing error. Measured against
+# real editors by .github/workflows/licensing-capability-matrix.yml.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  STUB_OUTPUT="Activation processed successfully.
+No seat available.
+Trying to update entitlement license file ...
+No license activation found for this computer. (UnityEntitlementLicense.xml)" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "does not report success when no seat was assigned" "$OUT" "Activation complete."
+check "and says so explicitly" "$OUT" "assigned no seat"
+
+# The inverse: a genuine seat assignment must still be treated as success.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+  STUB_OUTPUT="Activation processed successfully.
+Seat ID: 1375199680824-UnityPersonal
+Status: [200] ASSIGN_SEAT" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "still reports success when a seat was assigned" "$OUT" "Activation complete."
+
 echo "Personal return"
 : > "$ARGV_LOG"
 run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \

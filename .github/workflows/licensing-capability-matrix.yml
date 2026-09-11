@@ -204,7 +204,15 @@ jobs:
           # cannot activate" unless the two are separated here. A capability
           # matrix that cannot tell a broken probe from a real finding is
           # worse than no matrix, because it looks authoritative.
-          if grep -q "Activation complete" activation.log; then
+          # "Activation complete" alone is not proof: the licensing client
+          # exits 0 for a processed request that assigned no seat, and the
+          # scripts used to print this line anyway. The first successful run of
+          # this matrix reported 2020.3.49f1/personal as a pass while its log
+          # said "No seat available". Checked here as well as fixed in the
+          # scripts, so the matrix cannot be fooled by a future variant.
+          if grep -qiE "No seat available|No license activation found for this computer" activation.log; then
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          elif grep -q "Activation complete" activation.log; then
             echo "result=pass" >> "$GITHUB_OUTPUT"
           elif grep -qE "Licensing method:|Unity\.Licensing\.Client|Requesting activation" activation.log; then
             echo "result=fail" >> "$GITHUB_OUTPUT"

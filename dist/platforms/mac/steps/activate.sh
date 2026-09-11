@@ -160,6 +160,14 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
       break
     done
 
+    # Same false-success guard as the main personal path below: the client
+    # exits 0 having "processed" a request that assigned no seat.
+    if [ "$UNITY_EXIT_CODE" -eq 0 ] &&
+       grep -qiE "No seat available|No license activation found for this computer" "$ACTIVATE_LOG"; then
+      UNITY_EXIT_CODE=1
+      echo "##[error] The fallback processed the activation request but assigned no seat."
+    fi
+
     if [ "$UNITY_EXIT_CODE" -ne 0 ]; then
       explain_personal_activation_failure "$ACTIVATE_LOG" || true
     fi
@@ -268,6 +276,23 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
 
     break
   done
+
+  # The licensing client exits 0 when it has *processed* the request, not when
+  # it has actually been given a seat. Unity 2020.3.49f1's client 1.12.1 ends a
+  # personal activation with "No seat available." / "No license activation
+  # found for this computer." and still exits 0, so this script reported
+  # "Activation complete." and the build failed later with an
+  # unrelated-looking error. A genuine activation prints a seat assignment
+  # ("Status: [200] ASSIGN_SEAT") instead. Measured by
+  # .github/workflows/licensing-capability-matrix.yml.
+  if [ "$UNITY_EXIT_CODE" -eq 0 ] &&
+     grep -qiE "No seat available|No license activation found for this computer" "$ACTIVATE_LOG"; then
+    UNITY_EXIT_CODE=1
+    echo "##[error] Unity processed the activation request but assigned no seat."
+    echo "This happens when the account has no Personal seat available, or when"
+    echo "the editor's licensing client cannot request one (Unity 2020.3 and"
+    echo "older). Use UNITY_SERIAL with a Plus/Pro seat on those versions."
+  fi
 
   # Seat exhaustion and 2FA both surface as a generic non-zero exit but need
   # completely different fixes - say which one it was.
