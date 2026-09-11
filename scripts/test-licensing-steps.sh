@@ -96,6 +96,22 @@ check() {
   fi
 }
 
+# Exit status matters as much as the message here: the no-seat bug was
+# precisely a case where the script said the right thing and still succeeded.
+# This file runs under `set -u` and not `set -e`, so a status has to be
+# captured and asserted explicitly - checking output alone would pass even if
+# the script exited 0.
+check_failed() {
+  if [ "$2" -ne 0 ]; then
+    echo "  PASS $1"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL $1"
+    echo "       expected a non-zero exit status, got: $2"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 refute() {
   if [[ "$2" != *"$3"* ]]; then
     echo "  PASS $1"
@@ -122,18 +138,20 @@ check "invokes the licensing client, not the editor" "$(cat "$ARGV_LOG")" \
 # to fail later with an unrelated-looking licensing error. Measured against
 # real editors by .github/workflows/licensing-capability-matrix.yml.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_OUTPUT="Activation processed successfully.
 No seat available.
 Trying to update entitlement license file ...
 No license activation found for this computer. (UnityEntitlementLicense.xml)" \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+NO_SEAT_STATUS=$?
 refute "does not report success when no seat was assigned" "$OUT" "Activation complete."
 check "and says so explicitly" "$OUT" "assigned no seat"
+check_failed "and exits non-zero, not merely warning" "$NO_SEAT_STATUS"
 
 # The inverse: a genuine seat assignment must still be treated as success.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_OUTPUT="Activation processed successfully.
 Seat ID: 1375199680824-UnityPersonal
 Status: [200] ASSIGN_SEAT" \
@@ -374,7 +392,7 @@ check "the fallback invokes the licensing client, not another editor call" "$(ca
 # MirrorNetworking/Mirror's 2020.3.49f1 matrix cell. The flags are now probed from
 # the client's own --help output.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "falls back to personal on an older licensing client too" "$OUT" \
@@ -382,14 +400,14 @@ check "falls back to personal on an older licensing client too" "$OUT" \
 check "and that fallback succeeds rather than erroring on an unknown option" "$OUT" \
   "Activation complete."
 check "and omits --include-personal when the client does not support it" "$(cat "$ARGV_LOG")" \
-  "CLIENT --activate-all --username ci\example.com --password pw123456"
+  "CLIENT --activate-all --username ci@example.com --password pw123456"
 refute "and really does not pass --include-personal" "$(cat "$ARGV_LOG")" "--include-personal"
 
 # A machine-binding mismatch is permanent, so it must not burn the retry budget
 # before reaching the fallback - the same failing activation also emits
 # "Access token is unavailable", which IS a transient signature.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 refute "does not retry a machine-binding mismatch as though it were transient" "$OUT" \
