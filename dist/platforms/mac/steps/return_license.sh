@@ -183,7 +183,7 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
       # machine that no longer exists.
       echo "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
       echo "##[warning] This is expected when activation and return happen on different machines or containers."
-      echo "##[warning] Node-locked serial activations are released by Unity on their own; no action is needed."
+      echo "##[warning] If activations later run out, release them at https://id.unity.com."
     else
       echo "##[warning] Failed to return the Unity license after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
     fi
