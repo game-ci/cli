@@ -33,6 +33,12 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
+# Permanent by construction: the entitlement is bound to the machine that
+# activated it, so no retry rebinds it. Checked separately because the same
+# failing return also emits "Access token is unavailable", which IS in the
+# transient list above - see ubuntu/steps/return_license.sh.
+$PermanentPattern = "Machine bindings don't match"
+
 if ($ReturnStrategy -eq 'floating') {
   #
   # Return any floating license used.
@@ -46,6 +52,7 @@ if ($ReturnStrategy -eq 'floating') {
 
     if ($ReturnExitCode -eq 0) { break }
 
+    if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -78,6 +85,7 @@ elseif ($ReturnStrategy -eq 'personal') {
 
     if ($ReturnExitCode -eq 0) { break }
 
+    if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -115,6 +123,7 @@ elseif ($ReturnStrategy -eq 'serial') {
 
     if ($ReturnExitCode -eq 0) { break }
 
+    if ($LogContent -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -125,7 +134,13 @@ elseif ($ReturnStrategy -eq 'serial') {
     break
   }
   if ($ReturnExitCode -ne 0) {
-    Write-Host "##[warning] Failed to return the Unity license after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+    if ($LogContent -match $PermanentPattern) {
+        Write-Host "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
+        Write-Host "##[warning] This is expected when activation and return happen on different machines or containers."
+        Write-Host "##[warning] If activations later run out, release them at https://id.unity.com."
+      } else {
+        Write-Host "##[warning] Failed to return the Unity license after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+      }
   }
 }
 
