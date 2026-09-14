@@ -127,3 +127,33 @@ describe("SetupMac", () => {
     expect(capturedCommand).toContain("--architecture arm64");
   });
 });
+
+
+describe("SetupMac Android signing environment", () => {
+  it("forwards documented options and prefers them over deprecated values", async () => {
+    const savedEnvironment = { ...process.env };
+    fs.existsSync = () => true;
+    System.run = mock(async () => { throw new Error("No process should be launched"); }) as any;
+    try {
+      await SetupMac.setup({
+        isRunningLocally: true,
+        engineVersion: "2021.3.45f2",
+        androidKeystorePassword: "synthetic-store-password",
+        androidKeystorePass: "old-store-password",
+        androidKeyAlias: "release-alias",
+        androidKeyAliasName: "old-alias",
+        androidKeyAliasPassword: "synthetic-alias-password",
+        androidKeyAliasPass: "old-alias-password",
+      } as any);
+      expect(process.env.ANDROID_KEYSTORE_PASS).toBe("synthetic-store-password");
+      expect(process.env.ANDROID_KEYALIAS_NAME).toBe("release-alias");
+      expect(process.env.ANDROID_KEYALIAS_PASS).toBe("synthetic-alias-password");
+      expect(System.run).not.toHaveBeenCalled();
+    } finally {
+      for (const key of Object.keys(process.env)) {
+        if (!(key in savedEnvironment)) delete process.env[key];
+      }
+      Object.assign(process.env, savedEnvironment);
+    }
+  });
+});
