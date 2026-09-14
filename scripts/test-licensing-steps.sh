@@ -57,6 +57,12 @@ chmod +x "$WORK/Unity.Licensing.Client"
 cat > "$WORK/unity-editor" <<'STUB'
 #!/usr/bin/env bash
 echo "EDITOR $*" >> "$ARGV_LOG"
+# STUB_OUTPUT lets a case drive the editor's output the same way it can the
+# licensing client's - needed for the return paths, which run the editor.
+if [ -n "${STUB_OUTPUT:-}" ]; then
+  echo "$STUB_OUTPUT"
+  exit "${STUB_EXIT:-0}"
+fi
 echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
 # Account credentials with no serial is the personal-activation route. The
 # real editor answers it with an entitlement resolution and a Personal serial
@@ -510,6 +516,34 @@ OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "a 2FA challenge is named" "$OUT" "second factor"
+
+# Earlier cases in this file redefine the editor stub, so this one defines the
+# behaviour it needs rather than inheriting whatever ran last.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] An error occurred attempting to return the ULF license (status code: 1400, message: \"Machine bindings don't match\")"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+# A machine-binding mismatch on RETURN is permanent - the entitlement is bound
+# to the machine that activated it. It was being retried because the same
+# failing return also emits "Access token is unavailable; failed to update",
+# which IS a transient signature, so the real reason was masked and the run
+# burned all four attempts (~2.5 minutes) before warning anyway. Reported by a
+# user, and reproduced in this repo's own licensing capability matrix.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "does not retry a machine-binding mismatch on return" "$OUT" \
+  "known-transient licensing error (attempt 1/4)"
+check "and names the real cause instead of implying a leaked seat" "$OUT" \
+  "bound to a different machine"
+refute "and does not send the user hunting a leak" "$OUT" "may still be held"
 
 echo "Seat return on every exit path"
 # A steps directory of the real licensing scripts plus a build.sh that hard-

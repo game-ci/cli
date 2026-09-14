@@ -28,6 +28,9 @@ UNITY_LICENSE_RETURN_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
 UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS=20
 UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
+# Permanent by construction - see the guards below.
+UNITY_LICENSE_RETURN_PERMANENT_PATTERN="Machine bindings don't match"
+
 if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   #
   # Return any floating license used.
@@ -49,6 +52,19 @@ if [[ "$RETURN_STRATEGY" == "floating" ]]; then
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    # "Machine bindings don't match" on a RETURN is permanent, exactly as it is
+    # on an activation: the entitlement is bound to the machine that activated
+    # it, and no retry rebinds it. It has to be checked separately because the
+    # same failing return also emits "Access token is unavailable; failed to
+    # update", which IS in the transient list - so the real reason was masked
+    # and the run burned all four attempts and ~2.5 minutes of backoff before
+    # warning anyway. Reported by a user as "we spend an extra 2-3m at the end
+    # of the test action trying to return a license, which will fail every
+    # time", and reproduced in this repo's own licensing matrix.
+    if grep -qF "$UNITY_LICENSE_RETURN_PERMANENT_PATTERN" "$RETURN_LOG"; then
       break
     fi
 
@@ -81,6 +97,19 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    # "Machine bindings don't match" on a RETURN is permanent, exactly as it is
+    # on an activation: the entitlement is bound to the machine that activated
+    # it, and no retry rebinds it. It has to be checked separately because the
+    # same failing return also emits "Access token is unavailable; failed to
+    # update", which IS in the transient list - so the real reason was masked
+    # and the run burned all four attempts and ~2.5 minutes of backoff before
+    # warning anyway. Reported by a user as "we spend an extra 2-3m at the end
+    # of the test action trying to return a license, which will fail every
+    # time", and reproduced in this repo's own licensing matrix.
+    if grep -qF "$UNITY_LICENSE_RETURN_PERMANENT_PATTERN" "$RETURN_LOG"; then
       break
     fi
 
@@ -124,6 +153,19 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
       break
     fi
 
+    # "Machine bindings don't match" on a RETURN is permanent, exactly as it is
+    # on an activation: the entitlement is bound to the machine that activated
+    # it, and no retry rebinds it. It has to be checked separately because the
+    # same failing return also emits "Access token is unavailable; failed to
+    # update", which IS in the transient list - so the real reason was masked
+    # and the run burned all four attempts and ~2.5 minutes of backoff before
+    # warning anyway. Reported by a user as "we spend an extra 2-3m at the end
+    # of the test action trying to return a license, which will fail every
+    # time", and reproduced in this repo's own licensing matrix.
+    if grep -qF "$UNITY_LICENSE_RETURN_PERMANENT_PATTERN" "$RETURN_LOG"; then
+      break
+    fi
+
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
@@ -135,7 +177,16 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
     break
   done
   if [ "$RETURN_EXIT_CODE" -ne 0 ]; then
-    echo "##[warning] Failed to return the Unity license after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
+    if grep -qF "$UNITY_LICENSE_RETURN_PERMANENT_PATTERN" "$RETURN_LOG"; then
+      # Naming the cause matters: "this seat may still be held" sends people
+      # hunting a leak on their Unity account, when the licence was bound to a
+      # machine that no longer exists.
+      echo "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
+      echo "##[warning] This is expected when activation and return happen on different machines or containers."
+      echo "##[warning] Node-locked serial activations are released by Unity on their own; no action is needed."
+    else
+      echo "##[warning] Failed to return the Unity license after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
+    fi
   fi
   rm -f "$RETURN_LOG"
 fi
