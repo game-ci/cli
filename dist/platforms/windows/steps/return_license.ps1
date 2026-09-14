@@ -138,7 +138,7 @@ try {
       if ($LogContent -match $PermanentPattern) {
         Write-Host "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
         Write-Host "##[warning] This is expected when activation and return happen on different machines or containers."
-        Write-Host "##[warning] Node-locked serial activations are released by Unity on their own; no action is needed."
+        Write-Host "##[warning] If activations later run out, release them at https://id.unity.com."
       } else {
         Write-Host "##[warning] Failed to return the Unity license after $MaxAttempts attempts - this seat may still be held by Unity's license server."
       }
