@@ -259,7 +259,19 @@ jobs:
             echo "include_personal=-" >> "$GITHUB_OUTPUT"
           fi
 
+      # The return is measured, not merely attempted. It used to run as
+      # `... || true` with its output discarded, so the matrix reported 8/8
+      # green while the return failed on every single cell - a user with six
+      # Unity versions had all six warn "Failed to return the Personal license
+      # seat" on a run this matrix called healthy.
+      #
+      # A matrix that only measures half of a round trip is worse than no
+      # matrix: it is the thing people point at to conclude there is no
+      # problem. `continue-on-error` stays, because one cell failing to return
+      # must not abandon the other cells' returns - but the result is now
+      # written into the cell.
       - name: Return the seat
+        id: return
         if: always() && steps.gate.outputs.run_cell == 'true'
         continue-on-error: true
         env:
@@ -267,8 +279,59 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ matrix.method == 'serial' && secrets.UNITY_SERIAL || '' }}
         run: |
+          set -o pipefail
           bun run src/index.ts return-license "$PROJECT_DIR" \
-            --engineVersion "${{ matrix.unityVersion }}" || true
+            --engineVersion "${{ matrix.unityVersion }}" 2>&1 | tee return.log || true
+
+          # Positive evidence, for the same reason activation demands it: Unity
+          # returns the licence and THEN exits non-zero, so an exit code alone
+          # reads a successful return as a failure. The scripts already judge
+          # this from the log; the matrix judges it the same way, from the same
+          # strings, rather than inventing a second opinion.
+          # Read the pattern from the script rather than restating it here. The
+          # first version of this step copied the strings, and the copy was
+          # already stale by the time it first ran: the scripts had learned
+          # "Successfully returned the entitlement license" - the wording for a
+          # Personal seat, and the only one that matters for the personal cells
+          # - and this step graded a successful return as a failure. A matrix
+          # that disagrees with the code it measures is worse than no matrix.
+          RETURN_SCRIPT=dist/platforms/ubuntu/steps/return_license.sh
+          RETURNED="$(sed -n "s/^UNITY_LICENSE_RETURN_SUCCESS_PATTERN='\(.*\)'$/\1/p" "$RETURN_SCRIPT" | head -n 1)"
+          if [ -z "$RETURNED" ]; then
+            echo "::error::Could not read UNITY_LICENSE_RETURN_SUCCESS_PATTERN from $RETURN_SCRIPT - the matrix cannot grade the return without it."
+            echo "result=error" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Grading the return against: $RETURNED"
+          # Not a failure: there was no seat to give back in the first place.
+          NOTHING_HELD='No Personal license seat was held'
+
+          # Nor is this one, and it is the matrix's own doing. Each cell runs
+          # `activate` and `return-license` as separate commands, so they get
+          # separate containers and separate machine identities, and a serial
+          # return is refused with "Machine bindings don't match" every time.
+          # That says nothing about whether the code works - a real build
+          # sources both in one container - so grading it as a failure would
+          # park four permanently red cells in the table, and a table with
+          # cells everyone knows to ignore is the thing this workflow exists to
+          # avoid. Read from the script for the same reason as RETURNED.
+          UNMEASURABLE="$(sed -n 's/^UNITY_LICENSE_RETURN_PERMANENT_PATTERN="\(.*\)"$/\1/p' "$RETURN_SCRIPT" | head -n 1)"
+
+          if grep -qE "$RETURNED" return.log; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          elif grep -qF "$NOTHING_HELD" return.log; then
+            echo "result=none" >> "$GITHUB_OUTPUT"
+          elif [ -n "$UNMEASURABLE" ] && grep -qF "$UNMEASURABLE" return.log; then
+            echo "result=unmeasurable" >> "$GITHUB_OUTPUT"
+          elif grep -qE 'Licensing::|Returning|return-ulf|returnlicense' return.log; then
+            # Unity's licensing module ran and did not return the seat. The
+            # first version looked only for the three command spellings, which
+            # the serial branch never prints, so a genuine return failure was
+            # graded "never reached Unity".
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=error" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Write the result
         if: always()
@@ -286,6 +349,7 @@ jobs:
               echo "note='${{ steps.gate.outputs.reason }}'"
             else
               echo "result='${{ steps.probe.outputs.result }}'"
+              echo "returnResult='${{ steps.return.outputs.result }}'"
               echo "note='${{ steps.caps.outputs.client }}'"
               echo "includePersonal='${{ steps.caps.outputs.include_personal }}'"
             fi
@@ -298,6 +362,7 @@ jobs:
           path: |
             results/
             activation.log
+            return.log
           if-no-files-found: warn
 
   report:
@@ -322,13 +387,13 @@ jobs:
             echo ""
             echo "What actually works, measured against real editors."
             echo ""
-            echo "| Unity version | Method | Result | Licensing client | --include-personal |"
-            echo "| --- | --- | --- | --- | --- |"
+            echo "| Unity version | Method | Activate | Return | Licensing client | --include-personal |"
+            echo "| --- | --- | --- | --- | --- | --- |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           shopt -s nullglob
           for f in collected/*.txt; do
-            unset unityVersion method result note includePersonal
+            unset unityVersion method result returnResult note includePersonal
             # shellcheck disable=SC1090
             . "$f"
             case "$result" in
@@ -337,11 +402,22 @@ jobs:
               error) icon="⚠️ probe never reached Unity" ;;
               *)     icon="⏭️ skipped" ;;
             esac
+            # A seat that cannot be handed back is the more expensive half
+            # of the round trip: it degrades every later run on the account,
+            # not just this one.
+            case "${returnResult:-}" in
+              pass)  ricon="✅ returns" ;;
+              none)  ricon="➖ nothing held" ;;
+              fail)  ricon="❌ cannot return" ;;
+              unmeasurable) ricon="➖ separate container" ;;
+              error) ricon="⚠️ never reached Unity" ;;
+              *)     ricon="⏭️ skipped" ;;
+            esac
             case "${includePersonal:-}" in
               absent) flag="❌ not supported by this client" ;;
               *)      flag="–" ;;
             esac
-            echo "| \`$unityVersion\` | $method | $icon | ${note:-–} | $flag |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| \`$unityVersion\` | $method | $icon | $ricon | ${note:-–} | $flag |" >> "$GITHUB_STEP_SUMMARY"
           done
 
           {

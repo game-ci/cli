@@ -697,6 +697,17 @@ check "reports the attempts that actually happened" "$OUT" "after 1 attempt(s)"
 refute "and not the maximum it never reached" "$OUT" "after 4 attempt"
 
 
+# licensing-capability-matrix.yml grades the return by reading this pattern out
+# of the script rather than restating it, because a restated copy went stale
+# within hours of being written. That extraction is a text match against a
+# variable name, so it breaks silently if the variable is renamed - and a matrix
+# that cannot read the pattern grades every successful return as a failure.
+MATRIX_EXTRACTED="$(sed -n "s/^UNITY_LICENSE_RETURN_SUCCESS_PATTERN='\(.*\)'$/\1/p" "$STEPS_SRC/return_license.sh" | head -n 1)"
+check "the matrix can still read the return success pattern" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned"
+check "and it covers the entitlement wording the editor emits" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned the entitlement license"
+MATRIX_PERMANENT="$(sed -n 's/^UNITY_LICENSE_RETURN_PERMANENT_PATTERN="\(.*\)"$/\1/p' "$STEPS_SRC/return_license.sh" | head -n 1)"
+check "and the permanent pattern it uses to mark a cell unmeasurable" "${MATRIX_PERMANENT:-<nothing>}" "Machine bindings"
+
 echo "Seat return on every exit path"
 # A steps directory of the real licensing scripts plus a build.sh that hard-
 # exits the way a crashed Unity does. Before runsteps.sh armed an EXIT trap,
