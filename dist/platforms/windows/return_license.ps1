@@ -39,6 +39,12 @@ $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|
 # transient list above - see ubuntu/steps/return_license.sh.
 $PermanentPattern = "Machine bindings don't match"
 
+# Unity returns the licence and THEN exits non-zero - the seat really is
+# returned, but the exit code says failure and the log carries "Access token is
+# unavailable", which is in the transient list above. See the matching comment
+# in ubuntu/steps/return_license.sh for the measurement.
+$SuccessPattern = 'Successfully returned ULF license|Successfully returned floating license|License has been returned'
+
 if ($ReturnStrategy -eq 'floating') {
   #
   # Return any floating license used.
@@ -50,6 +56,7 @@ if ($ReturnStrategy -eq 'floating') {
     $ReturnExitCode = $LASTEXITCODE
     $ReturnText = ($ReturnOutputVar | Out-String)
 
+    if ($ReturnText -match $SuccessPattern) { break }
     if ($ReturnExitCode -eq 0) { break }
 
     if ($ReturnText -match $PermanentPattern) { break }
@@ -83,6 +90,7 @@ elseif ($ReturnStrategy -eq 'personal') {
     $ReturnExitCode = $LASTEXITCODE
     $ReturnText = ($ReturnOutputVar | Out-String)
 
+    if ($ReturnText -match $SuccessPattern) { break }
     if ($ReturnExitCode -eq 0) { break }
 
     if ($ReturnText -match $PermanentPattern) { break }
@@ -121,6 +129,7 @@ elseif ($ReturnStrategy -eq 'serial') {
     $LogContent = if (Test-Path $LogPath) { Get-Content $LogPath -Raw } else { '' }
     if ($LogContent) { Get-Content $LogPath | Out-Host }
 
+    if ($LogContent -match $SuccessPattern) { break }
     if ($ReturnExitCode -eq 0) { break }
 
     if ($LogContent -match $PermanentPattern) { break }

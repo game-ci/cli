@@ -31,6 +31,26 @@ UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access to
 # Permanent by construction - see the guards below.
 UNITY_LICENSE_RETURN_PERMANENT_PATTERN="Machine bindings don't match"
 
+# Unity returns the licence and THEN exits non-zero. Measured on 2022.3.62f3,
+# same container, matching machine id:
+#
+#   [Licensing::Module] Error: Access token is unavailable; failed to update
+#   [Licensing::Module] Error: Failed to return entitlement license
+#   [Licensing::Client] Successfully returned ULF license with serial number: "..."
+#   exit=1
+#
+# The seat really is returned - a following --return-ulf reports "Ulf license
+# file not found". But the exit code says failure and the log carries "Access
+# token is unavailable", which is in the transient list, so this retried four
+# times against an already-returned licence and then warned that the return had
+# failed. Reported by a user still seeing "attempt 3/4" on v0.1.64, whose own
+# log showed the same machine id throughout - which ruled out the binding
+# mismatch that release had fixed.
+#
+# So success is read from the log, not the exit code, exactly as activation
+# already does for the same reason in the opposite direction.
+UNITY_LICENSE_RETURN_SUCCESS_PATTERN='Successfully returned ULF license|Successfully returned floating license|License has been returned'
+
 if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   #
   # Return any floating license used.
@@ -41,6 +61,11 @@ if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   for ATTEMPT in $(seq 1 "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS"); do
     "$(unity_licensing_client_path)" --return-floating "$FLOATING_LICENSE" 2>&1 | tee "$RETURN_LOG"
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
+
+    if grep -qE "$UNITY_LICENSE_RETURN_SUCCESS_PATTERN" "$RETURN_LOG"; then
+      RETURN_EXIT_CODE=0
+      break
+    fi
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
       break
@@ -90,6 +115,11 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
   for ATTEMPT in $(seq 1 "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS"); do
     "$(unity_licensing_client_path)" --return-ulf 2>&1 | tee "$RETURN_LOG"
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
+
+    if grep -qE "$UNITY_LICENSE_RETURN_SUCCESS_PATTERN" "$RETURN_LOG"; then
+      RETURN_EXIT_CODE=0
+      break
+    fi
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
       break
@@ -143,6 +173,11 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
       -returnlicense \
       -projectPath "$ACTIVATE_LICENSE_PATH" 2>&1 | tee "$RETURN_LOG"
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
+
+    if grep -qE "$UNITY_LICENSE_RETURN_SUCCESS_PATTERN" "$RETURN_LOG"; then
+      RETURN_EXIT_CODE=0
+      break
+    fi
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
       break
