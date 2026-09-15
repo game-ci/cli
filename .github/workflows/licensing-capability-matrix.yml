@@ -288,7 +288,21 @@ jobs:
           # reads a successful return as a failure. The scripts already judge
           # this from the log; the matrix judges it the same way, from the same
           # strings, rather than inventing a second opinion.
-          RETURNED='Successfully returned ULF license|Successfully returned floating license|License has been returned'
+          # Read the pattern from the script rather than restating it here. The
+          # first version of this step copied the strings, and the copy was
+          # already stale by the time it first ran: the scripts had learned
+          # "Successfully returned the entitlement license" - the wording for a
+          # Personal seat, and the only one that matters for the personal cells
+          # - and this step graded a successful return as a failure. A matrix
+          # that disagrees with the code it measures is worse than no matrix.
+          RETURN_SCRIPT=dist/platforms/ubuntu/steps/return_license.sh
+          RETURNED="$(sed -n "s/^UNITY_LICENSE_RETURN_SUCCESS_PATTERN='\(.*\)'$/\1/p" "$RETURN_SCRIPT" | head -n 1)"
+          if [ -z "$RETURNED" ]; then
+            echo "::error::Could not read UNITY_LICENSE_RETURN_SUCCESS_PATTERN from $RETURN_SCRIPT - the matrix cannot grade the return without it."
+            echo "result=error" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Grading the return against: $RETURNED"
           # Not a failure: there was no seat to give back in the first place.
           NOTHING_HELD='No Personal license seat was held'
 
