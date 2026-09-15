@@ -705,6 +705,8 @@ refute "and not the maximum it never reached" "$OUT" "after 4 attempt"
 MATRIX_EXTRACTED="$(sed -n "s/^UNITY_LICENSE_RETURN_SUCCESS_PATTERN='\(.*\)'$/\1/p" "$STEPS_SRC/return_license.sh" | head -n 1)"
 check "the matrix can still read the return success pattern" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned"
 check "and it covers the entitlement wording the editor emits" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned the entitlement license"
+MATRIX_PERMANENT="$(sed -n 's/^UNITY_LICENSE_RETURN_PERMANENT_PATTERN="\(.*\)"$/\1/p' "$STEPS_SRC/return_license.sh" | head -n 1)"
+check "and the permanent pattern it uses to mark a cell unmeasurable" "${MATRIX_PERMANENT:-<nothing>}" "Machine bindings"
 
 echo "Seat return on every exit path"
 # A steps directory of the real licensing scripts plus a build.sh that hard-

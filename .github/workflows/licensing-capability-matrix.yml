@@ -306,11 +306,28 @@ jobs:
           # Not a failure: there was no seat to give back in the first place.
           NOTHING_HELD='No Personal license seat was held'
 
+          # Nor is this one, and it is the matrix's own doing. Each cell runs
+          # `activate` and `return-license` as separate commands, so they get
+          # separate containers and separate machine identities, and a serial
+          # return is refused with "Machine bindings don't match" every time.
+          # That says nothing about whether the code works - a real build
+          # sources both in one container - so grading it as a failure would
+          # park four permanently red cells in the table, and a table with
+          # cells everyone knows to ignore is the thing this workflow exists to
+          # avoid. Read from the script for the same reason as RETURNED.
+          UNMEASURABLE="$(sed -n 's/^UNITY_LICENSE_RETURN_PERMANENT_PATTERN="\(.*\)"$/\1/p' "$RETURN_SCRIPT" | head -n 1)"
+
           if grep -qE "$RETURNED" return.log; then
             echo "result=pass" >> "$GITHUB_OUTPUT"
           elif grep -qF "$NOTHING_HELD" return.log; then
             echo "result=none" >> "$GITHUB_OUTPUT"
-          elif grep -qE "Returning|return-ulf|returnlicense" return.log; then
+          elif [ -n "$UNMEASURABLE" ] && grep -qF "$UNMEASURABLE" return.log; then
+            echo "result=unmeasurable" >> "$GITHUB_OUTPUT"
+          elif grep -qE 'Licensing::|Returning|return-ulf|returnlicense' return.log; then
+            # Unity's licensing module ran and did not return the seat. The
+            # first version looked only for the three command spellings, which
+            # the serial branch never prints, so a genuine return failure was
+            # graded "never reached Unity".
             echo "result=fail" >> "$GITHUB_OUTPUT"
           else
             echo "result=error" >> "$GITHUB_OUTPUT"
@@ -392,6 +409,7 @@ jobs:
               pass)  ricon="✅ returns" ;;
               none)  ricon="➖ nothing held" ;;
               fail)  ricon="❌ cannot return" ;;
+              unmeasurable) ricon="➖ separate container" ;;
               error) ricon="⚠️ never reached Unity" ;;
               *)     ricon="⏭️ skipped" ;;
             esac
