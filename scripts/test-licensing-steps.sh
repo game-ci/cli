@@ -628,6 +628,14 @@ chmod +x "$WORK/Unity.Licensing.Client"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
 check "the client route is tried first" "$(cat "$ARGV_LOG")" "CLIENT --return-ulf"
+
+# Without credentials the editor cannot refresh its access token, so the
+# entitlement return fails and it falls through to a ULF return it also cannot
+# do ("Serial number unavailable for ULF return"). Measured in this repo's own
+# licensing matrix on three Unity versions, with an identical Machine Id either
+# side - so it is the credentials, not a binding mismatch.
+check "the editor return is given the credentials it needs" "$(cat "$ARGV_LOG")" "-username ci@example.com"
+check "and the password too" "$(cat "$ARGV_LOG")" "-password pw123456"
 check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
   "-returnlicense"
 refute "and does not burn retries on it" "$OUT" "known-transient licensing error"

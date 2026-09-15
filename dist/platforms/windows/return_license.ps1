@@ -106,6 +106,8 @@ elseif ($ReturnStrategy -eq 'personal') {
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
     if ($ReturnViaEditor) {
       & "$Env:UNITY_PATH\Editor\Unity.exe" -batchmode -quit -nographics `
+                                            -username $Env:UNITY_EMAIL `
+                                            -password $Env:UNITY_PASSWORD `
                                             -returnlicense `
                                             -projectPath $Env:ACTIVATE_LICENSE_PATH `
                                             -logfile $PersonalReturnLogPath | Out-Host

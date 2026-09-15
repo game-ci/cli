@@ -133,12 +133,24 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
   # number assigned to: ...-UnityPers...", "Pro License: NO") and then
   # could not release the seat it had just taken - on exactly the versions the
   # editor fallback exists to rescue.
+  # -username/-password are not optional. Without them the editor cannot
+  # refresh its access token, so the entitlement return fails and it falls
+  # through to a ULF return it also cannot do:
+  #
+  #   [Licensing::Module] Error: Access token is unavailable; failed to update
+  #   [Licensing::Module] Error: Failed to return entitlement license
+  #   [Licensing::Module] Error: Serial number unavailable for ULF return
+  #
+  # Measured in this repo's own licensing matrix on 2020.3.49f1, 2022.3.62f3
+  # and 6000.0.36f1, with an identical Machine Id either side of the return -
+  # so this is the credentials, not a binding mismatch. The serial branch below
+  # already passes them for the same reason (game-ci/unity-test-runner#310).
   if unity_licensing_client_supports_personal; then
     RETURN_PERSONAL_ROUTE=client
     RETURN_PERSONAL_COMMAND=("$(unity_licensing_client_path)" --return-ulf)
   else
     RETURN_PERSONAL_ROUTE=editor
-    RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -projectPath "$ACTIVATE_LICENSE_PATH")
+    RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$ACTIVATE_LICENSE_PATH")
   fi
 
   RETURN_LOG="$(mktemp)"
@@ -165,7 +177,7 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
        grep -qF "$UNITY_LICENSE_RETURN_NO_ULF_PATTERN" "$RETURN_LOG"; then
       echo "No ULF license file to return - this seat is entitlement-based; returning it through the editor instead."
       RETURN_PERSONAL_ROUTE=editor
-      RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -projectPath "$ACTIVATE_LICENSE_PATH")
+      RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$ACTIVATE_LICENSE_PATH")
       continue
     fi
 

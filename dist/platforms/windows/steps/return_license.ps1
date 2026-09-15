@@ -100,7 +100,7 @@ try {
 
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
       if ($ReturnViaEditor) {
-        Invoke-UnityLaunch -ExePath (Get-UnityEditorExePath) -logFile $PersonalReturnLogPath -quit -returnlicense -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
+        Invoke-UnityLaunch -ExePath (Get-UnityEditorExePath) -logFile $PersonalReturnLogPath -quit -returnlicense -username $Env:UNITY_EMAIL -password $Env:UNITY_PASSWORD -projectPath $Env:ACTIVATE_LICENSE_PATH | Out-Host
         $ReturnExitCode = $LASTEXITCODE
         $ReturnText = if (Test-Path $PersonalReturnLogPath) { Get-Content $PersonalReturnLogPath -Raw } else { '' }
         if ($ReturnText) { Write-Host $ReturnText }
