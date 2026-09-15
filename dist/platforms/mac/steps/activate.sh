@@ -38,25 +38,6 @@ ACTIVATE_PERMANENT_LICENSE_ERROR_PATTERN="Machine bindings don't match"
 # fallback fail on exactly the older versions it needed to rescue. Probe the
 # client's own help text rather than inferring from the editor version - the client
 # is versioned independently of the editor that bundles it.
-# Whether the bundled licensing client can request a Personal seat at all.
-# 1.12.1 (Unity 2020.3) cannot: no --include-personal, and --activate-all
-# alone covers only subscriptions. The editor can, using account credentials
-# with no serial - see the matching comment in ubuntu/steps/activate.sh.
-unity_licensing_client_supports_personal() {
-  "$(unity_licensing_client_path)" --help 2>&1 | grep -q -- '--include-personal'
-}
-
-unity_licensing_personal_flags() {
-  local client_help
-  client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
-
-  if grep -q -- '--include-personal' <<< "$client_help"; then
-    printf '%s' '--activate-all --include-personal'
-  else
-    printf '%s' '--activate-all'
-  fi
-}
-
 # Serial mode is preferred over personal-license (below) whenever both are
 # configured: a manually-activated .ulf is bound to the machine fingerprint
 # of whatever machine originally requested it, which real CI evidence shows
