@@ -111,6 +111,27 @@ const ResultsCheck = {
         await ResultsCheck.requestGitHubCheck(githubToken, checkName, output);
         return runSummary.failed;
     },
+    // Truncating beats discarding. The overflow branch used to replace the whole
+    // body with a one-line apology, so the larger the suite the less its check
+    // said - a 1532-test run rendered to 146600 characters and got nothing back.
+    // Keeping the first 65534 characters keeps most of the detail for exactly
+    // the runs that need it most.
+    truncateDetails(text, maxLength) {
+        const notice = '\n\n_Test details truncated to fit GitHub\u2019s size limit - see the console log for the rest._';
+        if (text.length <= maxLength) {
+            return text;
+        }
+        // A budget this small cannot fit the notice, let alone any detail. Nothing
+        // sensible is left to show, so say only that.
+        if (notice.length >= maxLength) {
+            return 'Test details omitted from GitHub UI due to length. See console logs for details.';
+        }
+        // Cut on a line boundary so the markdown does not end mid-table-row, which
+        // renders as a broken cell rather than as a shorter table.
+        const cut = text.slice(0, maxLength - notice.length);
+        const lastNewline = cut.lastIndexOf('\n');
+        return (lastNewline > 0 ? cut.slice(0, lastNewline) : cut) + notice;
+    },
     async requestGitHubCheck(githubToken, checkName, output) {
         const pullRequest = github.context.payload.pull_request;
         const headSha = (pullRequest && pullRequest.head.sha) || github.context.sha;
@@ -118,8 +139,7 @@ const ResultsCheck = {
         const maxLength = 65_534;
         if (output.text.length > maxLength) {
             core.warning(`Test details of ${output.text.length} surpass limit of ${maxLength}`);
-            output.text =
-                'Test details omitted from GitHub UI due to length. See console logs for details.';
+            output.text = ResultsCheck.truncateDetails(output.text, maxLength);
         }
         core.info(`Posting results for ${headSha}`);
         const createCheckRequest = {

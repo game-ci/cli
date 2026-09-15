@@ -57,7 +57,24 @@ chmod +x "$WORK/Unity.Licensing.Client"
 cat > "$WORK/unity-editor" <<'STUB'
 #!/usr/bin/env bash
 echo "EDITOR $*" >> "$ARGV_LOG"
+# STUB_OUTPUT lets a case drive the editor's output the same way it can the
+# licensing client's - needed for the return paths, which run the editor.
+if [ -n "${STUB_OUTPUT:-}" ]; then
+  echo "$STUB_OUTPUT"
+  exit "${STUB_EXIT:-0}"
+fi
 echo "LICENSE SYSTEM [CI stub] Next license update check is after 2099-01-01T00:00:00"
+# Account credentials with no serial is the personal-activation route. The
+# real editor answers it with an entitlement resolution and a Personal serial
+# assignment, and exits non-zero anyway when run outside a project - so the
+# stub reproduces both, or success detection would be tested against output
+# the editor never actually produces.
+if [[ "$*" == *"-username"* && "$*" != *"-serial"* ]]; then
+  echo "[Licensing::Client] Successfully resolved entitlements"
+  echo "[Licensing::Module] Serial number assigned to: 1375199680824-UnityPersXXXX"
+  echo "Pro License: NO"
+  exit "${STUB_EXIT:-1}"
+fi
 exit "${STUB_EXIT:-0}"
 STUB
 chmod +x "$WORK/unity-editor"
@@ -157,6 +174,31 @@ Seat ID: 1375199680824-UnityPersonal
 Status: [200] ASSIGN_SEAT" \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "still reports success when a seat was assigned" "$OUT" "Activation complete."
+
+# On editors whose licensing client cannot request a Personal seat (2020.3's
+# 1.12.1 has no --include-personal), activation goes through the EDITOR with
+# account credentials and no serial. Measured working on 2020.3.49f1 by
+# .github/workflows/licensing-diagnostic.yml - the route had never been tried,
+# and 2020.3 was nearly documented as unable to use Personal seats at all.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "uses the editor when the client cannot request a Personal seat" "$OUT" \
+  "activating through the editor instead"
+check "and the editor call carries no serial" "$(cat "$ARGV_LOG")" \
+  "EDITOR -logFile /dev/stdout -quit -username ci@example.com -password pw123456"
+refute "and really passes no -serial" "$(cat "$ARGV_LOG")" "-serial"
+check "and reports success" "$OUT" "Activation complete."
+
+# The modern client must keep using the client route, not regress onto the
+# editor - the editor route exists only for editors that cannot do it.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+refute "still prefers the licensing client where it is capable" "$OUT" \
+  "activating through the editor instead"
+check "and that is the client, not the editor" "$(cat "$ARGV_LOG")" "CLIENT --activate-all"
 
 echo "Personal return"
 : > "$ARGV_LOG"
@@ -489,6 +531,197 @@ OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "a 2FA challenge is named" "$OUT" "second factor"
+
+# Earlier cases in this file redefine the editor stub, so this one defines the
+# behaviour it needs rather than inheriting whatever ran last.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] An error occurred attempting to return the ULF license (status code: 1400, message: \"Machine bindings don't match\")"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+# Unity returns the licence and THEN exits non-zero. The seat really is
+# returned ("Successfully returned ULF license"), but the exit code says
+# failure and the log carries "Access token is unavailable", which is in the
+# transient list - so this retried four times against an already-returned
+# licence and warned that the return had failed. Measured on 2022.3.62f3 in
+# .github/workflows/licensing-diagnostic.yml, same container, matching machine
+# id, and reported by a user still seeing "attempt 3/4" on v0.1.64.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] Successfully returned ULF license with serial number : \"F4-XXXX\""
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "treats a logged successful return as success despite a non-zero exit" "$OUT" \
+  "known-transient licensing error"
+refute "and does not warn that the return failed" "$OUT" "Failed to return the Unity license after"
+check "and only calls the editor once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
+
+# Re-declared here because the case above redefines the shared editor stub.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] An error occurred attempting to return the ULF license (status code: 1400, message: \"Machine bindings don't match\")"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+# A machine-binding mismatch on RETURN is permanent - the entitlement is bound
+# to the machine that activated it. It was being retried because the same
+# failing return also emits "Access token is unavailable; failed to update",
+# which IS a transient signature, so the real reason was masked and the run
+# burned all four attempts (~2.5 minutes) before warning anyway. Reported by a
+# user, and reproduced in this repo's own licensing capability matrix.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "does not retry a machine-binding mismatch on return" "$OUT" \
+  "known-transient licensing error (attempt 1/4)"
+check "and names the real cause instead of implying a leaked seat" "$OUT" \
+  "bound to a different machine"
+refute "and does not send the user hunting a leak" "$OUT" "may still be held"
+
+# The return has to use the same route the activation used. activate.sh falls
+# back to the editor when the bundled client predates --include-personal
+# (2020.3.49f1 ships 1.12.1), and that route takes an *entitlement* seat - no
+# Unity_lic.ulf is written, so --return-ulf can only ever answer "Ulf license
+# file not found ... (1404)". Measured on a user's 2020.3.49f1 run that
+# activated cleanly and then could not release the seat it had just taken, on
+# exactly the versions the editor fallback exists to rescue.
+cp "$WORK/Unity.Licensing.Client" "$WORK/Unity.Licensing.Client.modern"
+
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Client] Successfully returned ULF license with serial number : \"1375518599162-UnityPersXXXX\""
+exit 0
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "an old client returns the personal seat through the editor" "$(cat "$ARGV_LOG")" \
+  "-returnlicense"
+refute "and does not ask it for a .ulf it never wrote" "$(cat "$ARGV_LOG")" "--return-ulf"
+refute "so the seat is not reported as leaked" "$OUT" "likely still held"
+
+# The capability probe says which route activate.sh *would* take, not which one
+# it did, so the client route still has to recognise an entitlement seat and
+# switch rather than warn about a seat no correct command was ever run against.
+cat > "$WORK/Unity.Licensing.Client" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "--help" ]; then
+  echo "  --activate-all (Default: false) Activate all subscriptions"
+  echo "  --include-personal (Default: false) Include personal license"
+  exit 0
+fi
+echo "CLIENT $*" >> "$ARGV_LOG"
+echo "An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)"
+exit 1
+STUB
+chmod +x "$WORK/Unity.Licensing.Client"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "the client route is tried first" "$(cat "$ARGV_LOG")" "CLIENT --return-ulf"
+
+# Without credentials the editor cannot refresh its access token, so the
+# entitlement return fails and it falls through to a ULF return it also cannot
+# do ("Serial number unavailable for ULF return"). Measured in this repo's own
+# licensing matrix on three Unity versions, with an identical Machine Id either
+# side - so it is the credentials, not a binding mismatch.
+check "the editor return is given the credentials it needs" "$(cat "$ARGV_LOG")" "-username ci@example.com"
+check "and the password too" "$(cat "$ARGV_LOG")" "-password pw123456"
+
+# The editor's real output for a Personal entitlement return, measured on
+# 2020.3.49f1: it hands the seat back, then tries a ULF return it cannot do.
+# The second line is in the transient list, so before the success string was
+# recognised this returned the same already-returned licence four times, burnt
+# ~2.5 minutes of backoff, and warned that the return had failed.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Successfully returned the entitlement license"
+echo "[Licensing::Module] Error: Serial number unavailable for ULF return; aborting operation"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456"   STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "an entitlement return is recognised as success" "$OUT" "known-transient licensing error"
+refute "and does not warn about a seat it just handed back" "$OUT" "Failed to return the Personal"
+check "and returns it exactly once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
+check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
+  "-returnlicense"
+refute "and does not burn retries on it" "$OUT" "known-transient licensing error"
+refute "and does not warn once the editor has returned it" "$OUT" "Failed to return the Personal"
+
+# Nothing to hand back on either route means no seat is held - which is the
+# opposite of the leak the warning describes, so it must not fire.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "no seat held is reported as nothing to return" "$OUT" "nothing to return"
+refute "and not as a leaked seat" "$OUT" "likely still held"
+
+cp "$WORK/Unity.Licensing.Client.modern" "$WORK/Unity.Licensing.Client"
+
+# The warning hardcoded UNITY_LICENSE_RETURN_MAX_ATTEMPTS, so a return that
+# broke out on attempt 1 still told the user it had tried four times. Two users
+# read that number off their logs while diagnosing this.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "Some unrecognised failure"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "reports the attempts that actually happened" "$OUT" "after 1 attempt(s)"
+refute "and not the maximum it never reached" "$OUT" "after 4 attempt"
+
+
+# licensing-capability-matrix.yml grades the return by reading this pattern out
+# of the script rather than restating it, because a restated copy went stale
+# within hours of being written. That extraction is a text match against a
+# variable name, so it breaks silently if the variable is renamed - and a matrix
+# that cannot read the pattern grades every successful return as a failure.
+MATRIX_EXTRACTED="$(sed -n "s/^UNITY_LICENSE_RETURN_SUCCESS_PATTERN='\(.*\)'$/\1/p" "$STEPS_SRC/return_license.sh" | head -n 1)"
+check "the matrix can still read the return success pattern" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned"
+check "and it covers the entitlement wording the editor emits" "${MATRIX_EXTRACTED:-<nothing>}" "Successfully returned the entitlement license"
+MATRIX_PERMANENT="$(sed -n 's/^UNITY_LICENSE_RETURN_PERMANENT_PATTERN="\(.*\)"$/\1/p' "$STEPS_SRC/return_license.sh" | head -n 1)"
+check "and the permanent pattern it uses to mark a cell unmeasurable" "${MATRIX_PERMANENT:-<nothing>}" "Machine bindings"
 
 echo "Seat return on every exit path"
 # A steps directory of the real licensing scripts plus a build.sh that hard-

@@ -1,5 +1,6 @@
 declare const ResultsCheck: {
     createCheck(artifactsPath: any, githubToken: any, checkName: any): Promise<number>;
+    truncateDetails(text: string, maxLength: number): string;
     requestGitHubCheck(githubToken: any, checkName: any, output: any): Promise<void>;
     renderSummary(runMetas: any): Promise<string>;
     renderDetails(runMetas: any): Promise<string>;

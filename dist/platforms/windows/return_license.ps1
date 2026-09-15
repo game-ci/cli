@@ -33,6 +33,30 @@ $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICE
 $RetryDelaySeconds = 20
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
+# Permanent by construction: the entitlement is bound to the machine that
+# activated it, so no retry rebinds it. Checked separately because the same
+# failing return also emits "Access token is unavailable", which IS in the
+# transient list above - see ubuntu/steps/return_license.sh.
+$PermanentPattern = "Machine bindings don't match"
+
+# Not a failure to retry, and usually not a failure at all: it means there is
+# no Unity_lic.ulf to hand back, because the seat this run holds is an
+# entitlement rather than a file. See the personal branch below.
+$NoUlfPattern = 'Ulf license file not found'
+
+# Unity returns the licence and THEN exits non-zero - the seat really is
+# returned, but the exit code says failure and the log carries "Access token is
+# unavailable", which is in the transient list above. See the matching comment
+# in ubuntu/steps/return_license.sh for the measurement.
+# "Successfully returned the entitlement license" is the editor's wording for a
+# Personal seat, and it is the line that matters: measured on 2020.3.49f1,
+# 2022.3.62f3 and 6000.6.0f1 the seat really is handed back. The editor then
+# tries a ULF return it cannot do and says "Serial number unavailable for ULF
+# return", which IS in the transient list - so without this string 2020.3
+# returned the same already-returned licence four times, burnt ~2.5 minutes of
+# backoff, and warned that the return had failed.
+$SuccessPattern = 'Successfully returned ULF license|Successfully returned floating license|Successfully returned the entitlement license|License has been returned'
+
 if ($ReturnStrategy -eq 'floating') {
   #
   # Return any floating license used.
@@ -44,8 +68,10 @@ if ($ReturnStrategy -eq 'floating') {
     $ReturnExitCode = $LASTEXITCODE
     $ReturnText = ($ReturnOutputVar | Out-String)
 
+    if ($ReturnText -match $SuccessPattern) { $ReturnExitCode = 0; break }
     if ($ReturnExitCode -eq 0) { break }
 
+    if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -56,7 +82,7 @@ if ($ReturnStrategy -eq 'floating') {
     break
   }
   if ($ReturnExitCode -ne 0) {
-    Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+    Write-Host "##[warning] Failed to return floating license `"$($global:FLOATING_LICENSE)`" after $Attempt attempt(s) - this seat may still be held by Unity's license server."
   }
 }
 elseif ($ReturnStrategy -eq 'personal') {
@@ -70,14 +96,60 @@ elseif ($ReturnStrategy -eq 'personal') {
   # later run on the account fails with "no available seats".
   Write-Host 'Returning personal license seat'
 
-  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-    $ReturnOutput = & $LicensingClientPath --return-ulf 2>&1 | Tee-Object -Variable ReturnOutputVar
-    $ReturnOutput | Out-Host
-    $ReturnExitCode = $LASTEXITCODE
-    $ReturnText = ($ReturnOutputVar | Out-String)
+  # The return has to use the same route the activation used, and it picks it
+  # the same way - by asking the bundled licensing client what it can do - so
+  # the two stay in step by construction rather than by a flag one side has to
+  # remember to set. activate.ps1 falls back to the editor when the client
+  # predates --include-personal, and that route takes an *entitlement* seat
+  # with no Unity_lic.ulf behind it, which --return-ulf can only answer with
+  # "Ulf license file not found ... (1404)". See ubuntu/steps/return_license.sh
+  # for the measured 2020.3.49f1 case.
+  #
+  # Probed inline rather than dot-sourced: this container script deliberately
+  # stands alone (it resolves $LicensingClientPath itself, above).
+  $ReturnViaEditor = -not ((& $LicensingClientPath --help 2>&1 | Out-String) -match '--include-personal')
+  $PersonalReturnLogPath = Join-Path $Env:ACTIVATE_LICENSE_PATH 'return_license.log'
 
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    if ($ReturnViaEditor) {
+      & "$Env:UNITY_PATH\Editor\Unity.exe" -batchmode -quit -nographics `
+                                            -username $Env:UNITY_EMAIL `
+                                            -password $Env:UNITY_PASSWORD `
+                                            -returnlicense `
+                                            -projectPath $Env:ACTIVATE_LICENSE_PATH `
+                                            -logfile $PersonalReturnLogPath | Out-Host
+      $ReturnExitCode = $LASTEXITCODE
+      $ReturnText = if (Test-Path $PersonalReturnLogPath) { Get-Content $PersonalReturnLogPath -Raw } else { '' }
+      if ($ReturnText) { Write-Host $ReturnText }
+    } else {
+      $ReturnOutput = & $LicensingClientPath --return-ulf 2>&1 | Tee-Object -Variable ReturnOutputVar
+      $ReturnOutput | Out-Host
+      $ReturnExitCode = $LASTEXITCODE
+      $ReturnText = ($ReturnOutputVar | Out-String)
+    }
+
+    if ($ReturnText -match $SuccessPattern) { $ReturnExitCode = 0; break }
     if ($ReturnExitCode -eq 0) { break }
 
+    # The capability probe says which route activate.ps1 *would* take, not
+    # which one it did. When the client route meets an entitlement seat it says
+    # so plainly, so switch to the route that can hand it back rather than warn
+    # about a seat no correct command was ever run against.
+    if (-not $ReturnViaEditor -and $ReturnText -match $NoUlfPattern) {
+      Write-Host 'No ULF license file to return - this seat is entitlement-based; returning it through the editor instead.'
+      $ReturnViaEditor = $true
+      continue
+    }
+
+    # Nothing to hand back on the editor route either: no seat is being held,
+    # so this is not the leak the warning below describes.
+    if ($ReturnText -match $NoUlfPattern) {
+      Write-Host 'No Personal license seat was held - nothing to return.'
+      $ReturnExitCode = 0
+      break
+    }
+
+    if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -88,7 +160,7 @@ elseif ($ReturnStrategy -eq 'personal') {
     break
   }
   if ($ReturnExitCode -ne 0) {
-    Write-Host "##[warning] Failed to return the Personal license seat after $MaxAttempts attempts."
+    Write-Host "##[warning] Failed to return the Personal license seat after $Attempt attempt(s)."
     Write-Host '##[warning] That seat is likely still held. Release it at https://id.unity.com or'
     Write-Host '##[warning] run ''game-ci return-license'', otherwise later runs on this account'
     Write-Host '##[warning] will fail with ''no available seats''.'
@@ -113,8 +185,10 @@ elseif ($ReturnStrategy -eq 'serial') {
     $LogContent = if (Test-Path $LogPath) { Get-Content $LogPath -Raw } else { '' }
     if ($LogContent) { Get-Content $LogPath | Out-Host }
 
+    if ($LogContent -match $SuccessPattern) { $ReturnExitCode = 0; break }
     if ($ReturnExitCode -eq 0) { break }
 
+    if ($LogContent -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
       $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
@@ -125,7 +199,13 @@ elseif ($ReturnStrategy -eq 'serial') {
     break
   }
   if ($ReturnExitCode -ne 0) {
-    Write-Host "##[warning] Failed to return the Unity license after $MaxAttempts attempts - this seat may still be held by Unity's license server."
+    if ($LogContent -match $PermanentPattern) {
+        Write-Host "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
+        Write-Host "##[warning] This is expected when activation and return happen on different machines or containers."
+        Write-Host "##[warning] If activations later run out, release them at https://id.unity.com."
+      } else {
+        Write-Host "##[warning] Failed to return the Unity license after $Attempt attempt(s) - this seat may still be held by Unity's license server."
+      }
   }
 }
 

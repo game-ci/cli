@@ -79,6 +79,34 @@ function Invoke-UnityLaunch {
   }
 }
 
+# Whether the bundled licensing client can request a Personal seat at all,
+# and which flags to use if so.
+#
+# Unity 2020.3 ships Unity.Licensing.Client 1.12.1, which rejects
+# --include-personal outright ("Option 'include-personal' is unknown", exit
+# 33) and whose --activate-all covers only subscriptions, so it answers a
+# Personal activation with "No seat available". Newer clients accept both.
+# Probed from the client's own help rather than inferred from the editor
+# version, because the client is versioned independently of the editor that
+# bundles it.
+#
+# Defined here rather than in activate.ps1 because both the container and the
+# native activation scripts need it, and both already dot-source this file.
+function Test-UnityLicensingClientSupportsPersonal {
+  $ClientPath = Get-UnityLicensingClientExePath
+  $HelpText = (& $ClientPath --help 2>&1 | Out-String)
+
+  return ($HelpText -match '--include-personal')
+}
+
+function Get-UnityLicensingPersonalFlags {
+  if (Test-UnityLicensingClientSupportsPersonal) {
+    return @('--activate-all', '--include-personal')
+  }
+
+  return @('--activate-all')
+}
+
 function Get-UnityLicensingClientExePath {
   $root = Get-UnityEditorRoot
   $exePath = Join-Path $root 'Editor\Data\Resources\Licensing\Client\Unity.Licensing.Client.exe'

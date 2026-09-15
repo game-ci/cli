@@ -50,6 +50,7 @@ jobs:
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           IMAGE: unityci/editor:ubuntu-${{ inputs.unityVersion }}-${{ inputs.image }}-3
         run: |
           if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
@@ -95,13 +96,40 @@ jobs:
           "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 60
           echo "exit=${PIPESTATUS[0]}"
 
+          # Does a return succeed when it runs in the SAME container as the
+          # activation? The capability matrix runs `activate` and
+          # `return-license` as separate commands, so they get separate
+          # containers and separate machine identities, and the return always
+          # fails on a binding mismatch. A normal build sources both in one
+          # container, so it should NOT - but that was never measured, and a
+          # user reports the return failing every time in a normal build.
+          #
+          # Machine Id is printed either side, because that is the whole
+          # question: if it is stable within the container and the return still
+          # fails, the container split is not the explanation.
+          if [ -n "${UNITY_SERIAL:-}" ]; then
+            banner "PROBE 6: serial activation (same container)"
+            unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+              -serial "$UNITY_SERIAL" -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 \
+              | grep -iE "Machine Id|Serial number assigned|Next license update|error" | head -n 15
+            echo "exit=${PIPESTATUS[0]}"
+
+            banner "PROBE 7: return it, same container"
+            unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+              -returnlicense 2>&1 \
+              | grep -iE "Machine Id|return|error" | head -n 20
+            echo "exit=${PIPESTATUS[0]}"
+          else
+            banner "PROBE 6/7 skipped: no UNITY_SERIAL"
+          fi
+
           banner "cleanup: return anything that was taken"
           "$CLIENT" --return-ulf 2>&1 | head -n 10 || true
           PROBE
           chmod +x probe.sh
 
           docker run --rm \
-            --env UNITY_EMAIL --env UNITY_PASSWORD \
+            --env UNITY_EMAIL --env UNITY_PASSWORD --env UNITY_SERIAL \
             --volume "$PWD/probe.sh:/probe.sh:ro" \
             "$IMAGE" /bin/bash /probe.sh 2>&1 | tee diagnostic.log
 
