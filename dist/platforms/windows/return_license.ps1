@@ -48,7 +48,14 @@ $NoUlfPattern = 'Ulf license file not found'
 # returned, but the exit code says failure and the log carries "Access token is
 # unavailable", which is in the transient list above. See the matching comment
 # in ubuntu/steps/return_license.sh for the measurement.
-$SuccessPattern = 'Successfully returned ULF license|Successfully returned floating license|License has been returned'
+# "Successfully returned the entitlement license" is the editor's wording for a
+# Personal seat, and it is the line that matters: measured on 2020.3.49f1,
+# 2022.3.62f3 and 6000.6.0f1 the seat really is handed back. The editor then
+# tries a ULF return it cannot do and says "Serial number unavailable for ULF
+# return", which IS in the transient list - so without this string 2020.3
+# returned the same already-returned licence four times, burnt ~2.5 minutes of
+# backoff, and warned that the return had failed.
+$SuccessPattern = 'Successfully returned ULF license|Successfully returned floating license|Successfully returned the entitlement license|License has been returned'
 
 if ($ReturnStrategy -eq 'floating') {
   #

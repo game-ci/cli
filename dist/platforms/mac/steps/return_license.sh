@@ -54,7 +54,14 @@ UNITY_LICENSE_RETURN_NO_ULF_PATTERN='Ulf license file not found'
 #
 # So success is read from the log, not the exit code, exactly as activation
 # already does for the same reason in the opposite direction.
-UNITY_LICENSE_RETURN_SUCCESS_PATTERN='Successfully returned ULF license|Successfully returned floating license|License has been returned'
+# "Successfully returned the entitlement license" is the editor's wording for a
+# Personal seat, and it is the line that matters: measured on 2020.3.49f1,
+# 2022.3.62f3 and 6000.6.0f1 the seat really is handed back. The editor then
+# tries a ULF return it cannot do and says "Serial number unavailable for ULF
+# return", which IS in the transient list - so without this string 2020.3
+# returned the same already-returned licence four times, burnt ~2.5 minutes of
+# backoff, and warned that the return had failed.
+UNITY_LICENSE_RETURN_SUCCESS_PATTERN='Successfully returned ULF license|Successfully returned floating license|Successfully returned the entitlement license|License has been returned'
 
 if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   #

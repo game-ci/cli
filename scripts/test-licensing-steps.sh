@@ -636,6 +636,26 @@ check "the client route is tried first" "$(cat "$ARGV_LOG")" "CLIENT --return-ul
 # side - so it is the credentials, not a binding mismatch.
 check "the editor return is given the credentials it needs" "$(cat "$ARGV_LOG")" "-username ci@example.com"
 check "and the password too" "$(cat "$ARGV_LOG")" "-password pw123456"
+
+# The editor's real output for a Personal entitlement return, measured on
+# 2020.3.49f1: it hands the seat back, then tries a ULF return it cannot do.
+# The second line is in the transient list, so before the success string was
+# recognised this returned the same already-returned licence four times, burnt
+# ~2.5 minutes of backoff, and warned that the return had failed.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Successfully returned the entitlement license"
+echo "[Licensing::Module] Error: Serial number unavailable for ULF return; aborting operation"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456"   STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "an entitlement return is recognised as success" "$OUT" "known-transient licensing error"
+refute "and does not warn about a seat it just handed back" "$OUT" "Failed to return the Personal"
+check "and returns it exactly once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
 check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
   "-returnlicense"
 refute "and does not burn retries on it" "$OUT" "known-transient licensing error"
