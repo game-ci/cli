@@ -44,25 +44,6 @@ UNITY_ACTIVATE_PERMANENT_PATTERN="Machine bindings don't match"
 # rather than guessing from the editor version - the client is versioned
 # independently of the editor that bundles it, so a version comparison would be
 # wrong the moment Unity backports or skips a client release.
-# Whether the bundled licensing client can request a Personal seat at all.
-# 1.12.1 (Unity 2020.3) cannot: it has no --include-personal, and
-# --activate-all alone covers only subscriptions, so it returns "No seat
-# available" for a Personal account. Newer clients can.
-unity_licensing_client_supports_personal() {
-  "$(unity_licensing_client_path)" --help 2>&1 | grep -q -- '--include-personal'
-}
-
-unity_licensing_personal_flags() {
-  local client_help
-  client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
-
-  if grep -q -- '--include-personal' <<< "$client_help"; then
-    printf '%s' '--activate-all --include-personal'
-  else
-    printf '%s' '--activate-all'
-  fi
-}
-
 if [[ "$LICENSING_METHOD" == "file" ]]; then
   #
   # LICENSE FILE MODE

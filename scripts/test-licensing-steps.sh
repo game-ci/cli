@@ -582,6 +582,92 @@ check "and names the real cause instead of implying a leaked seat" "$OUT" \
   "bound to a different machine"
 refute "and does not send the user hunting a leak" "$OUT" "may still be held"
 
+# The return has to use the same route the activation used. activate.sh falls
+# back to the editor when the bundled client predates --include-personal
+# (2020.3.49f1 ships 1.12.1), and that route takes an *entitlement* seat - no
+# Unity_lic.ulf is written, so --return-ulf can only ever answer "Ulf license
+# file not found ... (1404)". Measured on a user's 2020.3.49f1 run that
+# activated cleanly and then could not release the seat it had just taken, on
+# exactly the versions the editor fallback exists to rescue.
+cp "$WORK/Unity.Licensing.Client" "$WORK/Unity.Licensing.Client.modern"
+
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Client] Successfully returned ULF license with serial number : \"1375518599162-UnityPersXXXX\""
+exit 0
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "an old client returns the personal seat through the editor" "$(cat "$ARGV_LOG")" \
+  "-returnlicense"
+refute "and does not ask it for a .ulf it never wrote" "$(cat "$ARGV_LOG")" "--return-ulf"
+refute "so the seat is not reported as leaked" "$OUT" "likely still held"
+
+# The capability probe says which route activate.sh *would* take, not which one
+# it did, so the client route still has to recognise an entitlement seat and
+# switch rather than warn about a seat no correct command was ever run against.
+cat > "$WORK/Unity.Licensing.Client" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "--help" ]; then
+  echo "  --activate-all (Default: false) Activate all subscriptions"
+  echo "  --include-personal (Default: false) Include personal license"
+  exit 0
+fi
+echo "CLIENT $*" >> "$ARGV_LOG"
+echo "An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)"
+exit 1
+STUB
+chmod +x "$WORK/Unity.Licensing.Client"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
+  "-returnlicense"
+refute "and does not burn retries on it" "$OUT" "known-transient licensing error"
+refute "and does not warn once the editor has returned it" "$OUT" "Failed to return the Personal"
+
+# Nothing to hand back on either route means no seat is held - which is the
+# opposite of the leak the warning describes, so it must not fire.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "no seat held is reported as nothing to return" "$OUT" "nothing to return"
+refute "and not as a leaked seat" "$OUT" "likely still held"
+
+cp "$WORK/Unity.Licensing.Client.modern" "$WORK/Unity.Licensing.Client"
+
+# The warning hardcoded UNITY_LICENSE_RETURN_MAX_ATTEMPTS, so a return that
+# broke out on attempt 1 still told the user it had tried four times. Two users
+# read that number off their logs while diagnosing this.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "Some unrecognised failure"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "reports the attempts that actually happened" "$OUT" "after 1 attempt(s)"
+refute "and not the maximum it never reached" "$OUT" "after 4 attempt"
+
+
 echo "Seat return on every exit path"
 # A steps directory of the real licensing scripts plus a build.sh that hard-
 # exits the way a crashed Unity does. Before runsteps.sh armed an EXIT trap,
