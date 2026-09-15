@@ -181,20 +181,20 @@ check "still reports success when a seat was assigned" "$OUT" "Activation comple
 # .github/workflows/licensing-diagnostic.yml - the route had never been tried,
 # and 2020.3 was nearly documented as unable to use Personal seats at all.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_CLIENT_NO_INCLUDE_PERSONAL=1 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 check "uses the editor when the client cannot request a Personal seat" "$OUT" \
   "activating through the editor instead"
 check "and the editor call carries no serial" "$(cat "$ARGV_LOG")" \
-  "EDITOR -logFile /dev/stdout -quit -username ci\example.com -password pw123456"
+  "EDITOR -logFile /dev/stdout -quit -username ci@example.com -password pw123456"
 refute "and really passes no -serial" "$(cat "$ARGV_LOG")" "-serial"
 check "and reports success" "$OUT" "Activation complete."
 
 # The modern client must keep using the client route, not regress onto the
 # editor - the editor route exists only for editors that cannot do it.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" \
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 refute "still prefers the licensing client where it is capable" "$OUT" \
   "activating through the editor instead"
@@ -529,6 +529,43 @@ exit 1
 STUB
 chmod +x "$WORK/unity-editor"
 
+# Unity returns the licence and THEN exits non-zero. The seat really is
+# returned ("Successfully returned ULF license"), but the exit code says
+# failure and the log carries "Access token is unavailable", which is in the
+# transient list - so this retried four times against an already-returned
+# licence and warned that the return had failed. Measured on 2022.3.62f3 in
+# .github/workflows/licensing-diagnostic.yml, same container, matching machine
+# id, and reported by a user still seeing "attempt 3/4" on v0.1.64.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] Successfully returned ULF license with serial number : \"F4-XXXX\""
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "treats a logged successful return as success despite a non-zero exit" "$OUT" \
+  "known-transient licensing error"
+refute "and does not warn that the return failed" "$OUT" "Failed to return the Unity license after"
+check "and only calls the editor once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
+
+# Re-declared here because the case above redefines the shared editor stub.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+echo "[Licensing::Client] An error occurred attempting to return the ULF license (status code: 1400, message: \"Machine bindings don't match\")"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
 # A machine-binding mismatch on RETURN is permanent - the entitlement is bound
 # to the machine that activated it. It was being retried because the same
 # failing return also emits "Access token is unavailable; failed to update",
@@ -536,7 +573,7 @@ chmod +x "$WORK/unity-editor"
 # burned all four attempts (~2.5 minutes) before warning anyway. Reported by a
 # user, and reproduced in this repo's own licensing capability matrix.
 : > "$ARGV_LOG"
-OUT=$(run_step UNITY_EMAIL="ci\example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
 refute "does not retry a machine-binding mismatch on return" "$OUT" \
