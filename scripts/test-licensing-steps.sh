@@ -627,6 +627,7 @@ chmod +x "$WORK/Unity.Licensing.Client"
 : > "$ARGV_LOG"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+check "the client route is tried first" "$(cat "$ARGV_LOG")" "CLIENT --return-ulf"
 check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
   "-returnlicense"
 refute "and does not burn retries on it" "$OUT" "known-transient licensing error"
