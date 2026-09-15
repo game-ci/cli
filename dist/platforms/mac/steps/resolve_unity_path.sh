@@ -40,3 +40,32 @@ unity_licensing_client_path() {
 
   echo "$(unity_editor_root)/Unity.app/Contents/$subdir/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client"
 }
+
+# Whether the bundled licensing client can request a Personal seat at all.
+# 1.12.1 (Unity 2020.3) cannot: no --include-personal, and --activate-all
+# alone covers only subscriptions. The editor can, using account credentials
+# with no serial - see the matching comment in ubuntu/steps/activate.sh.
+#
+# Probe the client's own help text rather than inferring from the editor
+# version - the client is versioned independently of the editor that bundles
+# it.
+#
+# Lives here, beside unity_licensing_client_path, rather than in activate.sh:
+# return_license.sh needs the same answer to pick a matching return route, and
+# it does not source activate.sh. Under runsteps.sh both run in one shell so an
+# activate.sh definition happened to be in scope, but `game-ci return-license`
+# on its own would have called an undefined function.
+unity_licensing_client_supports_personal() {
+  "$(unity_licensing_client_path)" --help 2>&1 | grep -q -- '--include-personal'
+}
+
+unity_licensing_personal_flags() {
+  local client_help
+  client_help="$("$(unity_licensing_client_path)" --help 2>&1 || true)"
+
+  if grep -q -- '--include-personal' <<< "$client_help"; then
+    printf '%s' '--activate-all --include-personal'
+  else
+    printf '%s' '--activate-all'
+  fi
+}

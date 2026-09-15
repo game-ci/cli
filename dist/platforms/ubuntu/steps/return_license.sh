@@ -31,6 +31,11 @@ UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access to
 # Permanent by construction - see the guards below.
 UNITY_LICENSE_RETURN_PERMANENT_PATTERN="Machine bindings don't match"
 
+# Not a failure to retry, and usually not a failure at all: it means there is
+# no Unity_lic.ulf to hand back, because the seat this run holds is an
+# entitlement rather than a file. See the personal branch below.
+UNITY_LICENSE_RETURN_NO_ULF_PATTERN='Ulf license file not found'
+
 # Unity returns the licence and THEN exits non-zero. Measured on 2022.3.62f3,
 # same container, matching machine id:
 #
@@ -49,7 +54,14 @@ UNITY_LICENSE_RETURN_PERMANENT_PATTERN="Machine bindings don't match"
 #
 # So success is read from the log, not the exit code, exactly as activation
 # already does for the same reason in the opposite direction.
-UNITY_LICENSE_RETURN_SUCCESS_PATTERN='Successfully returned ULF license|Successfully returned floating license|License has been returned'
+# "Successfully returned the entitlement license" is the editor's wording for a
+# Personal seat, and it is the line that matters: measured on 2020.3.49f1,
+# 2022.3.62f3 and 6000.6.0f1 the seat really is handed back. The editor then
+# tries a ULF return it cannot do and says "Serial number unavailable for ULF
+# return", which IS in the transient list - so without this string 2020.3
+# returned the same already-returned licence four times, burnt ~2.5 minutes of
+# backoff, and warned that the return had failed.
+UNITY_LICENSE_RETURN_SUCCESS_PATTERN='Successfully returned ULF license|Successfully returned floating license|Successfully returned the entitlement license|License has been returned'
 
 if [[ "$RETURN_STRATEGY" == "floating" ]]; then
   #
@@ -95,7 +107,7 @@ if [[ "$RETURN_STRATEGY" == "floating" ]]; then
     break
   done
   if [ "$RETURN_EXIT_CODE" -ne 0 ]; then
-    echo "##[warning] Failed to return floating license \"$FLOATING_LICENSE\" after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
+    echo "##[warning] Failed to return floating license \"$FLOATING_LICENSE\" after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
   fi
   rm -f "$RETURN_LOG"
 elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
@@ -111,9 +123,46 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
   # available seats", which is why runsteps.sh arms this on an EXIT trap.
   echo "Returning personal license seat"
 
+  # The return has to use the same route the activation used, and it picks it
+  # the same way - by asking the bundled licensing client what it can do -
+  # so the two stay in step by construction rather than by a flag one side
+  # has to remember to set.
+  #
+  # activate.sh falls back to the editor when the client predates
+  # --include-personal (2020.3.49f1 ships 1.12.1). That route takes an
+  # *entitlement* seat; nothing writes Unity_lic.ulf, so --return-ulf can only
+  # ever answer:
+  #
+  #   An error occured while trying to return the ULF license.
+  #   Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)
+  #
+  # Measured on a user's 2020.3.49f1 run which activated cleanly ("Serial
+  # number assigned to: ...-UnityPers...", "Pro License: NO") and then
+  # could not release the seat it had just taken - on exactly the versions the
+  # editor fallback exists to rescue.
+  # -username/-password are not optional. Without them the editor cannot
+  # refresh its access token, so the entitlement return fails and it falls
+  # through to a ULF return it also cannot do:
+  #
+  #   [Licensing::Module] Error: Access token is unavailable; failed to update
+  #   [Licensing::Module] Error: Failed to return entitlement license
+  #   [Licensing::Module] Error: Serial number unavailable for ULF return
+  #
+  # Measured in this repo's own licensing matrix on 2020.3.49f1, 2022.3.62f3
+  # and 6000.0.36f1, with an identical Machine Id either side of the return -
+  # so this is the credentials, not a binding mismatch. The serial branch below
+  # already passes them for the same reason (game-ci/unity-test-runner#310).
+  if unity_licensing_client_supports_personal; then
+    RETURN_PERSONAL_ROUTE=client
+    RETURN_PERSONAL_COMMAND=("$(unity_licensing_client_path)" --return-ulf)
+  else
+    RETURN_PERSONAL_ROUTE=editor
+    RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$ACTIVATE_LICENSE_PATH")
+  fi
+
   RETURN_LOG="$(mktemp)"
   for ATTEMPT in $(seq 1 "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS"); do
-    "$(unity_licensing_client_path)" --return-ulf 2>&1 | tee "$RETURN_LOG"
+    "${RETURN_PERSONAL_COMMAND[@]}" 2>&1 | tee "$RETURN_LOG"
     RETURN_EXIT_CODE=${PIPESTATUS[0]}
 
     if grep -qE "$UNITY_LICENSE_RETURN_SUCCESS_PATTERN" "$RETURN_LOG"; then
@@ -122,6 +171,28 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
     fi
 
     if [ "$RETURN_EXIT_CODE" -eq 0 ]; then
+      break
+    fi
+
+    # The capability probe above says which route activate.sh *would* take, not
+    # which one it did - a cached seat, a fallback, or a future change to
+    # activate.sh can leave the client route facing an entitlement seat. When
+    # that happens the client says so plainly, so switch routes and try the one
+    # that can actually hand it back, instead of warning about a seat no
+    # correct command was ever run against.
+    if [ "$RETURN_PERSONAL_ROUTE" = client ] &&
+       grep -qF "$UNITY_LICENSE_RETURN_NO_ULF_PATTERN" "$RETURN_LOG"; then
+      echo "No ULF license file to return - this seat is entitlement-based; returning it through the editor instead."
+      RETURN_PERSONAL_ROUTE=editor
+      RETURN_PERSONAL_COMMAND=(unity-editor -logFile /dev/stdout -quit -returnlicense -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$ACTIVATE_LICENSE_PATH")
+      continue
+    fi
+
+    # Nothing to hand back on the editor route either: no seat is being held,
+    # so this is not the leak the warning below describes.
+    if grep -qF "$UNITY_LICENSE_RETURN_NO_ULF_PATTERN" "$RETURN_LOG"; then
+      echo "No Personal license seat was held - nothing to return."
+      RETURN_EXIT_CODE=0
       break
     fi
 
@@ -149,7 +220,7 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
     break
   done
   if [ "$RETURN_EXIT_CODE" -ne 0 ]; then
-    echo "##[warning] Failed to return the Personal license seat after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts."
+    echo "##[warning] Failed to return the Personal license seat after $ATTEMPT attempt(s)."
     echo "##[warning] That seat is likely still held. Release it at https://id.unity.com or"
     echo "##[warning] run 'game-ci return-license', otherwise later runs on this account will"
     echo "##[warning] fail with 'no available seats'."
@@ -215,7 +286,7 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
       echo "##[warning] This is expected when activation and return happen on different machines or containers."
       echo "##[warning] If activations later run out, release them at https://id.unity.com."
     else
-      echo "##[warning] Failed to return the Unity license after $UNITY_LICENSE_RETURN_MAX_ATTEMPTS attempts - this seat may still be held by Unity's license server."
+      echo "##[warning] Failed to return the Unity license after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
     fi
   fi
   rm -f "$RETURN_LOG"
