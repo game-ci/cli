@@ -112,7 +112,15 @@ if [ "$VERSION" = "latest" ]; then
   # piped `grep -m1` closes its read end as soon as it matches, which sends
   # curl a SIGPIPE and (under `set -o pipefail`) fails the whole pipeline
   # even though the request itself succeeded.
-  api_response="$(curl -fsSL "${auth_header[@]}" -H "Accept: application/vnd.github+json" \
+  #
+  # "${auth_header[@]+"${auth_header[@]}"}", not a plain "${auth_header[@]}":
+  # macOS ships bash 3.2 (frozen pre-GPLv3) as /bin/bash, and 3.2's `set -u`
+  # treats expanding an EMPTY array with "${arr[@]}" as an unbound-variable
+  # error - fixed in bash 4.4, but this script has to run on whatever bash
+  # the installing machine has. The ${arr[@]+...} form only expands its word
+  # when the array is set at all, so an empty auth_header (no token) expands
+  # to nothing instead of erroring. Reported live: #272.
+  api_response="$(curl -fsSL "${auth_header[@]+"${auth_header[@]}"}" -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/${CLI_REPO}/releases/latest")"
   resolved_version="$(grep -m1 '"tag_name"' <<< "$api_response" | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
 
