@@ -129,6 +129,34 @@ describe("SetupMac", () => {
 });
 
 
+describe("SetupMac Unity Hub path detection", () => {
+  // Regression test for a real bug: unityHubExecPath/unityHubBasePath embed
+  // literal double-quote characters (needed when they're later interpolated
+  // into a shell command string, to protect the space in "Unity Hub.app"
+  // from word splitting). fs.existsSync does a raw filesystem stat with no
+  // shell involved, so passing those same quoted strings to it checks for a
+  // path that literally contains `"` characters and never exists - even
+  // when Unity Hub is genuinely installed at the real, unquoted path.
+  // Reported live: a user with Unity Hub installed at the documented
+  // default location still got "Unity Hub is not installed at the default
+  // location." See game-ci/cli#273.
+  it("finds an installed Unity Hub whose real path has no literal quote characters", async () => {
+    fs.existsSync = mock(
+      (path: string) => path === '/Applications/Unity Hub.app/Contents/MacOS/Unity Hub',
+    ) as any;
+    System.run = mock(async () => {
+      throw new Error("No process should be launched - Unity Hub is already installed");
+    }) as any;
+
+    await expect(
+      SetupMac.setup({
+        isRunningLocally: true,
+        engineVersion: "2021.3.45f2",
+      } as any),
+    ).rejects.toThrow("Unity Editor 2021.3.45f2 is not installed");
+  });
+});
+
 describe("SetupMac Android signing environment", () => {
   it("forwards documented options and prefers them over deprecated values", async () => {
     const savedEnvironment = { ...process.env };
