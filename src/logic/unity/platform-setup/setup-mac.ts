@@ -10,7 +10,13 @@ class SetupMac {
   public static async setup(options: Options) {
     const unityEditorPath = `/Applications/Unity/Hub/Editor/${options.engineVersion}/Unity.app/Contents/MacOS/Unity`;
 
-    if (!fs.existsSync(this.unityHubExecPath)) {
+    // unityHubExecPath/unityHubBasePath embed literal double-quote characters
+    // (needed below, where they're interpolated into a shell command string
+    // run via System.run, to protect the space in "Unity Hub.app" from word
+    // splitting). fs.existsSync does a raw filesystem stat with no shell
+    // involved, so those literal quotes must be stripped first or this checks
+    // a path that never exists - see game-ci/cli#273.
+    if (!fs.existsSync(this.unityHubExecPath.replaceAll('"', ""))) {
       if (!options.isRunningLocally) {
         await SetupMac.installUnityHub(options);
       } else {
@@ -39,7 +45,7 @@ class SetupMac {
     const versionSuffix = options.unityHubVersionOnMac !== "" ? `@${options.unityHubVersionOnMac}` : "";
     const command = `brew install --cask unity-hub${versionSuffix}`;
 
-    if (!fs.existsSync(this.unityHubBasePath)) {
+    if (!fs.existsSync(this.unityHubBasePath.replaceAll('"', ""))) {
       try {
         await System.run(command, undefined, { silent });
       } catch (error) {
