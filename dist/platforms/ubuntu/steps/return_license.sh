@@ -107,7 +107,7 @@ if [[ "$RETURN_STRATEGY" == "floating" ]]; then
     break
   done
   if [ "$RETURN_EXIT_CODE" -ne 0 ]; then
-    echo "##[warning] Failed to return floating license \"$FLOATING_LICENSE\" after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
+    echo "::warning::Failed to return floating license \"$FLOATING_LICENSE\" after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
   fi
   rm -f "$RETURN_LOG"
 elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
@@ -220,10 +220,7 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
     break
   done
   if [ "$RETURN_EXIT_CODE" -ne 0 ]; then
-    echo "##[warning] Failed to return the Personal license seat after $ATTEMPT attempt(s)."
-    echo "##[warning] That seat is likely still held. Release it at https://id.unity.com or"
-    echo "##[warning] run 'game-ci return-license', otherwise later runs on this account will"
-    echo "##[warning] fail with 'no available seats'."
+    echo "::warning::Failed to return the Personal license seat after $ATTEMPT attempt(s).%0AThat seat is likely still held. Release it at https://id.unity.com or run 'game-ci return-license', otherwise later runs on this account will fail with 'no available seats'."
   fi
   rm -f "$RETURN_LOG"
 elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
@@ -290,11 +287,9 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
       # Naming the cause matters: "this seat may still be held" sends people
       # hunting a leak on their Unity account, when the licence was bound to a
       # machine that no longer exists.
-      echo "##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it."
-      echo "##[warning] This is expected when activation and return happen on different machines or containers."
-      echo "##[warning] If activations later run out, release them at https://id.unity.com."
+      echo "::warning::Could not return the Unity license: it is bound to a different machine than the one returning it.%0AThis is expected when activation and return happen on different machines or containers.%0AIf activations later run out, release them at https://id.unity.com."
     else
-      echo "##[warning] Failed to return the Unity license after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
+      echo "::warning::Failed to return the Unity license after $ATTEMPT attempt(s) - this seat may still be held by Unity's license server."
     fi
   fi
   rm -f "$RETURN_LOG"
