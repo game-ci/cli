@@ -8,6 +8,13 @@ on:
       tag:
         description: 'Release tag to attach binaries to (e.g., v0.1.0)'
         required: false
+      commit:
+        description: >-
+          Commit SHA to build from. A draft release's tag has no real git ref
+          for actions/checkout to resolve until it's published (see
+          scripts/release/cut-release.sh, game-ci/cli#285), so this lets a
+          draft's binaries be built and attached before it goes live.
+        required: false
 
 jobs:
   build:
@@ -48,7 +55,14 @@ jobs:
             asset: game-ci-windows-x64.zip
             binary_asset: game-ci-windows-x64.exe
     steps:
+      # ref defaults to github.sha, which the `release` event already sets to
+      # the correct tagged commit - explicit only so a workflow_dispatch run
+      # against a draft release (see scripts/release/cut-release.sh) builds
+      # from the intended commit instead of whatever's at the default branch
+      # HEAD when this workflow is manually triggered.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit || github.sha }}
 
       # Pinned, unlike this repo's other bun-version: latest workflows:
       # v0.1.15's release build failed on all three "Verify binary
