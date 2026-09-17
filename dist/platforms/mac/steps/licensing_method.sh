@@ -169,5 +169,33 @@ explain_personal_activation_failure() {
     return 0
   fi
 
+  # Distinct from the "no seats" case above: that one means the account HAS a
+  # Personal entitlement but every seat is currently held. This one means
+  # Unity's server has no Personal entitlement for this account on this
+  # editor at all - confirmed live via `--showEntitlements` returning "No
+  # licenses were found" immediately after this exact failure, on an account
+  # that activates fine via UNITY_SERIAL and via personal on newer editors.
+  # Observed specifically on 2020.3.49f1 (Unity.Licensing.Client 1.12.1) -
+  # this old client's headless account-only route (the only Personal route it
+  # has; --include-personal does not exist on it) appears unable to obtain a
+  # seat on this account, for reasons outside this script's visibility.
+  if grep -qiE 'No license activation found for this computer|No ULF license found' "$log_path"; then
+    echo ""
+    echo "##[error] Unity reports no Personal license activation for this editor on this account."
+    echo ""
+    echo "This is not a seat-limit or credentials problem - Unity's server has no"
+    echo "Personal entitlement recorded for this account on this specific editor"
+    echo "version. Seen on old editors (2020.3 and earlier, whose licensing client"
+    echo "predates --include-personal): account-only activation is the only"
+    echo "Personal route available to them, and it can fail this way even with"
+    echo "valid credentials and no seats held elsewhere."
+    echo ""
+    echo "There is no known code-side fix for this - if you have a Pro/Plus"
+    echo "serial, set UNITY_SERIAL for this version instead (confirmed working)."
+    echo "Otherwise this editor version may not support headless Personal"
+    echo "activation on this account at all."
+    return 0
+  fi
+
   return 1
 }

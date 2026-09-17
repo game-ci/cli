@@ -191,6 +191,28 @@ check "and the editor call carries no serial" "$(cat "$ARGV_LOG")" \
 refute "and really passes no -serial" "$(cat "$ARGV_LOG")" "-serial"
 check "and reports success" "$OUT" "Activation complete."
 
+# Regression, live on 2020.3.49f1 despite the success case just above: this
+# editor route treated "Successfully resolved entitlements" alone as proof of
+# a granted seat, but that line only means the query to Unity's server
+# succeeded - it prints even when the account has no Personal entitlement for
+# this editor at all. Confirmed live via --showEntitlements returning "No
+# licenses were found" for an account that activates fine via UNITY_SERIAL,
+# right after this exact log shape. Only "Serial number assigned to" reports
+# a real grant.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
+  STUB_OUTPUT="[Licensing::Client] Error: Code 500 while processing request (status: Unable to update licenses. Errors: No ULF license found.,No license activation found for this computer.)
+[Licensing::Client] Successfully resolved entitlements
+[Licensing::Module] Error: License is not active (com.unity.editor.headless). HasEntitlements will fail.
+No valid Unity Editor license found. Please activate your license." \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+NO_ENTITLEMENT_STATUS=$?
+refute "editor route does not report success on resolved-but-empty entitlements" "$OUT" "Activation complete."
+check_failed "and exits non-zero" "$NO_ENTITLEMENT_STATUS"
+check "and explains it is not a seat-limit problem" "$OUT" \
+  "no Personal license activation for this editor on this account"
+
 # The modern client must keep using the client route, not regress onto the
 # editor - the editor route exists only for editors that cannot do it.
 : > "$ARGV_LOG"

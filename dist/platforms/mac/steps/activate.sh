@@ -258,8 +258,13 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
 
       # Not the exit code: a personal activation run outside a project exits
       # non-zero for unrelated reasons while having taken the seat.
-      if grep -q "Serial number assigned to" "$ACTIVATE_LOG" ||
-         grep -q "Successfully resolved entitlements" "$ACTIVATE_LOG"; then
+      #
+      # Regression, live on 2020.3.49f1: "Successfully resolved entitlements"
+      # only means the query to Unity's server succeeded, not that it found
+      # anything to grant. See ubuntu/steps/activate.sh's matching comment -
+      # "Serial number assigned to" is the only line that reports an actual
+      # seat grant.
+      if grep -q "Serial number assigned to" "$ACTIVATE_LOG"; then
         UNITY_EXIT_CODE=0
         break
       fi
