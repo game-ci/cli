@@ -319,8 +319,18 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
       # project exits non-zero for unrelated reasons (no manifest, no
       # project to open), while having successfully taken the seat. The
       # licensing lines are the real signal.
-      if grep -q "Serial number assigned to" "$ACTIVATE_LOG" ||
-         grep -q "Successfully resolved entitlements" "$ACTIVATE_LOG"; then
+      #
+      # Regression, live on 2020.3.49f1 (the exact version this route exists
+      # for): "Successfully resolved entitlements" only means the query to
+      # Unity's server succeeded, not that it found anything to grant. An
+      # account with no Personal entitlement for this editor prints it right
+      # before "License is not active ... HasEntitlements will fail." / "No
+      # valid Unity Editor license found." - and this loop still exited as a
+      # false "Activation complete.", exactly the class of bug #268 fixed on
+      # the licensing-client route below and never covered here. "Serial
+      # number assigned to" is the only line that reports an actual seat
+      # grant - matches the matrix's own GRANTED pattern for this method.
+      if grep -q "Serial number assigned to" "$ACTIVATE_LOG"; then
         UNITY_EXIT_CODE=0
         break
       fi
