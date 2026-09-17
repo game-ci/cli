@@ -59,9 +59,18 @@ gh workflow run release-cli.yml --repo "$REPO" -f "tag=$TAG" -f "commit=$COMMIT"
 echo "==> Waiting for the dispatched run to appear..."
 RUN_ID=""
 for _ in $(seq 1 24); do
-  RUN_ID="$(gh run list --repo "$REPO" --workflow release-cli.yml --event workflow_dispatch --limit 1 --json databaseId,createdAt \
-    --jq --arg since "$DISPATCH_TIME" '[.[] | select(.createdAt >= $since)] | .[0].databaseId // empty')"
-  [ -n "$RUN_ID" ] && break
+  # gh's --jq only accepts a single filter expression (not jq's own extra
+  # flags like --arg), so the "is this newer than our dispatch" comparison
+  # has to happen in bash, not jq, using a plain string comparison against
+  # the ISO 8601 timestamps (which sort lexically the same as chronologically).
+  LATEST_JSON="$(gh run list --repo "$REPO" --workflow release-cli.yml --event workflow_dispatch --limit 1 --json databaseId,createdAt --jq '.[0] // empty')"
+  if [ -n "$LATEST_JSON" ]; then
+    LATEST_CREATED="$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['createdAt'])")"
+    if [[ "$LATEST_CREATED" > "$DISPATCH_TIME" || "$LATEST_CREATED" == "$DISPATCH_TIME" ]]; then
+      RUN_ID="$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['databaseId'])")"
+      break
+    fi
+  fi
   sleep 5
 done
 if [ -z "$RUN_ID" ]; then
