@@ -16,7 +16,11 @@
  */
 class UnityBatchmodeFailure {
   static extractReason(stdout: string | undefined): string | undefined {
-    const match = stdout?.match(/^Aborting batchmode due to failure:\n(.+)$/m);
+    // \r?\n: the Windows step scripts (dist/platforms/windows) run Unity via
+    // PowerShell, which can leave stdout CRLF-terminated - a bare \n would
+    // silently stop matching there and lose this on Windows specifically,
+    // the same platform HostRunner's --local path most needs it on.
+    const match = stdout?.match(/^Aborting batchmode due to failure:\r?\n(.+)$/m);
 
     return match?.[1]?.trim() || undefined;
   }

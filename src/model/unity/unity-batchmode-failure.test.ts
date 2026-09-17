@@ -33,6 +33,15 @@ describe('UnityBatchmodeFailure', () => {
     it('returns undefined for empty stdout', () => {
       expect(UnityBatchmodeFailure.extractReason('')).toBeUndefined();
     });
+
+    // The Windows step scripts run Unity via PowerShell, which can leave
+    // stdout CRLF-terminated - this is the platform HostRunner's --local
+    // path most needs the extraction to work on.
+    it('extracts the reason when stdout is CRLF-terminated', () => {
+      const crlfStdout = realWorldStdout.replaceAll('\n', '\r\n');
+
+      expect(UnityBatchmodeFailure.extractReason(crlfStdout)).toBe('Scripts have compiler errors.');
+    });
   });
 
   describe('describe', () => {
