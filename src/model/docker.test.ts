@@ -83,6 +83,63 @@ describe("Docker", () => {
 
     expect(validateBuildMock).toHaveBeenCalled();
   });
+
+  // Real bug, reported live via MirrorNetworking's CI: when Unity aborts
+  // batchmode outright (here, real script compiler errors), the container
+  // exits non-zero with no results file. System.run's rejection was built
+  // from stderr only - docker's own pull-progress noise - so Unity's actual
+  // "Aborting batchmode due to failure: Scripts have compiler errors." line
+  // (which only ever appears in stdout) never reached the final error at
+  // all; the user just saw "Test run failed with exit code 1". This is the
+  // regression test for that: it would have caught the bug before release.
+  it("surfaces Unity's own abort reason instead of a bare exit code", async () => {
+    const dockerError = Object.assign(new Error("Unable to find image 'unityci/editor:...' locally\n..."), {
+      stdout: [
+        '#   Testing in editmode  #',
+        '',
+        'Aborting batchmode due to failure:',
+        'Scripts have compiler errors.',
+        '',
+        'cat: /github/workspace/artifacts/editmode-results.xml: No such file or directory',
+      ].join('\n'),
+    });
+    System.run = mock(() => Promise.reject(dockerError));
+
+    await expect(
+      Docker.run("game-ci/unity-editor-stub:latest", {
+        hostOS: "linux",
+        hostPlatform: "linux",
+        currentWorkDir: "/home/runner/work/cli/cli",
+        homeDir: "/home/runner",
+        cliDistPath: "/home/runner/work/cli/cli/dist",
+        sshAgent: "",
+        gitPrivateToken: "",
+        dockerWorkspacePath: "/github/workspace",
+        engine: "unity",
+        runTests: true,
+      } as any),
+    ).rejects.toThrow(/Scripts have compiler errors\./);
+  });
+
+  it("still throws the original error when there is no Unity abort reason to extract", async () => {
+    System.run = mock(() => Promise.reject(new Error("Command exited with code 1")));
+
+    await expect(
+      Docker.run("game-ci/unity-editor-stub:latest", {
+        hostOS: "linux",
+        hostPlatform: "linux",
+        currentWorkDir: "/home/runner/work/cli/cli",
+        homeDir: "/home/runner",
+        cliDistPath: "/home/runner/work/cli/cli/dist",
+        sshAgent: "",
+        gitPrivateToken: "",
+        dockerWorkspacePath: "/github/workspace",
+        engine: "unity",
+        runTests: true,
+      } as any),
+    ).rejects.toThrow("Command exited with code 1");
+  });
+
   it("builds a continuous Linux docker command", () => {
     const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
       hostOS: "linux",

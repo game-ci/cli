@@ -3,6 +3,7 @@ import { path, fsSync as fs } from "../dependencies.ts";
 import type { Options } from "../dependencies.ts";
 import { System } from "./system/system.ts";
 import { UnityBuildValidation } from "./unity/build-validation/unity-build-validation.ts";
+import { UnityBatchmodeFailure } from "./unity/unity-batchmode-failure.ts";
 import { UnityEnvironment } from "../logic/unity/environment.ts";
 import { SecretRedaction } from "./secret-redaction.ts";
 
@@ -151,6 +152,16 @@ class Docker {
           break;
       }
     } catch (error: any) {
+      // Unity aborting batchmode outright (script compiler errors, a
+      // missing package, a startup crash) is the single most common real
+      // failure this command hits, and error.message alone never contains
+      // it - see UnityBatchmodeFailure's own comment for why. Checked first
+      // since it's the highest-value case to get right.
+      const batchmodeFailure = UnityBatchmodeFailure.describe(error.stdout, error.message);
+      if (batchmodeFailure) {
+        throw new Error(batchmodeFailure);
+      }
+
       // Unity prints this from inside the container when /dev/shm is too
       // small for it (6.6+ editors ask for 1GiB against Docker's 64m
       // default). The raw message tells you to pass --shm-size to `docker

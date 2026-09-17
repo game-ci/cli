@@ -125,5 +125,26 @@ describe('HostRunner', () => {
 
       expect(capturedCommand).toBe(`bash "${path.join(cliDistPath, 'platforms', 'ubuntu', 'steps', 'runsteps.sh')}"`);
     });
+
+    // Same real bug/fix as Docker.run's own test coverage: --local (this
+    // class) shells out to the same runsteps.sh/.ps1 scripts a container
+    // would run, so it can hit the exact same "Unity aborted batchmode,
+    // exit code alone is meaningless" failure mode - and previously had no
+    // error handling around System.run at all, so even Docker.run's fix
+    // wouldn't have covered this path.
+    it('surfaces Unity\'s own abort reason instead of a bare exit code', async () => {
+      const abortError = Object.assign(new Error('Command exited with code 1'), {
+        stdout: 'Aborting batchmode due to failure:\nScripts have compiler errors.\n',
+      });
+      System.run = mock(() => Promise.reject(abortError)) as any;
+
+      await expect(
+        HostRunner.run({
+          hostPlatform: 'linux',
+          cliDistPath: path.join(scratchDir, 'dist'),
+          currentWorkDir: scratchDir,
+        } as any),
+      ).rejects.toThrow(/Scripts have compiler errors\./);
+    });
   });
 });

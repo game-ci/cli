@@ -97,7 +97,12 @@ class System {
             ? `${runResult.error}\n\n---\n\nOutput before the error:\n${runResult.output}`
             : runResult.error || `Command exited with code ${exitCode}`;
 
-          reject(new Error(errorMessage));
+          // stdout/stderr are attached separately (not just folded into the
+          // message above) so a caller that knows what to look for - e.g.
+          // Docker.run scanning for Unity's own abort reason, which lives in
+          // stdout even though errorMessage here is stderr-only - can inspect
+          // the raw streams without re-parsing a combined string.
+          reject(Object.assign(new Error(errorMessage), { stdout: runResult.output, stderr: runResult.error }));
           return;
         }
 
