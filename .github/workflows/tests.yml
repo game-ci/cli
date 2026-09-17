@@ -181,6 +181,60 @@ jobs:
           [ -d "$GAME_CI_INSTALL/dist" ] || { echo "FAIL: dist/ was not extracted next to the binary"; exit 1; }
           "$GAME_CI_INSTALL/game-ci" --help
 
+  # scripts/install.sh and the root install.sh only ever get run for real on
+  # ubuntu-latest above, which ships a modern bash. macOS's system /bin/bash
+  # is frozen at 3.2 (Apple stopped updating it over the GPLv3 switch), and
+  # that's an actual behavioural gap, not just an older version: `set -u`
+  # raises "unbound variable" on `"${arr[@]}"` for an empty array on bash <
+  # 4.4, but not on ubuntu-latest's bash - exactly the bug that shipped in
+  # install.sh (#282) with a green ubuntu-only Tests run. This job re-runs
+  # the same smoke tests against real macOS bash so that bug class can't
+  # ship unnoticed again.
+  macos-install-smoke-test:
+    name: Smoke-test install.sh on macOS (bash 3.2)
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm this runner actually has the bash 3.2 the fix targets
+        # If Apple ever changes what ships as /bin/bash on macos-latest, this
+        # job would start passing for the wrong reason (a newer bash masking
+        # a regression) - fail loudly instead of silently losing coverage.
+        run: |
+          bash_version="$(/bin/bash -c 'echo $BASH_VERSION')"
+          echo "system /bin/bash version: $bash_version"
+          case "$bash_version" in
+            3.*) ;;
+            *) echo "FAIL: expected macOS's system bash to be 3.x, got $bash_version - this job no longer covers the bash-3.2 compatibility class it exists for"; exit 1 ;;
+          esac
+      - name: Smoke-test scripts/install.sh against the latest release
+        # Same retry rationale as the ubuntu job: "latest" can resolve to a
+        # release whose binaries are still uploading.
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if binary_path="$(/bin/bash scripts/install.sh latest /tmp/install-sh-smoke-test)"; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "FAIL: scripts/install.sh still failing after 5 attempts"
+              exit 1
+            fi
+            echo "install.sh failed (attempt $attempt/5) - likely the latest release's binaries are still uploading - retrying in 30s..."
+            sleep 30
+          done
+          [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
+          [ -d "$(dirname "$binary_path")/dist" ] || { echo "FAIL: dist/ was not extracted next to $binary_path"; exit 1; }
+          "$binary_path" --help
+      - name: Smoke-test the root install.sh wrapper
+        run: |
+          export GAME_CI_INSTALL=/tmp/root-install-sh-smoke-test
+          /bin/sh ./install.sh
+          [ -x "$GAME_CI_INSTALL/game-ci" ] || { echo "FAIL: game-ci not installed to $GAME_CI_INSTALL"; exit 1; }
+          [ -d "$GAME_CI_INSTALL/dist" ] || { echo "FAIL: dist/ was not extracted next to the binary"; exit 1; }
+          "$GAME_CI_INSTALL/game-ci" --help
+
   # Mirrors plugins/unity/.github/workflows/integrity-check.yml, which is
   # inert (GitHub only reads root .github/workflows/) - ported here rather
   # than left to bit-rot unreachable. Uses bun, not the original's `npm ci`
@@ -314,7 +368,7 @@ jobs:
     # reporting-only: its probe steps are continue-on-error, so an
     # unsupported combination cannot fail it, and anything that DOES fail
     # it is real breakage in the workflow itself rather than a red cell.
-    needs: [tests, unity-tests, orchestrator-tests, orchestrator-integration, licensing-matrix]
+    needs: [tests, macos-install-smoke-test, unity-tests, orchestrator-tests, orchestrator-integration, licensing-matrix]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
