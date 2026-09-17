@@ -66,4 +66,23 @@ describe('System.run exit-code-based failure', () => {
 
     await expect(System.run(command, undefined, { silent: true })).rejects.toThrow('boom');
   });
+
+  // Real bug (surfaced via Docker.run's own reworked error handling): the
+  // rejected error's .message was built from stderr only, so anything a
+  // failing command wrote to stdout - which for `docker run` is where the
+  // container's own useful diagnostics live, not docker's own stderr
+  // pull-progress noise - was completely unrecoverable by any catch block.
+  // Attaching stdout/stderr onto the rejected error separately is what lets
+  // a caller inspect the stream that actually matters instead of just the
+  // (possibly irrelevant) message.
+  test('rejects with the raw stdout still attached, even though it is not part of the message', async () => {
+    const command = 'node -e "process.stdout.write(\'the real reason lives here\\n\'); process.exit(1)"';
+
+    try {
+      await System.run(command, undefined, { silent: true });
+      throw new Error('expected System.run to reject');
+    } catch (error: any) {
+      expect(error.stdout).toContain('the real reason lives here');
+    }
+  });
 });

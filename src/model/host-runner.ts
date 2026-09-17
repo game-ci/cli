@@ -2,6 +2,7 @@ import type { Options } from '../dependencies.ts';
 import { System } from './system/system.ts';
 import { ImageEnvironmentFactory } from './image-environment-factory.ts';
 import { UnityEnvironment } from '../logic/unity/environment.ts';
+import { UnityBatchmodeFailure } from './unity/unity-batchmode-failure.ts';
 import { path, fsSync as fs } from '../dependencies.ts';
 
 /**
@@ -103,19 +104,41 @@ class HostRunner {
       // directly - then explicitly re-propagate it as this command's own
       // exit code, since a plain `-Command` invocation does not otherwise
       // forward a nested process's exit code as its own.
-      await System.run(
-        `powershell -NoProfile -ExecutionPolicy Bypass -File "${runstepsPath}"; exit $LASTEXITCODE`,
-        undefined,
-        { silent, env },
+      await HostRunner.runAndDescribeBatchmodeFailures(() =>
+        System.run(
+          `powershell -NoProfile -ExecutionPolicy Bypass -File "${runstepsPath}"; exit $LASTEXITCODE`,
+          undefined,
+          { silent, env },
+        ),
       );
       return;
     }
 
     const runstepsPath = path.join(cliDistPath, 'platforms', 'ubuntu', 'steps', 'runsteps.sh');
-    await System.run(`bash "${runstepsPath}"`, undefined, {
-      silent,
-      env,
-    });
+    await HostRunner.runAndDescribeBatchmodeFailures(() =>
+      System.run(`bash "${runstepsPath}"`, undefined, {
+        silent,
+        env,
+      }),
+    );
+  }
+
+  // Same rationale as Docker.run's own catch block: Unity aborting batchmode
+  // outright (compiler errors, a missing package, a startup crash) is the
+  // single most useful failure reason available, and it only ever reaches
+  // this command's stdout - a bare "exited with code N" swallows it
+  // entirely. See UnityBatchmodeFailure's own comment.
+  private static async runAndDescribeBatchmodeFailures<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error: any) {
+      const batchmodeFailure = UnityBatchmodeFailure.describe(error.stdout, error.message);
+      if (batchmodeFailure) {
+        throw new Error(batchmodeFailure);
+      }
+
+      throw error;
+    }
   }
 }
 
