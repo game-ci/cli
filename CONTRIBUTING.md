@@ -41,3 +41,17 @@ Make sure your editor and terminal that run the tests are set to `Powershell 7` 
 #### License
 
 By contributing to this repository, you agree that your contributions will be licensed under its MIT license.
+
+#### Cutting a release
+
+Always cut a release with `scripts/release/cut-release.sh <tag>` from a checkout of the commit
+you intend to release, rather than `gh release create` directly. `cliVersion: latest` and the `v0`
+major tag resolve to a release the instant it's published, but binary build+attach happens
+asynchronously afterward and can fail on one platform without failing the others visibly - a
+plain `gh release create` leaves "latest" pointing at a release with no usable binaries until
+someone notices and fixes it (this took ~6 hours once, breaking every consumer on `latest` in the
+meantime - see [#285](https://github.com/game-ci/cli/issues/285)).
+
+The script creates the release as a draft (never resolved by `/releases/latest`), builds and
+attaches binaries to it while still a draft, verifies every expected asset actually landed, and
+only then publishes - so `latest` never resolves to an incomplete release.
