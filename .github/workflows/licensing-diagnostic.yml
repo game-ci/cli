@@ -32,10 +32,22 @@ permissions:
   contents: read
 
 concurrency:
-  # Shares the seat pool with the capability matrix, so it must not run
-  # alongside it - a probe that fails for want of a seat would be read as a
-  # probe that cannot work at all.
-  group: licensing-capability-matrix
+  # Deliberately NOT the capability matrix's group, even though both take seats
+  # from the same account.
+  #
+  # A concurrency group keeps only one *pending* run: a newer entrant cancels an
+  # older one that has not started. Sharing the matrix's group therefore meant a
+  # manual dispatch cancelled whatever matrix run was queued behind it - observed
+  # on 2026-09-18, when dispatching this workflow cancelled the licensing job of
+  # a PR's Tests run. That is a real red on a real PR caused by nothing, and
+  # `Tests gate` cannot tell it apart from a suite that failed.
+  #
+  # The cost of separating them is that a diagnostic can now overlap a matrix
+  # run, so the two can briefly contend for a seat. That is the lesser evil: it
+  # is bounded to this rare, manually-dispatched workflow, and it is detectable
+  # rather than silent - contention makes the matrix's control cell fail, and the
+  # report grades every cell `account-or-environment` when it does.
+  group: licensing-diagnostic
   cancel-in-progress: false
 
 jobs:
