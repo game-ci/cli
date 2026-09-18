@@ -207,8 +207,10 @@ No valid Unity Editor license found. Please activate your license." \
 NO_ENTITLEMENT_STATUS=$?
 refute "editor route does not report success on resolved-but-empty entitlements" "$OUT" "Activation complete."
 check_failed "and exits non-zero" "$NO_ENTITLEMENT_STATUS"
-check "and explains it is not a seat-limit problem" "$OUT" \
-  "no Personal license activation for this editor on this account"
+check "and names the failure Unity actually reported" "$OUT" \
+  "Unity did not grant a Personal seat for this editor version"
+check "and rules out a seat-limit problem" "$OUT" \
+  "not a credentials or seat-limit problem"
 
 # What this message is allowed to conclude, and what it is not.
 #
@@ -228,10 +230,26 @@ refute "does not tell the user their Unity version is unsupported" "$OUT" \
   "may not support headless Personal"
 refute "and offers no other 'no known fix' verdict" "$OUT" \
   "no known code-side fix"
-check "instead saying a re-run can clear it" "$OUT" "Re-run."
+refute "and never points a user at a file in this repository" "$OUT" \
+  "licensing-capability-matrix.yml"
+check "instead saying a re-run can clear it" "$OUT" "Re-run the job"
 check "and pointing at the serial route as the working alternative" "$OUT" \
-  "set UNITY_SERIAL"
-check "and at the supported editors with a client route" "$OUT" "2022.3 or newer"
+  "UNITY_SERIAL"
+check "and at the newer editors, which activate differently" "$OUT" \
+  "2022.3 or newer"
+# The message is read by someone whose build just failed, not by a maintainer.
+# It got long enough once to cite a workflow file and explain our own grading
+# history at them; this keeps it to what happened plus what to do.
+MESSAGE_LINES="$(printf '%s\n' "$OUT" \
+  | sed -n '/Unity did not grant a Personal seat/,/activates a different way/p' \
+  | wc -l | tr -d ' ')"
+if [ "$MESSAGE_LINES" -le 8 ]; then
+  echo "  PASS and stays short enough to read in a build log"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL it is $MESSAGE_LINES lines long - too long for someone whose build just failed"
+  FAIL=$((FAIL + 1))
+fi
 
 # The modern client must keep using the client route, not regress onto the
 # editor - the editor route exists only for editors that cannot do it.

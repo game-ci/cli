@@ -170,41 +170,26 @@ explain_personal_activation_failure() {
   fi
 
   # Distinct from the "no seats" case above: that one means the account HAS a
-  # Personal entitlement but every seat is currently held. This one means
-  # Unity's server has no Personal entitlement for this account on this
-  # editor at all - confirmed live via `--showEntitlements` returning "No
-  # licenses were found" immediately after this exact failure, on an account
-  # that activates fine via UNITY_SERIAL and via personal on newer editors.
-  # Observed specifically on 2020.3.49f1 (Unity.Licensing.Client 1.12.1) -
-  # this old client's headless account-only route (the only Personal route it
-  # has; --include-personal does not exist on it) appears unable to obtain a
-  # seat on this account, for reasons outside this script's visibility.
+  # Personal entitlement but every seat is currently held. This one is Unity
+  # refusing the account-only route that editors this old depend on (their
+  # licensing client predates --include-personal, so it is the only Personal
+  # route they have).
+  #
+  # Not "this version is unsupported", which is what this said until it was
+  # measured: the same route on the same editor and account has been observed
+  # both granting a seat (2026-09-11) and failing (2026-09-18), so it is
+  # unreliable rather than unavailable. Someone reading this has a build
+  # that just failed and wants to know what to do next, so it is kept short:
+  # what happened, then the three things that actually help.
   if grep -qiE 'No license activation found for this computer|No ULF license found' "$log_path"; then
     echo ""
-    echo "##[error] Unity reports no Personal license activation for this editor on this account."
-    echo ""
-    # Deliberately not "this version is unsupported", which is what this said
-    # until it was measured: the same route on the same editor and account has
-    # been observed both granting a seat (2026-09-11) and failing (2026-09-18)
-    # with no code change in between, so the honest statement is that the route
-    # is not dependable, not that the version cannot do it. Telling someone
-    # their Unity version is incapable, when six days earlier it worked, is the
-    # kind of conclusion that costs a week of support thread.
-    echo "This is not a seat-limit or credentials problem, and it is not proof"
-    echo "that this Unity version cannot do it. The same editor, account and"
-    echo "route has been measured succeeding and failing weeks apart with no code"
-    echo "change - see .github/workflows/licensing-capability-matrix.yml, which"
-    echo "measures exactly that. What it does mean is that the account-only route"
-    echo "is not dependable here, and that is the only Personal route editors"
-    echo "this old have: their licensing client predates --include-personal."
-    echo ""
-    echo "In order of preference:"
-    echo "  * Re-run. This failure has been seen to clear on a later attempt with"
-    echo "    nothing changed, so one occurrence is not conclusive."
-    echo "  * If you have a Pro/Plus serial, set UNITY_SERIAL - the serial route"
-    echo "    is a different code path and is confirmed working on this version."
-    echo "  * Otherwise pin this job to Unity 2022.3 or newer, which activates"
-    echo "    through the licensing client instead."
+    echo "##[error] Unity did not grant a Personal seat for this editor version."
+    echo "This is not a credentials or seat-limit problem, and it does not mean the"
+    echo "version is unsupported - this activation has succeeded on it before."
+    echo "Try, in order:"
+    echo "  1. Re-run the job. This has cleared by itself on a later attempt."
+    echo "  2. Set UNITY_SERIAL too, if the account has a Pro/Plus seat."
+    echo "  3. Use Unity 2022.3 or newer, which activates a different way."
     return 0
   fi
 
