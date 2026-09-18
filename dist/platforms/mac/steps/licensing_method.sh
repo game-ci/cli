@@ -183,17 +183,28 @@ explain_personal_activation_failure() {
     echo ""
     echo "##[error] Unity reports no Personal license activation for this editor on this account."
     echo ""
-    echo "This is not a seat-limit or credentials problem - Unity's server has no"
-    echo "Personal entitlement recorded for this account on this specific editor"
-    echo "version. Seen on old editors (2020.3 and earlier, whose licensing client"
-    echo "predates --include-personal): account-only activation is the only"
-    echo "Personal route available to them, and it can fail this way even with"
-    echo "valid credentials and no seats held elsewhere."
+    # Deliberately not "this version is unsupported", which is what this said
+    # until it was measured: the same route on the same editor and account has
+    # been observed both granting a seat (2026-09-11) and failing (2026-09-18)
+    # with no code change in between, so the honest statement is that the route
+    # is not dependable, not that the version cannot do it. Telling someone
+    # their Unity version is incapable, when six days earlier it worked, is the
+    # kind of conclusion that costs a week of support thread.
+    echo "This is not a seat-limit or credentials problem, and it is not proof"
+    echo "that this Unity version cannot do it. The same editor, account and"
+    echo "route has been measured succeeding and failing weeks apart with no code"
+    echo "change - see .github/workflows/licensing-capability-matrix.yml, which"
+    echo "measures exactly that. What it does mean is that the account-only route"
+    echo "is not dependable here, and that is the only Personal route editors"
+    echo "this old have: their licensing client predates --include-personal."
     echo ""
-    echo "There is no known code-side fix for this - if you have a Pro/Plus"
-    echo "serial, set UNITY_SERIAL for this version instead (confirmed working)."
-    echo "Otherwise this editor version may not support headless Personal"
-    echo "activation on this account at all."
+    echo "In order of preference:"
+    echo "  * Re-run. This failure has been seen to clear on a later attempt with"
+    echo "    nothing changed, so one occurrence is not conclusive."
+    echo "  * If you have a Pro/Plus serial, set UNITY_SERIAL - the serial route"
+    echo "    is a different code path and is confirmed working on this version."
+    echo "  * Otherwise pin this job to Unity 2022.3 or newer, which activates"
+    echo "    through the licensing client instead."
     return 0
   fi
 
