@@ -1,0 +1,27 @@
+# Provenance: licensing-diagnostic.yml run 34590072272 (2026-09-11), PROBE 3
+# (editor, account credentials, no serial) on Unity 2020.3.49f1, licensing
+# client 1.12.1, followed by PROBE 5 reporting the resulting entitlement.
+# Trimmed to the licensing lines; access tokens are masked as Unity masks them.
+#
+# This log is the standing counterexample to "2020.3.49f1 cannot take a
+# Personal seat headlessly". Six days after it was captured, that conclusion was
+# drawn from a run whose own account could not activate anything, and it rested
+# on --showEntitlements printing "No licenses were found" - a string that
+# appears in this log too, immediately before the seat is assigned.
+Licensing method: personal
+Requesting activation (personal license via Unity account)
+This editor's licensing client cannot request a Personal seat - activating through the editor instead.
+User maintainers@game.ci logged in successfully
+[Licensing::Module] Successfully launched the LicensingClient (PId: 96)
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.12.1+9338cad
+  Machine Id:              <machine-id>
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Entitlement-based licensing initiated
+[Licensing::Client] Successfully updated the access token
+[Licensing::Module] Successfully updated the access token <masked>...
+[Licensing::Client] Successfully updated license
+[Licensing::Client] Successfully resolved entitlements
+[Licensing::Module] Serial number assigned to: "1375199680824-UnityPersXXXX"
+Pro License: NO
+[Package Manager] Server::Start -- Port 47853 was selected

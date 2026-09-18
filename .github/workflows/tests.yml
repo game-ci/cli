@@ -45,17 +45,32 @@ jobs:
               - '.github/workflows/tests.yml'
             # Narrower than `cli` on purpose: the licensing capability matrix
             # activates against real editors and consumes real seats, so it is
-            # gated on the activation scripts themselves rather than on all of
-            # dist/ or src/.
+            # gated on the code that decides licensing rather than on all of
+            # dist/ or src/. It is wider than it used to be, though - the old
+            # list was the activation scripts alone, which missed everything
+            # that decides whether the seat comes BACK: the entrypoints and
+            # runsteps that arm the return trap, and the Docker model that
+            # decides whether activate and return share a container at all.
+            # That last one is the difference between a measurable return and a
+            # permanent "Machine bindings don't match".
             licensing:
               - 'dist/platforms/*/steps/activate.sh'
               - 'dist/platforms/*/steps/licensing_method.sh'
               - 'dist/platforms/*/steps/return_license.sh'
+              - 'dist/platforms/*/steps/runsteps.sh'
+              - 'dist/platforms/*/entrypoint.sh'
               - 'dist/platforms/windows/activate.ps1'
               - 'dist/platforms/windows/return_license.ps1'
+              - 'dist/platforms/windows/entrypoint.ps1'
+              - 'dist/platforms/windows/steps/runsteps.ps1'
+              - 'dist/BlankProject/**'
               - 'src/logic/unity/license/**'
               - 'src/command/activate/**'
               - 'src/command/return-license/**'
+              - 'src/model/docker.ts'
+              - 'scripts/licensing-verdict.sh'
+              - 'scripts/run-licensing-probe-cell.sh'
+              - 'scripts/fixtures/licensing/**'
               - '.github/workflows/licensing-capability-matrix.yml'
 
   tests:
@@ -118,6 +133,24 @@ jobs:
       - name: Licensing step behaviour tests (dist/platforms/windows)
         shell: pwsh
         run: ./scripts/test-licensing-steps.ps1
+      # How a licensing run's outcome is GRADED, tested against captured real
+      # Unity logs. Every licensing incident in this repository was a grading
+      # error rather than an activation error - "Activation complete." printed
+      # with no seat assigned, a pass awarded for the absence of a known failure
+      # string, a return pattern copied and gone stale - and none of them was
+      # reachable from the stub-based suites above, because a stub emits what
+      # the test author believed Unity emits. The fixtures are what real editors
+      # actually emitted, including the run that assigned a Personal serial on
+      # 2020.3.49f1 after that version had been declared incapable of it.
+      - name: Licensing verdict tests (activation/return grading)
+        run: bash scripts/test-licensing-verdict.sh
+      # The capability matrix's cell body, driven by a stubbed CLI. Pins the two
+      # preconditions that have already cost real runs - a project the CLI will
+      # accept, and a git repository inside it for version detection to shell
+      # out to - and that a leak or a regression fails the cell rather than
+      # being written into a table nobody reads.
+      - name: Licensing probe cell tests
+        run: bash scripts/test-licensing-probe-cell.sh
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just
@@ -364,10 +397,11 @@ jobs:
   # otherwise a skipped-but-required job blocks every scoped PR.
   tests-gate:
     name: Tests gate
-    # licensing-matrix is included deliberately even though it is
-    # reporting-only: its probe steps are continue-on-error, so an
-    # unsupported combination cannot fail it, and anything that DOES fail
-    # it is real breakage in the workflow itself rather than a red cell.
+    # licensing-matrix is a real gate now, not a report. It fails when a
+    # required combination cannot complete a licensing round trip, when a seat
+    # is leaked, or when its own control cell cannot activate - the last of
+    # which means the account is the variable and the run is inconclusive
+    # rather than green.
     needs: [tests, macos-install-smoke-test, unity-tests, orchestrator-tests, orchestrator-integration, licensing-matrix]
     if: always()
     runs-on: ubuntu-latest

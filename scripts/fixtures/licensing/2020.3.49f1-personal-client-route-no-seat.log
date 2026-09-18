@@ -1,0 +1,20 @@
+# Provenance: licensing-diagnostic.yml run 34590072272 (2026-09-11), PROBE 1
+# and PROBE 2 on Unity 2020.3.49f1 - the licensing-client route, which 2020.3's
+# 1.12.1 client cannot use for Personal seats because --include-personal does
+# not exist in it. Trimmed to the licensing lines.
+#
+# The trap this fixture exists to catch is "Activation processed successfully."
+# followed by exit code 0. The client exits 0 for a request it *processed*, not
+# one it granted, and "No seat available" is the actual outcome - which is why
+# a pass must be taken from positive evidence rather than from the absence of a
+# failure or a zero exit status.
+Licensing method: personal
+Requesting activation (personal license via Unity account)
+No licenses were found.
+Trying to activate all seats ...
+Activation processed successfully.
+
+No seat available.
+
+Trying to update entitlement license file ...
+No license activation found for this computer. (UnityEntitlementLicense.xml)

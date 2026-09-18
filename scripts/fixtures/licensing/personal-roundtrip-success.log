@@ -1,0 +1,35 @@
+# Provenance: composed from the two real halves captured on 2026-09-11 and
+# 2026-09-15 - `2020.3.49f1-personal-editor-route-granted.log` (activation) and
+# `personal-return-success.log` (return) - into the single stream a one-container
+# `game-ci test` produces. Line contents are verbatim from those two runs.
+#
+# This is the shape the capability matrix now grades: activate, do the work,
+# return, all in one container, so the return is both possible (same machine
+# identity) and measurable. It is also the only shape a user can actually run,
+# and until this change the repository had never measured it end to end.
+Licensing method: personal
+Requesting activation (personal license via Unity account)
+This editor's licensing client cannot request a Personal seat - activating through the editor instead.
+User maintainers@game.ci logged in successfully
+[Licensing::Module] Successfully launched the LicensingClient (PId: 45)
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.12.1+9338cad
+  Machine Id:              <machine-id>
+Entitlement-based licensing initiated
+[Licensing::Client] Successfully updated the access token
+[Licensing::Module] Successfully updated the access token <masked>...
+[Licensing::Client] Successfully updated license
+[Licensing::Client] Successfully resolved entitlements
+[Licensing::Module] Serial number assigned to: "1375199680824-UnityPersXXXX"
+Pro License: NO
+::group::Unity test
+# ... the project's own test run, elided: it contributes nothing to grading ...
+::endgroup::
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Returning personal license seat
+An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)
+No ULF license file to return - this seat is entitlement-based; returning it through the editor instead.
+[Licensing::Client] Successfully processed license management request
+[Licensing::Module] Successfully returned the entitlement license
+[Licensing::Client] Successfully queried for the EntitlementGroupsDetails
+[Licensing::Module] Error: Serial number unavailable for ULF return; aborting operation

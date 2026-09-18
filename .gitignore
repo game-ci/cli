@@ -9,6 +9,11 @@ yarn-error.log
 *.log
 logs/*
 !**/.gitkeep
+# Captured real Unity licensing logs, used as grading fixtures by
+# scripts/test-licensing-verdict.sh. They are logs, hence the re-include: what
+# makes them worth committing is that they are what real editors actually
+# emitted, which is the one thing a stub cannot provide.
+!scripts/fixtures/licensing/*.log
 .env*
 !.env*.dist
 *.exe

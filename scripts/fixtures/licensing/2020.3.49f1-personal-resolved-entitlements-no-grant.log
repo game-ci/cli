@@ -1,0 +1,38 @@
+# Provenance: licensing-capability-matrix.yml run 35240608290 (2026-09-17),
+# 2020.3.49f1 / personal, via the CLI's own `activate` against a real project.
+# Trimmed to the licensing lines; access tokens are masked as Unity masks them.
+#
+# Nothing here is granted: the licence update is refused by the server, and the
+# editor says so in as many words. It is nevertheless the log that was almost
+# read as a success twice over:
+#
+#   - "Successfully resolved entitlements" only means the query reached Unity's
+#     server, not that anything was found. #290 fixed exactly this false
+#     positive, which is why the grader must require the assignment line.
+#   - "Activation complete." is the script's own line, printed after the
+#     editor had already said "No valid Unity Editor license found." A grader
+#     that trusts the script's summary line is grading the bug.
+#
+# "No license activation found for this computer" is scoped to the machine, and
+# is the same failure the account produced on every version while its seats were
+# exhausted - not something specific to 2020.3.
+Licensing method: personal
+Requesting activation (personal license via Unity account)
+This editor's licensing client cannot request a Personal seat - activating through the editor instead.
+Changing to "/github/workspace/_activate-license~" directory.
+User maintainers@game.ci logged in successfully
+[Licensing::Module] Successfully launched the LicensingClient (PId: 45)
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.12.1+9338cad
+  Machine Id:              <machine-id>
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Entitlement-based licensing initiated
+[Licensing::Client] Successfully updated the access token
+[Licensing::Module] Successfully updated the access token <masked>...
+[Licensing::Client] Error: Code 500 while processing request (status: Unable to update licenses. Errors: No ULF license found.,No license activation found for this computer.)
+[Licensing::Client] Error: Code 500 while updating license in client (status: Unable to update licenses. Errors: No ULF license found.,No license activation found for this computer.)
+[Licensing::Client] Successfully resolved entitlements
+[Licensing::Module] Error: License is not active (com.unity.editor.headless). HasEntitlements will fail.
+Pro License: NO
+No valid Unity Editor license found. Please activate your license.
+Activation complete.
