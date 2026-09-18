@@ -200,9 +200,15 @@ jobs:
           find /root/.local/share/unity3d /root/.config/unity3d -name '*.ulf' 2>/dev/null | head -n 10
           find /root/.local/share/unity3d /root/.config/unity3d -name '*.xml' 2>/dev/null | head -n 10
 
-          banner "PROBE 11: does the editor see a licence now?"
-          unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
-            -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 \
+          # No -username/-password here, deliberately, and this is the whole
+          # value of the probe. With credentials the editor can satisfy itself
+          # from the account and the run says nothing about whether PROBE 10's
+          # ULF was ever usable; a licensed editor with NO credentials can only
+          # have got its licence from a file on disk. That is the difference
+          # between "--activate-ulf wrote something" and "--activate-ulf wrote
+          # something the editor accepts", and only the second is a fix.
+          banner "PROBE 11: does the editor see a licence now? (NO credentials)"
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit 2>&1 \
             | grep -iE "Licensing|Serial number assigned|License is not active|No valid Unity|Pro License" | head -n 20
           echo "exit=${PIPESTATUS[0]}"
 
@@ -230,14 +236,37 @@ jobs:
 
       - name: Summarise
         if: always()
+        env:
+          VERSION: ${{ inputs.unityVersion }}
         run: |
           {
-            echo "## Licensing diagnostic - ${{ inputs.unityVersion }}"
+            echo "## Licensing diagnostic - $VERSION"
             echo ""
-            echo "Probes tried, in order: entitlements, current code path,"
-            echo "editor account-only (no serial), syncEntitlements, entitlements again."
+            echo "Probes, in the order they run:"
             echo ""
-            echo "Look for a seat assignment (\`ASSIGN_SEAT\`) or a serial being"
-            echo "assigned in any probe. If one appears in a probe other than #2,"
-            echo "there is a route this version supports that the CLI does not use."
+            echo "| # | What it asks |"
+            echo "| --- | --- |"
+            echo "| 1 | \`--showEntitlements\` - what does the account hold |"
+            echo "| 1b | editor, account credentials, **before** any priming |"
+            echo "| 2 | \`--activate-all\` - the CLI's current code path |"
+            echo "| 3 | editor, account credentials, after priming |"
+            echo "| 4 | \`--syncEntitlements\` |"
+            echo "| 5 | \`--showEntitlements\` again, after the attempts |"
+            echo "| 6 | editor with \`-serial\` |"
+            echo "| 7 | \`-returnlicense\`, same container |"
+            echo "| 8 | the client's full \`--help\` |"
+            echo "| 9 | every activation-shaped option it might accept |"
+            echo "| 10 | \`--activate-ulf\`, and the licence files it leaves |"
+            echo "| 11 | editor **without** credentials - does it see that licence |"
+            echo "| 12 | \`--return-ulf\`, same container |"
+            echo ""
+            echo "Compare 1b against 3: they differ only by the priming in probe 2,"
+            echo "so if they disagree, priming is the variable. Compare 10 against"
+            echo "11: 11 carries no credentials, so a licensed editor there can only"
+            echo "have got it from the ULF that 10 wrote."
+            echo ""
+            echo "Look for a seat assignment (\`ASSIGN_SEAT\`), a serial being"
+            echo "assigned, or a \`--activate-ulf\` success. Any of those in a probe"
+            echo "the CLI does not use is a route this version supports and we are"
+            echo "not taking."
           } >> "$GITHUB_STEP_SUMMARY"

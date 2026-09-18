@@ -68,7 +68,7 @@ chmod +x "$STUB_BIN/bun"
 # Runs one cell and leaves its exit status in CELL_STATUS, its output in
 # CELL_OUT, and its result file at $WORK/out/results/<version>-<method>.txt.
 run_cell() {
-  local version="$1" method="$2" fixture="$3" control="$4"
+  local version="$1" method="$2" fixture="$3" control="$4" gating="${5:-true}"
   local out="$WORK/out"
   rm -rf "$out"
   mkdir -p "$out"
@@ -77,7 +77,7 @@ run_cell() {
     cd "$REPO_ROOT" && PATH="$STUB_BIN:$PATH" \
       STUB_LOG="$fixture" \
       CONTROL_VERDICT="$control" \
-      GATING=true \
+      GATING="$gating" \
       LICENSING_PROBE_PROJECT_DIR="$SANDBOX/probe-project" \
       LICENSING_PROBE_OUTPUT_DIR="$out" \
       bash "$PROBE" "$version" "$method" 2>&1
@@ -129,9 +129,18 @@ fi
 check_eq "with a commit in it, not merely initialised" \
   "$(git -C "$PREP" rev-list --count HEAD 2>/dev/null)" \
   "1"
-check_eq "and a clean tree, which versioning also requires" \
-  "$(git -C "$PREP" status --porcelain 2>/dev/null | wc -l | tr -d ' ')" \
-  "0"
+
+# Assert the status command *succeeded* before asserting it was empty.
+# `git status --porcelain | wc -l` prints 0 both for a clean tree and for a git
+# that failed to run at all, so on its own it grades a broken repository as a
+# clean one - which is exactly the state this test exists to catch.
+if STATUS_OUT="$(git -C "$PREP" status --porcelain 2>&1)"; then
+  check_eq "and a clean tree, which versioning also requires" "$STATUS_OUT" ""
+else
+  echo "  FAIL git status could not be read (a 0 here would have meant 'clean')"
+  echo "       actual:             $STATUS_OUT"
+  FAIL=$((FAIL + 1))
+fi
 
 echo
 echo "Grading, relative to the control"
@@ -172,6 +181,26 @@ check_eq "the same failing run does not fail once the control is red" "$CELL_STA
 check_eq "it is attributed to the environment instead" \
   "$(cat "$CELL_RESULT" 2>/dev/null | sed -n "s/^classification='\(.*\)'$/\1/p")" \
   "account-or-environment"
+
+# GATING is what separates "this version list is a statement about what we
+# support" from "someone is investigating a report". A regression only asserts
+# the first, so on an exploratory run it must be recorded and not enforced.
+run_cell 2020.3.49f1 personal \
+  "$FIXTURES/2020.3.49f1-personal-resolved-entitlements-no-grant.log" pass false
+check_eq "a regression on an exploratory run does not fail the cell" "$CELL_STATUS" "0"
+check "it is still recorded against the version" "$(cat "$CELL_RESULT")" \
+  "classification='capability-regression'"
+check "and is surfaced as a warning to read" "$CELL_OUT" "does not gate"
+check "rather than as an error to act on" "$CELL_OUT" "did not complete a licensing round trip while the control cell did"
+check "and records that it was not required" "$(cat "$CELL_RESULT")" \
+  "required='false'"
+
+# A leak is the exception: it says nothing about Unity, it damages the shared
+# account for every later run, and it fails even a probe someone ran casually.
+run_cell 2020.3.49f1 personal \
+  "$FIXTURES/2020.3.49f1-personal-editor-route-granted.log" pass false
+check_eq "a leaked seat fails even when not gating" "$CELL_STATUS" "1"
+check "for the same reason as a gated leak" "$CELL_OUT" "id.unity.com"
 
 echo
 if [ "$FAIL" -gt 0 ]; then

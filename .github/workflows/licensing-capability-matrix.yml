@@ -248,21 +248,31 @@ jobs:
           # The personal cells must not see one either.
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        run: bash scripts/run-licensing-probe-cell.sh "${{ matrix.unityVersion }}" "${{ matrix.method }}"
+          # Passed through the environment rather than interpolated into the
+          # command line: on a workflow_dispatch run these come from the
+          # `versions` input, and `${{ }}` inside `run:` is substituted before
+          # the shell ever sees the line, so a crafted value would execute.
+          MATRIX_VERSION: ${{ matrix.unityVersion }}
+          MATRIX_METHOD: ${{ matrix.method }}
+        run: bash scripts/run-licensing-probe-cell.sh "$MATRIX_VERSION" "$MATRIX_METHOD"
 
       - name: Record a skipped cell
         if: steps.gate.outputs.run_cell != 'true'
+        env:
+          MATRIX_VERSION: ${{ matrix.unityVersion }}
+          MATRIX_METHOD: ${{ matrix.method }}
+          SKIP_REASON: ${{ steps.gate.outputs.reason }}
         run: |
           mkdir -p results
           {
-            echo "unityVersion='${{ matrix.unityVersion }}'"
-            echo "method='${{ matrix.method }}'"
+            echo "unityVersion='$MATRIX_VERSION'"
+            echo "method='$MATRIX_METHOD'"
             echo "verdict='skipped'"
             echo "classification='skipped'"
             echo "client='-'"
             echo "required='false'"
-            echo "note='${{ steps.gate.outputs.reason }}'"
-          } > "results/${{ matrix.unityVersion }}-${{ matrix.method }}.txt"
+            echo "note='$SKIP_REASON'"
+          } > "results/$MATRIX_VERSION-$MATRIX_METHOD.txt"
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -155,6 +155,13 @@ echo "Cell $UNITY_VERSION/$METHOD: $VERDICT ($CLASSIFICATION, control=$CONTROL_V
 # visible as a red job rather than only as a row in a summary. The workflow's
 # report job gates on the aggregate as well, because a matrix job's failure and
 # a missing cell look the same from outside.
+
+# A leaked seat fails whatever GATING says, and that asymmetry is deliberate.
+# GATING=false means "this version list is exploratory, so its result is a
+# finding rather than a verdict" - which is a statement about a Unity version.
+# A leak is not a statement about Unity at all: it is damage to the shared
+# account that degrades every later run, and it is worth failing a probe run to
+# make someone go and release the seat.
 case "$VERDICT" in
   fail:seat-leaked*)
     echo "::error::$UNITY_VERSION/$METHOD took a seat and did not return it. Release the account's seats at https://id.unity.com/ - a leaked seat degrades every later run, not just this one."
@@ -162,9 +169,17 @@ case "$VERDICT" in
     ;;
 esac
 
+# A regression is the one classification that asserts something about this Unity
+# version, so it is the one that must respect GATING. A custom version list is
+# someone investigating a report; failing their run on a version they chose to
+# probe, on a PR that has nothing to do with it, is how a gate gets disabled by
+# the people it is meant to protect.
 if [ "$CLASSIFICATION" = "capability-regression" ]; then
-  echo "::error::$UNITY_VERSION/$METHOD did not complete a licensing round trip, and the control cell did. This is a statement about this Unity version, method or flag combination."
-  exit 1
+  if [ "$GATING" = "true" ]; then
+    echo "::error::$UNITY_VERSION/$METHOD did not complete a licensing round trip, and the control cell did. This is a statement about this Unity version, method or flag combination."
+    exit 1
+  fi
+  echo "::warning::$UNITY_VERSION/$METHOD did not complete a licensing round trip while the control cell did, but this is an exploratory run (custom version list) and does not gate. Recorded as a finding to read, not a red build."
 fi
 
 exit 0
