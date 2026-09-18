@@ -75,6 +75,26 @@ jobs:
           "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 60
           echo "exit=${PIPESTATUS[0]}"
 
+          # Deliberately BEFORE any entitlement priming, and deliberately with
+          # the same editor invocation as PROBE 3 below - one variable apart.
+          #
+          # The capability matrix fails 2020.3.49f1/personal through the CLI's
+          # own activate path, while a probe on 2026-09-11 succeeded on the same
+          # editor and account. The two differ in exactly two ways: this script
+          # runs --activate-all (PROBE 2, which writes
+          # UnityEntitlementLicense.xml) before the editor, and the matrix runs
+          # the editor inside a Unity project. Comparing this probe against
+          # PROBE 3 isolates the first, because both run without a project.
+          #
+          # If this fails and PROBE 3 succeeds, the priming is the difference
+          # and the fix belongs in the activation script. If both fail, the
+          # entitlement service is refusing this route outright and priming is
+          # irrelevant.
+          banner "PROBE 1b: editor BEFORE any entitlement priming (no project)"
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+            -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 | tail -n 40
+          echo "exit=${PIPESTATUS[0]}"
+
           banner "PROBE 2: current code path (--activate-all, no --include-personal)"
           "$CLIENT" --activate-all --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 40
           echo "exit=${PIPESTATUS[0]}"

@@ -202,7 +202,7 @@ lv_roundtrip_verdict() {
 }
 
 # lv_classify <control-verdict> <cell-verdict> -> ok | capability-regression |
-#   account-or-environment | inconclusive
+#   account-or-environment | inconclusive | baseline
 #
 # The discriminator this project spent four rounds without. A cell turning red
 # means one of two very different things, and conflating them is what produced
@@ -210,6 +210,15 @@ lv_roundtrip_verdict() {
 # run where every cell was red for a reason that had nothing to do with 2020.3.
 lv_classify() {
   local control="$1" cell="$2"
+
+  # The control grading itself, against the sentinel its caller passes because
+  # there is nothing above it to be relative to. Saying "account-or-environment"
+  # here reads as a warning about the account on the one row that is known good,
+  # which is the opposite of what that row means.
+  if [ "$control" = 'unknown:no-control' ]; then
+    printf '%s' 'baseline'
+    return 0
+  fi
 
   # A control that could not activate means the account or the environment is
   # the variable. No conclusion about any version may be drawn from this run,

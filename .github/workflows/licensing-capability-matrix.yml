@@ -336,6 +336,7 @@ jobs:
               *)                  icon="⏭️ skipped" ;;
             esac
             case "${classification:-}" in
+              baseline)               verdict_class="⚪ baseline" ;;
               ok)                     verdict_class="🟢 ok" ;;
               capability-regression)  verdict_class="🔴 regression" ;;
               account-or-environment) verdict_class="🟠 account/environment" ;;

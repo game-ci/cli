@@ -181,6 +181,13 @@ check_eq "red control, green cell is still not evidence" \
   "$(lv_classify 'fail:no-licence' pass)" "account-or-environment"
 check_eq "green control, dead probe is inconclusive rather than a regression" \
   "$(lv_classify pass 'unknown:never-reached-unity')" "inconclusive"
+# The control's own row. Grading it against itself produced
+# "account-or-environment" on the one row that is known good and passed - which
+# reads as a warning about the account, the exact opposite of its meaning.
+check_eq "the control grading itself is the baseline" \
+  "$(lv_classify 'unknown:no-control' pass)" "baseline"
+check_eq "and is the baseline even when it failed" \
+  "$(lv_classify 'unknown:no-control' 'fail:no-licence')" "baseline"
 
 echo
 echo "Patterns are read from the scripts, not restated"
