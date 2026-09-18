@@ -20,9 +20,17 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $containerScript = Join-Path $repoRoot 'dist/platforms/windows/licensing_method.ps1'
 $stepsScript = Join-Path $repoRoot 'dist/platforms/windows/steps/licensing_method.ps1'
 
+# The retry knobs are in this list for the same reason as the credentials, and
+# they were added when a review pointed out the gap: an ambient
+# UNITY_LICENSE_RETRY_DELAY_SECONDS changes what Get-UnityLicenseRetryDelay
+# returns, so the baseline delay assertions below would grade the parent
+# environment rather than the script. Clearing them here also means the
+# Clear-LicenseEnv after the tunability case actually undoes the value that
+# case set, instead of leaving it for whatever runs next.
 $licenseVars = @(
   'UNITY_LICENSING_METHOD', 'UNITY_SERIAL', 'UNITY_LICENSE', 'UNITY_LICENSE_FILE',
-  'UNITY_LICENSING_SERVER', 'UNITY_EMAIL', 'UNITY_PASSWORD', 'GAME_CI_ACTIVATED_VIA'
+  'UNITY_LICENSING_SERVER', 'UNITY_EMAIL', 'UNITY_PASSWORD', 'GAME_CI_ACTIVATED_VIA',
+  'UNITY_LICENSE_RETRY_DELAY_SECONDS', 'UNITY_LICENSE_RETRY_MAX_ATTEMPTS'
 )
 
 function Clear-LicenseEnv {

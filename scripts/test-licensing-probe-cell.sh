@@ -103,8 +103,13 @@ run_cell() {
   mkdir -p "$out"
   rm -f "$WORK/docker-attempts"
 
+  # LICENSING_PROBE_PULL_ATTEMPTS is unset rather than assigned, so the
+  # attempts the warm-up makes are the shipped default. An ambient value would
+  # otherwise decide the two- and three-pull cases below, and a default that
+  # quietly changed would stop failing this suite.
   CELL_OUT="$(
-    cd "$REPO_ROOT" && PATH="$STUB_BIN:$PATH" \
+    cd "$REPO_ROOT" && env -u LICENSING_PROBE_PULL_ATTEMPTS \
+      PATH="$STUB_BIN:$PATH" \
       STUB_LOG="$fixture" \
       CONTROL_VERDICT="$control" \
       GATING="$gating" \
@@ -304,6 +309,16 @@ DOCKER_STUB_FAIL_FIRST=99 run_cell 2020.3.49f1 personal \
 check_eq "the warm-up gives up after the configured attempts" \
   "$(wc -l < "$WORK/docker-attempts" | tr -d ' ')" "3"
 check_eq "giving up does not fail the cell" "$CELL_STATUS" "0"
+
+# The same case, run with a hostile ambient attempt count. run_cell unsets the
+# knob for the child, so the expectation above still describes the script's own
+# default - and this is the assertion that fails if that ever stops being true,
+# rather than the count above quietly tracking the environment.
+LICENSING_PROBE_PULL_ATTEMPTS=9 \
+DOCKER_STUB_FAIL_FIRST=99 \
+  run_cell 2020.3.49f1 personal "$FIXTURES/personal-roundtrip-success.log" pass
+check_eq "an ambient attempt count does not decide how many are made" \
+  "$(wc -l < "$WORK/docker-attempts" | tr -d ' ')" "3"
 check "and says the run continues anyway" "$CELL_OUT" \
   "Continuing anyway - the CLI pulls the image itself"
 if grep -q "Could not warm the editor image" "$WORK/out/cell.log" 2>/dev/null; then

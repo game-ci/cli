@@ -95,8 +95,15 @@ run_step() {
   # runsteps.sh takes, so one left set in the ambient environment would make a
   # case exercise a different path than its name claims. Assignments in "$@"
   # still win - env applies -u before them.
+  #
+  # The retry knobs are cleared for the mirror-image reason: they do not change
+  # which branch runs, but they change how long it waits and how many times it
+  # tries, so an ambient value would make a case assert against the parent
+  # environment instead of the script. The cases that want a specific value
+  # pass it in "$@", which still wins.
   env -u UNITY_LICENSING_METHOD -u UNITY_SERIAL -u UNITY_LICENSE \
       -u UNITY_LICENSE_FILE -u UNITY_LICENSING_SERVER -u UNITY_EMAIL -u UNITY_PASSWORD \
+      -u UNITY_LICENSE_RETRY_DELAY_SECONDS -u UNITY_LICENSE_RETRY_MAX_ATTEMPTS \
       -u RETURN_LICENSE_ONLY -u ACTIVATE_ONLY \
       "$@"
 }
@@ -962,10 +969,15 @@ check_failed "and the run fails instead" "$LAST_STATUS"
 
 # The window is configurable, which is the whole point of exposing it: a base of
 # zero keeps this suite fast, and a user can widen it without editing anything.
+# The baseline case goes through run_step so an ambient
+# UNITY_LICENSE_RETRY_DELAY_SECONDS cannot decide the answer - it asserts the
+# shipped default, and has to fail if that default changes. A hostile value is
+# set on the call itself, so this is also the assertion that fails if run_step
+# ever stops clearing the knob.
 check_eq "the delay doubles per attempt" \
-  "$(bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 4')" "160"
+  "$(UNITY_LICENSE_RETRY_DELAY_SECONDS=7 run_step bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 4')" "160"
 check_eq "and the base is overridable" \
-  "$(UNITY_LICENSE_RETRY_DELAY_SECONDS=1 bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 3')" "4"
+  "$(run_step UNITY_LICENSE_RETRY_DELAY_SECONDS=1 bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 3')" "4"
 
 echo
 if [ "$FAIL" -gt 0 ]; then
