@@ -181,15 +181,21 @@ jobs:
 
           # PROBE 9 found it: on the client 2020.3 bundles, --activate-ulf with
           # account credentials and no serial returns "Successfully activated
-          # ULF license". Every conclusion drawn about this version rested on
-          # --activate-all, whose own help text says it activates
-          # *subscriptions* - which a Personal account does not have, hence the
-          # "No seat available" that was read as "this version cannot do this".
+          # ULF license". That is a real difference from --activate-all, whose
+          # own help text says it activates *subscriptions* - which a Personal
+          # account does not have, hence the "No seat available" that was read
+          # as "this version cannot do this".
           #
-          # These probes check the other half, which matters more than the
-          # first: a licence we cannot give back is worse than one we never
-          # took. PROBE 11 confirms the editor actually sees it, and PROBE 12
-          # confirms it can be returned.
+          # But a success message is not a licence type. This account also holds
+          # a serial, so a ULF activation here may be handing back the serial
+          # licence under a different name - the same thing activate.sh already
+          # does with -serial - rather than reaching a Personal seat. The rest of
+          # these probes exist to tell those two apart, because the second one
+          # means there is no new route at all.
+          #
+          # And the half that matters more than the first: a licence we cannot
+          # give back is worse than one we never took. PROBE 12 confirms it can
+          # be returned from the same container.
           banner "PROBE 10: --activate-ulf, and the files it leaves behind"
           "$CLIENT" --return-ulf >/dev/null 2>&1 || true
           "$CLIENT" --activate-ulf --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 10
@@ -199,6 +205,28 @@ jobs:
           # found" at the path return_license.sh looks in.
           find /root/.local/share/unity3d /root/.config/unity3d -name '*.ulf' 2>/dev/null | head -n 10
           find /root/.local/share/unity3d /root/.config/unity3d -name '*.xml' 2>/dev/null | head -n 10
+
+          # What that ULF *is*, read off the file rather than inferred from the
+          # editor - because the editor cannot answer it. A ULF activation
+          # succeeds on this account, but the first run of PROBE 11 that was
+          # logged showed the editor reporting the SERIAL
+          # (F4-R7MU-NE6Q-Q9GD-5SWP-XXXX) after reading it. Either --activate-ulf
+          # hands back the ULF this account is entitled to - which, on an account
+          # holding a serial, is the serial licence and not a Personal seat, so
+          # it is no Personal route at all and the CLI's --activate-all is
+          # exonerated - or that assignment came from the credentials the editor
+          # was given, which PROBE 11 no longer passes. The file settles it.
+          ULF=/root/.local/share/unity3d/Unity/Unity_lic.ulf
+          if [ -f "$ULF" ]; then
+            echo "--- ULF present ($(wc -c < "$ULF") bytes); identity fields:"
+            grep -aoE 'Serial[^ >"]*="[^"]*"|"Serial[^"]*":"[^"]*"|<Serial>[^<]*</Serial>|Personal|Pro(duction)?|Plus|Enterprise|Entitlement[^ >"]*="[^"]*"' "$ULF" \
+              | sort -u | head -n 25
+            echo "--- first 600 bytes:"
+            head -c 600 "$ULF" | tr -d '\0'
+            echo
+          else
+            echo "--- no ULF at $ULF, despite --activate-ulf reporting success"
+          fi
 
           # No -username/-password here, deliberately, and this is the whole
           # value of the probe. With credentials the editor can satisfy itself
@@ -256,14 +284,18 @@ jobs:
             echo "| 7 | \`-returnlicense\`, same container |"
             echo "| 8 | the client's full \`--help\` |"
             echo "| 9 | every activation-shaped option it might accept |"
-            echo "| 10 | \`--activate-ulf\`, and the licence files it leaves |"
+            echo "| 10 | \`--activate-ulf\`, the files it leaves, and **what that ULF says it is** |"
             echo "| 11 | editor **without** credentials - does it see that licence |"
             echo "| 12 | \`--return-ulf\`, same container |"
             echo ""
             echo "Compare 1b against 3: they differ only by the priming in probe 2,"
-            echo "so if they disagree, priming is the variable. Compare 10 against"
-            echo "11: 11 carries no credentials, so a licensed editor there can only"
-            echo "have got it from the ULF that 10 wrote."
+            echo "so if they disagree, priming is the variable."
+            echo ""
+            echo "Probe 10 is the one to read first. A ULF activation that succeeds"
+            echo "does not say which licence it handed back, and this account holds a"
+            echo "serial as well - so if the ULF names the serial, this is the serial"
+            echo "route wearing a different name and there is no new Personal route"
+            echo "here. If it names Personal, there is."
             echo ""
             echo "Look for a seat assignment (\`ASSIGN_SEAT\`), a serial being"
             echo "assigned, or a \`--activate-ulf\` success. Any of those in a probe"
