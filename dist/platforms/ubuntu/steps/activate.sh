@@ -19,8 +19,13 @@ echo "Licensing method: ${LICENSING_METHOD:-<none>}"
 # mac/steps/build.sh's matching comment) - retried a few times, but only on
 # those known-transient signatures, so a genuine activation failure (bad
 # serial, expired license, etc.) still fails immediately.
-UNITY_ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
-UNITY_ACTIVATE_RETRY_DELAY_SECONDS=20
+#
+# The 5 here is only a fallback: the CLI sets UNITY_LICENSE_RETRY_MAX_ATTEMPTS
+# from --licenseRetryMaxAttempts (default 5, see
+# src/command-options/unity-options.ts), and that is what governs a real run.
+# Both agree so that a run outside the CLI - docker directly, say - retries the
+# same number of times as one inside it.
+UNITY_ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-5}"
 UNITY_ACTIVATE_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
 # A machine-binding mismatch is permanent, not flaky: the .ulf is cryptographically
@@ -112,8 +117,8 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Unity activation" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
       sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
@@ -159,8 +164,8 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
 
       if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
         # Exponential backoff - see mac/steps/activate.sh's matching comment.
-        UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-        echo "Personal activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+        UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+        unity_license_retry_notice "Personal activation" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
         sleep "$UNITY_ACTIVATE_RETRY_DELAY"
         continue
       fi
@@ -224,8 +229,8 @@ elif [[ "$LICENSING_METHOD" == "serial" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Unity activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Unity activation" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
       sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
@@ -251,8 +256,8 @@ elif [[ "$LICENSING_METHOD" == "floating" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Floating license acquisition failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Floating license acquisition" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
       sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
@@ -338,8 +343,8 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
       UNITY_EXIT_CODE=1
 
       if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
-        UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-        echo "Personal activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+        UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+        unity_license_retry_notice "Personal activation" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
         sleep "$UNITY_ACTIVATE_RETRY_DELAY"
         continue
       fi
@@ -376,15 +381,14 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$UNITY_ACTIVATE_TRANSIENT_PATTERN" "$ACTIVATE_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_ACTIVATE_RETRY_DELAY=$((UNITY_ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Personal activation failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_ACTIVATE_MAX_ATTEMPTS) - retrying in ${UNITY_ACTIVATE_RETRY_DELAY}s..."
+      UNITY_ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Personal activation" "$ATTEMPT" "$UNITY_ACTIVATE_MAX_ATTEMPTS" "$UNITY_ACTIVATE_RETRY_DELAY"
       sleep "$UNITY_ACTIVATE_RETRY_DELAY"
       continue
     fi
 
     break
   done
-
 
   # The licensing client exits 0 when it has *processed* the request, not when
   # it has actually been given a seat. Unity 2020.3.49f1's client 1.12.1 ends

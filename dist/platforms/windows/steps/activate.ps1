@@ -25,8 +25,7 @@ $global:UNITY_EXIT_CODE = 1
 # matrix). Retried only on known-transient signatures, so a genuine
 # activation failure (bad serial, expired license, etc.) still fails
 # immediately.
-$MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 4 }
-$RetryDelaySeconds = 20
+$MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 5 }
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
 try {
@@ -69,8 +68,8 @@ try {
 
       if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
         # Exponential backoff - see mac/steps/activate.sh's matching comment.
-        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-        Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+        Write-UnityLicenseRetryNotice -What "Unity activation" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
         Start-Sleep -Seconds $CurrentRetryDelay
         continue
       }
@@ -105,8 +104,8 @@ try {
 
         if ($Attempt -lt $MaxAttempts -and $ActivateText -match $TransientPattern) {
           # Exponential backoff - see mac/steps/activate.sh's matching comment.
-          $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-          Write-Host "Personal activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+          $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+          Write-UnityLicenseRetryNotice -What "Personal activation" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
           Start-Sleep -Seconds $CurrentRetryDelay
           continue
         }
@@ -158,8 +157,8 @@ try {
 
       if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
         # Exponential backoff - see mac/steps/activate.sh's matching comment.
-        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-        Write-Host "Unity activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+        Write-UnityLicenseRetryNotice -What "Unity activation" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
         Start-Sleep -Seconds $CurrentRetryDelay
         continue
       }
@@ -184,8 +183,8 @@ try {
 
       if ($Attempt -lt $MaxAttempts -and $AcquireText -match $TransientPattern) {
         # Exponential backoff - see mac/steps/activate.sh's matching comment.
-        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-        Write-Host "Floating license acquisition failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+        Write-UnityLicenseRetryNotice -What "Floating license acquisition" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
         Start-Sleep -Seconds $CurrentRetryDelay
         continue
       }
@@ -232,8 +231,8 @@ try {
 
       if ($Attempt -lt $MaxAttempts -and $ActivateText -match $TransientPattern) {
         # Exponential backoff - see mac/steps/activate.sh's matching comment.
-        $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-        Write-Host "Personal activation failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+        $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+        Write-UnityLicenseRetryNotice -What "Personal activation" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
         Start-Sleep -Seconds $CurrentRetryDelay
         continue
       }

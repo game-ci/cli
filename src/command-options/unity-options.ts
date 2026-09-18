@@ -80,13 +80,19 @@ export class UnityOptions implements IOptions {
           default: '',
         },
         licenseRetryMaxAttempts: {
-          description: String.dedent`Number of times to retry Unity activation/build on a known-transient
+          description: String.dedent`Number of times to retry Unity activation/build/return on a known-transient
           Unity licensing-server error (timeout, "0 entitlement groups", "No valid Unity Editor license
           found", etc. - see mac/steps/activate.sh and build.sh). Set to 1 to disable retrying - e.g. if
-          a persistent license failure is being masked by retries instead of failing fast.`,
+          a persistent license failure is being masked by retries instead of failing fast.
+
+          The wait doubles each time (20s, 40s, 80s, 160s) and can be changed with
+          UNITY_LICENSE_RETRY_DELAY_SECONDS, so the default of 5 is a window of roughly five minutes.
+          That is deliberate: this only applies to errors Unity reports as transient, a genuinely broken
+          license still fails on the first attempt, and a brief licensing-service blip is better absorbed
+          than reported as a failed build.`,
           type: 'number',
           demandOption: false,
-          default: 4,
+          default: 5,
         },
         unityLicensingMethod: {
           description: String.dedent`

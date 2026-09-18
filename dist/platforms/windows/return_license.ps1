@@ -29,8 +29,7 @@ $LicensingClientPath = "$Env:UNITY_PATH\Editor\Data\Resources\Licensing\Client\U
 # attempt is exhausted, since a genuinely leaked seat needs a human to know
 # about it (nothing here can force Unity's server to release a seat it
 # thinks is still in use).
-$MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 4 }
-$RetryDelaySeconds = 20
+$MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 5 }
 $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
 # Permanent by construction: the entitlement is bound to the machine that
@@ -74,8 +73,8 @@ if ($ReturnStrategy -eq 'floating') {
     if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-      Write-Host "Floating license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+      Write-UnityLicenseRetryNotice -What "Floating license return" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
       Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
@@ -152,8 +151,8 @@ elseif ($ReturnStrategy -eq 'personal') {
     if ($ReturnText -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $ReturnText -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-      Write-Host "Personal license return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+      Write-UnityLicenseRetryNotice -What "Personal license return" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
       Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }
@@ -191,8 +190,8 @@ elseif ($ReturnStrategy -eq 'serial') {
     if ($LogContent -match $PermanentPattern) { break }
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-      Write-Host "License return failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+      Write-UnityLicenseRetryNotice -What "License return" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
       Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }

@@ -95,8 +95,15 @@ run_step() {
   # runsteps.sh takes, so one left set in the ambient environment would make a
   # case exercise a different path than its name claims. Assignments in "$@"
   # still win - env applies -u before them.
+  #
+  # The retry knobs are cleared for the mirror-image reason: they do not change
+  # which branch runs, but they change how long it waits and how many times it
+  # tries, so an ambient value would make a case assert against the parent
+  # environment instead of the script. The cases that want a specific value
+  # pass it in "$@", which still wins.
   env -u UNITY_LICENSING_METHOD -u UNITY_SERIAL -u UNITY_LICENSE \
       -u UNITY_LICENSE_FILE -u UNITY_LICENSING_SERVER -u UNITY_EMAIL -u UNITY_PASSWORD \
+      -u UNITY_LICENSE_RETRY_DELAY_SECONDS -u UNITY_LICENSE_RETRY_MAX_ATTEMPTS \
       -u RETURN_LICENSE_ONLY -u ACTIVATE_ONLY \
       "$@"
 }
@@ -125,6 +132,20 @@ check_failed() {
   else
     echo "  FAIL $1"
     echo "       expected a non-zero exit status, got: $2"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Equality rather than containment: used where a wrong-but-present value would
+# pass a substring match (a delay of "160" is contained in "1160").
+check_eq() {
+  if [ "$2" = "$3" ]; then
+    echo "  PASS $1"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL $1"
+    echo "       expected: $3"
+    echo "       actual:   $2"
     FAIL=$((FAIL + 1))
   fi
 }
@@ -207,8 +228,10 @@ No valid Unity Editor license found. Please activate your license." \
 NO_ENTITLEMENT_STATUS=$?
 refute "editor route does not report success on resolved-but-empty entitlements" "$OUT" "Activation complete."
 check_failed "and exits non-zero" "$NO_ENTITLEMENT_STATUS"
-check "and explains it is not a seat-limit problem" "$OUT" \
-  "no Personal license activation for this editor on this account"
+check "and names the failure Unity actually reported" "$OUT" \
+  "Unity did not grant a Personal seat for this editor version"
+check "and rules out a seat-limit problem" "$OUT" \
+  "not a credentials or seat-limit problem"
 
 # What this message is allowed to conclude, and what it is not.
 #
@@ -228,10 +251,26 @@ refute "does not tell the user their Unity version is unsupported" "$OUT" \
   "may not support headless Personal"
 refute "and offers no other 'no known fix' verdict" "$OUT" \
   "no known code-side fix"
-check "instead saying a re-run can clear it" "$OUT" "Re-run."
+refute "and never points a user at a file in this repository" "$OUT" \
+  "licensing-capability-matrix.yml"
+check "instead saying a re-run can clear it" "$OUT" "Re-run the job"
 check "and pointing at the serial route as the working alternative" "$OUT" \
-  "set UNITY_SERIAL"
-check "and at the supported editors with a client route" "$OUT" "2022.3 or newer"
+  "UNITY_SERIAL"
+check "and at the newer editors, which activate differently" "$OUT" \
+  "2022.3 or newer"
+# The message is read by someone whose build just failed, not by a maintainer.
+# It got long enough once to cite a workflow file and explain our own grading
+# history at them; this keeps it to what happened plus what to do.
+MESSAGE_LINES="$(printf '%s\n' "$OUT" \
+  | sed -n '/Unity did not grant a Personal seat/,/activates a different way/p' \
+  | wc -l | tr -d ' ')"
+if [ "$MESSAGE_LINES" -le 8 ]; then
+  echo "  PASS and stays short enough to read in a build log"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL it is $MESSAGE_LINES lines long - too long for someone whose build just failed"
+  FAIL=$((FAIL + 1))
+fi
 
 # The modern client must keep using the client route, not regress onto the
 # editor - the editor route exists only for editors that cannot do it.
@@ -510,7 +549,7 @@ OUT=$(run_step UNITY_LICENSE="<License/>" UNITY_EMAIL="ci@example.com" UNITY_PAS
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
   bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
 refute "does not retry a machine-binding mismatch as though it were transient" "$OUT" \
-  "known-transient licensing error (attempt 1/4)"
+  "known-transient Unity licensing error (attempt 1 of 4)"
 check "the file activation is tried exactly once before falling back" \
   "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
 
@@ -608,7 +647,7 @@ OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERI
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
 refute "treats a logged successful return as success despite a non-zero exit" "$OUT" \
-  "known-transient licensing error"
+  "known-transient Unity licensing error"
 refute "and does not warn that the return failed" "$OUT" "Failed to return the Unity license after"
 check "and only calls the editor once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
 
@@ -634,7 +673,7 @@ OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERI
   UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 \
   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
 refute "does not retry a machine-binding mismatch on return" "$OUT" \
-  "known-transient licensing error (attempt 1/4)"
+  "known-transient Unity licensing error (attempt 1 of 4)"
 check "and names the real cause instead of implying a leaked seat" "$OUT" \
   "bound to a different machine"
 refute "and does not send the user hunting a leak" "$OUT" "may still be held"
@@ -710,12 +749,12 @@ chmod +x "$WORK/unity-editor"
 
 : > "$ARGV_LOG"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456"   STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4   bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
-refute "an entitlement return is recognised as success" "$OUT" "known-transient licensing error"
+refute "an entitlement return is recognised as success" "$OUT" "known-transient Unity licensing error"
 refute "and does not warn about a seat it just handed back" "$OUT" "Failed to return the Personal"
 check "and returns it exactly once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
 check "a missing .ulf on the client route falls back to the editor" "$(cat "$ARGV_LOG")" \
   "-returnlicense"
-refute "and does not burn retries on it" "$OUT" "known-transient licensing error"
+refute "and does not burn retries on it" "$OUT" "known-transient Unity licensing error"
 refute "and does not warn once the editor has returned it" "$OUT" "Failed to return the Personal"
 
 # Nothing to hand back on either route means no seat is held - which is the
@@ -871,6 +910,74 @@ pattern_parity "the nothing-held pattern" UNITY_LICENSE_RETURN_NO_ULF_PATTERN \
 # shellcheck disable=SC2086
 pattern_parity "the activation transient pattern" UNITY_ACTIVATE_TRANSIENT_PATTERN \
   dist/platforms/ubuntu/steps/activate.sh $ACTIVATE_SCRIPTS
+
+echo
+echo "Retrying a known-transient failure"
+# The message a user sees when licensing is retried lives in one place now
+# (unity_license_retry_notice), and these assertions are the reason it can be
+# trusted there: retrying is a decision the tool makes on the user's behalf, and
+# a run that quietly retries for five minutes and then succeeds looks exactly
+# like a run that was never in trouble.
+#
+# UNITY_LICENSE_RETRY_DELAY_SECONDS is what makes this testable without paying
+# the wait - the same knob a user reaches for when Unity is having a bad day.
+# A transient failure that clears on the second attempt must end in success.
+cat > "$WORK/Unity.Licensing.Client" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "--help" ]; then
+  echo "  --include-personal (Default: false) Include personal license"
+  exit 0
+fi
+echo "CLIENT $*" >> "$ARGV_LOG"
+# Fails transiently the first time, succeeds the second - the shape of the
+# Unity-side blips this exists to absorb.
+if [ "$(grep -c '^CLIENT' "$ARGV_LOG")" -lt 2 ]; then
+  echo "TimeoutPolicy did not complete"
+  exit 1
+fi
+echo "Seat ID: 1375199680824-UnityPersonal"
+echo "Status: [200] ASSIGN_SEAT"
+exit 0
+STUB
+chmod +x "$WORK/Unity.Licensing.Client"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=3 UNITY_LICENSE_RETRY_DELAY_SECONDS=0 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+check "a transient failure is retried, not failed" "$OUT" "Activation complete."
+# A GitHub annotation rather than a bare print, so it reaches the Actions UI
+# where a user looks. The prefix is the assertion for that.
+check "and the retry says what is happening" "$OUT" \
+  "::warning::Personal activation hit a known-transient Unity licensing error"
+check "with the attempt it is on" "$OUT" "(attempt 1 of 3)"
+check "and tells the user it is not their fault" "$OUT" \
+  "rather than anything wrong with your project or credentials"
+check "and how long until it tries again" "$OUT" "it will retry in 0s"
+check "the backing-off attempt actually ran again" "$(grep -c '^CLIENT' "$ARGV_LOG")" "2"
+
+# A transient error on the last attempt has nothing left to retry into, so it
+# must stop rather than announce an attempt that will not happen.
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 UNITY_LICENSE_RETRY_DELAY_SECONDS=0 \
+  bash -c 'source "$STEPS_DIR/activate.sh"' 2>&1)
+LAST_STATUS=$?
+refute "no retry is announced when there is no attempt left" "$OUT" \
+  "::warning::Personal activation hit a known-transient"
+check_failed "and the run fails instead" "$LAST_STATUS"
+
+# The window is configurable, which is the whole point of exposing it: a base of
+# zero keeps this suite fast, and a user can widen it without editing anything.
+# The baseline case goes through run_step so an ambient
+# UNITY_LICENSE_RETRY_DELAY_SECONDS cannot decide the answer - it asserts the
+# shipped default, and has to fail if that default changes. A hostile value is
+# set on the call itself, so this is also the assertion that fails if run_step
+# ever stops clearing the knob.
+check_eq "the delay doubles per attempt" \
+  "$(UNITY_LICENSE_RETRY_DELAY_SECONDS=7 run_step bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 4')" "160"
+check_eq "and the base is overridable" \
+  "$(run_step UNITY_LICENSE_RETRY_DELAY_SECONDS=1 bash -c 'source "$STEPS_DIR/licensing_method.sh" >/dev/null 2>&1; unity_license_retry_delay 3')" "4"
 
 echo
 if [ "$FAIL" -gt 0 ]; then

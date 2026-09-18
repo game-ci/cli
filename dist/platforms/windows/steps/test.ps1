@@ -222,8 +222,7 @@ foreach ($Platform in $Platforms) {
   # real test failure or a real license misconfiguration still fails
   # immediately. Same --licenseRetryMaxAttempts / UNITY_LICENSE_RETRY_MAX_ATTEMPTS
   # knob as activate.ps1 and the mac scripts.
-  $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 4 }
-  $RetryDelaySeconds = 20
+  $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 5 }
   $TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
@@ -236,8 +235,8 @@ foreach ($Platform in $Platforms) {
 
     if ($Attempt -lt $MaxAttempts -and $LogContent -match $TransientPattern) {
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      $CurrentRetryDelay = $RetryDelaySeconds * [math]::Pow(2, $Attempt - 1)
-      Write-Host "Unity test run failed with a known-transient licensing error (attempt $Attempt/$MaxAttempts) - retrying in ${CurrentRetryDelay}s..."
+      $CurrentRetryDelay = Get-UnityLicenseRetryDelay -Attempt $Attempt
+      Write-UnityLicenseRetryNotice -What "Unity test run" -Attempt $Attempt -Max $MaxAttempts -Delay $CurrentRetryDelay
       Start-Sleep -Seconds $CurrentRetryDelay
       continue
     }

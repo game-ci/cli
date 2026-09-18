@@ -120,6 +120,98 @@ fi
 
 mkdir -p "$OUTPUT_DIR/results"
 
+# --- Editor image warm-up ----------------------------------------------------
+#
+# A registry blip is the dominant cause of a cell reporting "never reached
+# Unity": the connection to Docker Hub times out, no container is ever started,
+# and a cell that learned nothing about licensing is recorded all the same.
+# Measured on 2026-09-18, where 2020.3.49f1/serial - ten cells of ten otherwise
+# green - spent fifteen seconds watching a token request time out.
+#
+# Pulling the image first, with the same retry-and-say-so shape the license
+# steps use, turns that into a re-try instead of a re-run of the whole matrix.
+# Strictly best effort: if every attempt fails the CLI pulls the image exactly
+# as it did before, and the cell reports whatever it then measures.
+#
+# The reference is resolved by asking the CLI rather than by rebuilding the tag
+# here. The tag rules - module suffix, il2cpp-vs-mono by host and version, the
+# rolling image version - live in src/model/unity/runner/runner-image-tag.ts,
+# and a second copy of them would drift the first time any of them changed.
+#
+# `linux` is the host the CLI resolves on the ubuntu runner this matrix runs on,
+# so it matches the tag the run below asks for. Off that runner the reference
+# can differ, which costs nothing: the pull fails, warns, and the CLI pulls what
+# it actually wants.
+LICENSING_PROBE_PULL_ATTEMPTS="${LICENSING_PROBE_PULL_ATTEMPTS:-3}"
+LICENSING_PROBE_PULL_DELAY_SECONDS="${LICENSING_PROBE_PULL_DELAY_SECONDS:-20}"
+
+resolve_editor_image() {
+  PROBE_ENGINE_VERSION="$UNITY_VERSION" bun -e '
+    globalThis.log = { debug() {}, info() {}, warning() {}, error() {}, critical() {}, notice() {} };
+    const { RunnerImageTag } = await import("./src/model/unity/runner/runner-image-tag.ts");
+    console.log(
+      new RunnerImageTag({
+        engineVersion: process.env.PROBE_ENGINE_VERSION,
+        hostPlatform: "linux",
+        targetPlatform: "StandaloneLinux64",
+      }).toString(),
+    );
+  ' 2>/dev/null | tail -n 1
+}
+
+# Separates "the registry is having a moment" from "this tag does not exist".
+# Retrying the second for a minute and then reporting it as a temporary problem
+# at Docker Hub would be a lie about a version that simply has no image, and it
+# would bury the one finding here worth reading quickly.
+docker_pull_failure_is_permanent() {
+  case "$1" in
+    *"manifest unknown"* | *"not found"* | *"denied"* | *"unauthorized"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Never fails the cell. A warm-up that could not run has to leave the run
+# exactly as it would have been without it, or it becomes the new way a cell
+# goes red for a reason that is not licensing.
+warm_editor_image() {
+  local image attempt delay out
+
+  command -v docker >/dev/null 2>&1 || return 0
+
+  image="$(resolve_editor_image)"
+  case "$image" in
+    */*:*)
+      ;;
+    *)
+      echo "::warning::Could not resolve the editor image for $UNITY_VERSION, so it will be pulled on first use as before."
+      return 0
+      ;;
+  esac
+
+  for ((attempt = 1; attempt <= LICENSING_PROBE_PULL_ATTEMPTS; attempt++)); do
+    if out="$(docker pull --quiet "$image" 2>&1)"; then
+      echo "Editor image ready: $image"
+      return 0
+    fi
+
+    if docker_pull_failure_is_permanent "$out"; then
+      echo "::warning::The editor image $image is not available from the registry, so the CLI cannot pull it either. Not retrying: this is not a transient error."
+      return 0
+    fi
+
+    [ "$attempt" -ge "$LICENSING_PROBE_PULL_ATTEMPTS" ] && break
+
+    delay=$((LICENSING_PROBE_PULL_DELAY_SECONDS * (1 << (attempt - 1))))
+    echo "::warning::Pulling the editor image for $UNITY_VERSION hit a registry or network error (attempt $attempt of $LICENSING_PROBE_PULL_ATTEMPTS). This is normally a temporary problem at Docker Hub rather than anything about this combination, so it will retry in ${delay}s."
+    sleep "$delay"
+  done
+
+  echo "::warning::Could not warm the editor image for $UNITY_VERSION after $LICENSING_PROBE_PULL_ATTEMPTS attempts. Continuing anyway - the CLI pulls the image itself, and this cell reports whatever it then measures."
+  return 0
+}
+
+warm_editor_image
+
 # One invocation, one container: activate -> test -> return, with the seat
 # return armed on the entrypoint's EXIT trap so it fires even when the test run
 # hard-exits. --targetPlatform is explicit because the default resolves to the
@@ -205,6 +297,24 @@ if [ "$CLASSIFICATION" = "capability-regression" ]; then
     exit 1
   fi
   echo "::warning::$UNITY_VERSION/$METHOD did not complete a licensing round trip while the control cell did, but this is an exploratory run (custom version list) and does not gate. Recorded as a finding to read, not a red build."
+fi
+
+# An inconclusive cell is one this probe never measured: Unity was never
+# launched, so the cell says nothing about licensing either way. It is not a
+# finding, and it is emphatically not a pass - and a green job beside a red
+# summary is the worse of the two failures, because a tick on a capability
+# matrix is read as "measured, and capable". The gate already fails on these;
+# this is here so the job agrees with the gate rather than contradicting it.
+#
+# The usual cause is a transient registry or network error pulling the editor
+# image (see the warm-up above, which retries it first), so the message sends
+# the reader to a re-run rather than to the Unity version.
+if [ "$CLASSIFICATION" = "inconclusive" ]; then
+  if [ "$GATING" = "true" ]; then
+    echo "::error::$UNITY_VERSION/$METHOD was never measured - the editor did not start, so this cell is not evidence about licensing either way. Re-run the job: a registry or network error pulling the editor image is the usual cause."
+    exit 1
+  fi
+  echo "::warning::$UNITY_VERSION/$METHOD was never measured - the editor did not start. This is an exploratory run so it does not gate, but read the cell as absent rather than as capable."
 fi
 
 exit 0

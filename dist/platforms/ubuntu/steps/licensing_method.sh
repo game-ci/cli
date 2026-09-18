@@ -17,6 +17,40 @@
 # dist/platforms/windows/licensing_method.ps1's own history for why that
 # divergence existed and why it was safe to remove).
 #
+#
+# Retry policy for licensing calls that fail with a known-transient error.
+#
+# Both halves live here - how long to wait, and what to tell the user while they
+# wait - because they used to be copied into every retry loop in this
+# repository: thirty-odd near-identical messages across two languages and four
+# platforms, each with its own variable names. That made the wording impossible
+# to change once and the delay impossible to tune at all, since the base was a
+# bare literal in each file.
+#
+# The notice is a ::warning:: rather than a plain echo so it surfaces in the
+# Actions UI where a user actually looks, instead of several thousand lines into
+# a build log. Retrying is a decision this tool makes on the user's behalf, and
+# a run that quietly re-tries for five minutes then succeeds looks identical to
+# one that was never in trouble - which is information they are entitled to.
+#
+UNITY_LICENSE_RETRY_DELAY_SECONDS_DEFAULT=20
+
+# Seconds to wait after a failed attempt, doubling each time: 20, 40, 80, 160.
+# Override UNITY_LICENSE_RETRY_DELAY_SECONDS to widen or narrow the whole window
+# without editing anything here.
+#
+# $1 - the attempt that just failed (1-based).
+unity_license_retry_delay() {
+  local attempt="$1"
+  local base="${UNITY_LICENSE_RETRY_DELAY_SECONDS:-$UNITY_LICENSE_RETRY_DELAY_SECONDS_DEFAULT}"
+  echo $((base * (1 << (attempt - 1))))
+}
+
+# $1 - what failed, e.g. "Unity activation". $2 - attempt. $3 - max. $4 - delay.
+unity_license_retry_notice() {
+  echo "::warning::$1 hit a known-transient Unity licensing error (attempt $2 of $3). This is normally a temporary problem at Unity's end rather than anything wrong with your project or credentials, so it will retry in $4s."
+}
+
 resolve_unity_licensing_method() {
   if [[ -n "${UNITY_LICENSING_METHOD:-}" ]]; then
     echo "$UNITY_LICENSING_METHOD"
@@ -170,41 +204,26 @@ explain_personal_activation_failure() {
   fi
 
   # Distinct from the "no seats" case above: that one means the account HAS a
-  # Personal entitlement but every seat is currently held. This one means
-  # Unity's server has no Personal entitlement for this account on this
-  # editor at all - confirmed live via `--showEntitlements` returning "No
-  # licenses were found" immediately after this exact failure, on an account
-  # that activates fine via UNITY_SERIAL and via personal on newer editors.
-  # Observed specifically on 2020.3.49f1 (Unity.Licensing.Client 1.12.1) -
-  # this old client's headless account-only route (the only Personal route it
-  # has; --include-personal does not exist on it) appears unable to obtain a
-  # seat on this account, for reasons outside this script's visibility.
+  # Personal entitlement but every seat is currently held. This one is Unity
+  # refusing the account-only route that editors this old depend on (their
+  # licensing client predates --include-personal, so it is the only Personal
+  # route they have).
+  #
+  # Not "this version is unsupported", which is what this said until it was
+  # measured: the same route on the same editor and account has been observed
+  # both granting a seat (2026-09-11) and failing (2026-09-18), so it is
+  # unreliable rather than unavailable. Someone reading this has a build
+  # that just failed and wants to know what to do next, so it is kept short:
+  # what happened, then the three things that actually help.
   if grep -qiE 'No license activation found for this computer|No ULF license found' "$log_path"; then
     echo ""
-    echo "##[error] Unity reports no Personal license activation for this editor on this account."
-    echo ""
-    # Deliberately not "this version is unsupported", which is what this said
-    # until it was measured: the same route on the same editor and account has
-    # been observed both granting a seat (2026-09-11) and failing (2026-09-18)
-    # with no code change in between, so the honest statement is that the route
-    # is not dependable, not that the version cannot do it. Telling someone
-    # their Unity version is incapable, when six days earlier it worked, is the
-    # kind of conclusion that costs a week of support thread.
-    echo "This is not a seat-limit or credentials problem, and it is not proof"
-    echo "that this Unity version cannot do it. The same editor, account and"
-    echo "route has been measured succeeding and failing weeks apart with no code"
-    echo "change - see .github/workflows/licensing-capability-matrix.yml, which"
-    echo "measures exactly that. What it does mean is that the account-only route"
-    echo "is not dependable here, and that is the only Personal route editors"
-    echo "this old have: their licensing client predates --include-personal."
-    echo ""
-    echo "In order of preference:"
-    echo "  * Re-run. This failure has been seen to clear on a later attempt with"
-    echo "    nothing changed, so one occurrence is not conclusive."
-    echo "  * If you have a Pro/Plus serial, set UNITY_SERIAL - the serial route"
-    echo "    is a different code path and is confirmed working on this version."
-    echo "  * Otherwise pin this job to Unity 2022.3 or newer, which activates"
-    echo "    through the licensing client instead."
+    echo "##[error] Unity did not grant a Personal seat for this editor version."
+    echo "This is not a credentials or seat-limit problem, and it does not mean the"
+    echo "version is unsupported - this activation has succeeded on it before."
+    echo "Try, in order:"
+    echo "  1. Re-run the job. This has cleared by itself on a later attempt."
+    echo "  2. Set UNITY_SERIAL too, if the account has a Pro/Plus seat."
+    echo "  3. Use Unity 2022.3 or newer, which activates a different way."
     return 0
   fi
 
