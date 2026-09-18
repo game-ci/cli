@@ -138,6 +138,19 @@ VERDICT="$(bash "$REPO_ROOT/scripts/licensing-verdict.sh" roundtrip "$METHOD" "$
 CLASSIFICATION="$(bash "$REPO_ROOT/scripts/licensing-verdict.sh" classify "$CONTROL_VERDICT" "$VERDICT")"
 CLIENT="$(extract_client_version)"
 
+# A cell this repository knows is broken upstream, recorded in one place with a
+# review date. Recorded rather than hidden: the fields go into the result file
+# so the report states it, and the gate below is the only thing it softens.
+# shellcheck source=scripts/licensing-tolerated-cells.sh
+. "$REPO_ROOT/scripts/licensing-tolerated-cells.sh"
+TOLERANCE="$(licensing_tolerance "$UNITY_VERSION/$METHOD" || true)"
+TOLERATED_NOTE=""
+TOLERATED_UNTIL=""
+if [ -n "$TOLERANCE" ]; then
+  TOLERATED_UNTIL="${TOLERANCE%%$'\t'*}"
+  TOLERATED_NOTE="${TOLERANCE#*$'\t'}"
+fi
+
 {
   echo "unityVersion='$UNITY_VERSION'"
   echo "method='$METHOD'"
@@ -146,10 +159,15 @@ CLIENT="$(extract_client_version)"
   echo "client='${CLIENT:-unknown}'"
   echo "required='$GATING'"
   echo "note='control=$CONTROL_VERDICT'"
+  echo "tolerated='$TOLERATED_NOTE'"
+  echo "toleratedUntil='$TOLERATED_UNTIL'"
 } > "$OUTPUT_DIR/results/$UNITY_VERSION-$METHOD.txt"
 
 echo
 echo "Cell $UNITY_VERSION/$METHOD: $VERDICT ($CLASSIFICATION, control=$CONTROL_VERDICT)"
+if [ -n "$TOLERATED_NOTE" ]; then
+  echo "Known upstream failure, tolerated until $TOLERATED_UNTIL: $TOLERATED_NOTE"
+fi
 
 # Fail the job on the two outcomes somebody has to act on, so a red cell is
 # visible as a red job rather than only as a row in a summary. The workflow's
@@ -162,6 +180,9 @@ echo "Cell $UNITY_VERSION/$METHOD: $VERDICT ($CLASSIFICATION, control=$CONTROL_V
 # A leak is not a statement about Unity at all: it is damage to the shared
 # account that degrades every later run, and it is worth failing a probe run to
 # make someone go and release the seat.
+#
+# A tolerance never covers a leak, for the same reason: releasing the seat is
+# the fix, and no amount of annotating this file releases it.
 case "$VERDICT" in
   fail:seat-leaked*)
     echo "::error::$UNITY_VERSION/$METHOD took a seat and did not return it. Release the account's seats at https://id.unity.com/ - a leaked seat degrades every later run, not just this one."
@@ -175,6 +196,10 @@ esac
 # probe, on a PR that has nothing to do with it, is how a gate gets disabled by
 # the people it is meant to protect.
 if [ "$CLASSIFICATION" = "capability-regression" ]; then
+  if [ -n "$TOLERATED_NOTE" ]; then
+    echo "::warning::$UNITY_VERSION/$METHOD did not complete a licensing round trip while the control cell did. This is a recorded upstream failure, tolerated until $TOLERATED_UNTIL, so it does not fail the build - it is in the report as a tolerated failure. If Unity has since fixed it, remove the entry from scripts/licensing-tolerated-cells.sh."
+    exit 0
+  fi
   if [ "$GATING" = "true" ]; then
     echo "::error::$UNITY_VERSION/$METHOD did not complete a licensing round trip, and the control cell did. This is a statement about this Unity version, method or flag combination."
     exit 1

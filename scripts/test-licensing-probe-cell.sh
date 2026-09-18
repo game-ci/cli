@@ -155,7 +155,13 @@ check "and records which licensing client this editor bundles" \
 
 # #290's bug, as an end-to-end regression test: a log that says "Activation
 # complete." and "Successfully resolved entitlements" while granting nothing.
-run_cell 2020.3.49f1 personal \
+#
+# Labelled 2022.3.62f3 rather than the version the log came from, deliberately:
+# 2020.3.49f1/personal is the one combination in the tolerated list, and these
+# assertions are about *grading*, which is version-independent. Leaving the
+# label on a tolerated cell would test the tolerance instead, and would have
+# quietly stopped covering the bug this test exists for.
+run_cell 2022.3.62f3 personal \
   "$FIXTURES/2020.3.49f1-personal-resolved-entitlements-no-grant.log" pass
 check_eq "a run that granted nothing fails the cell" "$CELL_STATUS" "1"
 check "is reported as a regression, not as a pass" "$(cat "$CELL_RESULT")" \
@@ -185,7 +191,9 @@ check_eq "it is attributed to the environment instead" \
 # GATING is what separates "this version list is a statement about what we
 # support" from "someone is investigating a report". A regression only asserts
 # the first, so on an exploratory run it must be recorded and not enforced.
-run_cell 2020.3.49f1 personal \
+# Not a tolerated combination (see the label note above), or it would pass for
+# the wrong reason.
+run_cell 2022.3.62f3 personal \
   "$FIXTURES/2020.3.49f1-personal-resolved-entitlements-no-grant.log" pass false
 check_eq "a regression on an exploratory run does not fail the cell" "$CELL_STATUS" "0"
 check "it is still recorded against the version" "$(cat "$CELL_RESULT")" \
@@ -201,6 +209,33 @@ run_cell 2020.3.49f1 personal \
   "$FIXTURES/2020.3.49f1-personal-editor-route-granted.log" pass false
 check_eq "a leaked seat fails even when not gating" "$CELL_STATUS" "1"
 check "for the same reason as a gated leak" "$CELL_OUT" "id.unity.com"
+
+echo
+echo "Recorded upstream failures"
+# 2020.3.49f1/personal is the entry in scripts/licensing-tolerated-cells.sh: it
+# fails for a reason this repository cannot fix, so it is measured and reported
+# without blocking. The point of these assertions is that it is *recorded* -
+# the fields go into the result file, so the report and the gate can both state
+# it, rather than the failure disappearing.
+run_cell 2020.3.49f1 personal \
+  "$FIXTURES/2020.3.49f1-personal-resolved-entitlements-no-grant.log" pass
+check_eq "a tolerated failure does not fail the job" "$CELL_STATUS" "0"
+check "but is still recorded as a regression" "$(cat "$CELL_RESULT")" \
+  "classification='capability-regression'"
+check "and carries the reason, so the report can state it" \
+  "$(cat "$CELL_RESULT")" "tolerated='Unity refuses the account route"
+check "with the date it has to be revisited by" "$(cat "$CELL_RESULT")" \
+  "toleratedUntil='2026-12-31'"
+check "and the log says out loud that it is not gating" "$CELL_OUT" \
+  "Known upstream failure, tolerated until"
+
+# The leak above, on the tolerated combination, already covers the case that a
+# tolerance must not cover a leak - it was run with GATING=true and still failed.
+# This pins the same thing on the record itself, so the two cannot drift.
+run_cell 2020.3.49f1 personal \
+  "$FIXTURES/2020.3.49f1-personal-editor-route-granted.log" pass
+check_eq "a tolerance never covers a leak, even on the tolerated cell" \
+  "$CELL_STATUS" "1"
 
 echo
 if [ "$FAIL" -gt 0 ]; then

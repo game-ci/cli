@@ -335,7 +335,7 @@ jobs:
             # Every field is unset first: these files are sourced, and a field
             # absent from one of them would otherwise silently inherit the
             # previous row's value.
-            unset unityVersion method verdict classification client required
+            unset unityVersion method verdict classification client required tolerated toleratedUntil
             # shellcheck disable=SC1090
             . "$file"
             case "${verdict:-}" in
@@ -348,7 +348,15 @@ jobs:
             case "${classification:-}" in
               baseline)               verdict_class="⚪ baseline" ;;
               ok)                     verdict_class="🟢 ok" ;;
-              capability-regression)  verdict_class="🔴 regression" ;;
+              capability-regression)
+                # A tolerated cell is still a failure and is shown as one. The
+                # only thing the tolerance changes is whether the run fails.
+                if [ -n "${tolerated:-}" ]; then
+                  verdict_class="🟡 known upstream failure (tolerated until ${toleratedUntil:-?})"
+                else
+                  verdict_class="🔴 regression"
+                fi
+                ;;
               account-or-environment) verdict_class="🟠 account/environment" ;;
               inconclusive)           verdict_class="⚠️ inconclusive" ;;
               *)                      verdict_class="⏭️ skipped" ;;
@@ -391,77 +399,24 @@ jobs:
             echo "  version. When the account is out of Personal seats, release them"
             echo "  at https://id.unity.com/ and re-run."
             echo "- **inconclusive** - the probe died before reaching Unity."
+            echo "- **known upstream failure** - the control did, this cell did not, and"
+            echo "  the combination is recorded in \`scripts/licensing-tolerated-cells.sh\`"
+            echo "  as failing for a reason this repository cannot fix. It is still a"
+            echo "  failure and is still measured; it does not fail the build, and the"
+            echo "  entry expires on the date shown so it cannot quietly become"
+            echo "  permanent."
             echo ""
             echo "Control verdict for this run: \`$CONTROL_VERDICT\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The decision lives in scripts/licensing-matrix-gate.sh, not inline here,
+      # because it is testable there and because it now has to distinguish a
+      # regression from a *recorded* upstream failure. A tolerance that is
+      # applied wrongly fails open, which is the one direction this workflow
+      # cannot afford to get wrong.
       - name: Gate on the result
         env:
           CONTROL_VERDICT: ${{ needs.control.outputs.verdict }}
           GATING: ${{ needs.preflight.outputs.gating }}
           HAS_ACCOUNT: ${{ needs.preflight.outputs.has_account }}
-        run: |
-          if [ "$HAS_ACCOUNT" != "true" ]; then
-            echo "::notice::No account credentials in this context (fork PR?) - nothing to measure, which is not a failure."
-            exit 0
-          fi
-
-          echo "Control verdict: $CONTROL_VERDICT"
-
-          # Before anything else, and in both directions. A run whose control
-          # could not activate cannot certify a version any more than it can
-          # condemn one - and the conclusion that 2020.3.49f1 can never take a
-          # Personal seat came from exactly this state.
-          if [ "$CONTROL_VERDICT" != "pass" ]; then
-            echo "::error::The control cell could not complete a Personal round trip ($CONTROL_VERDICT). This run measured the account, not Unity, so no cell here is evidence about any version. Check the account's seats at https://id.unity.com/ before reading anything else."
-            exit 1
-          fi
-
-          shopt -s nullglob
-          cell_files=(collected/results/*.txt)
-
-          if [ "${#cell_files[@]}" -eq 0 ]; then
-            echo "::error::The control passed but no cell produced a result - the matrix measured nothing, which is not the same as finding nothing wrong."
-            exit 1
-          fi
-
-          regressions=""
-          inconclusive=""
-          leaked=""
-
-          for f in "${cell_files[@]}"; do
-            unset unityVersion method verdict classification required
-            # shellcheck disable=SC1090
-            . "$f"
-            case "${verdict:-}" in
-              fail:seat-leaked*) leaked="$leaked ${unityVersion}/${method}" ;;
-            esac
-            case "${classification:-}" in
-              capability-regression) regressions="$regressions ${unityVersion}/${method}" ;;
-              inconclusive)          inconclusive="$inconclusive ${unityVersion}/${method}" ;;
-            esac
-          done
-
-          # Named on its own because it is the failure that damages every later
-          # run on the account, not just this one - and until this gate existed
-          # nothing failed on it: return_license.sh only warns, and the CLI exits
-          # 0 either way.
-          if [ -n "$leaked" ]; then
-            echo "::error::Seat leaked on:$leaked - activation succeeded but no return was observed. Release the seats at https://id.unity.com/ and fix the return path before re-running."
-            exit 1
-          fi
-
-          if [ -n "$inconclusive" ]; then
-            echo "::error::Probe never reached Unity on:$inconclusive. Not a licensing finding, but those combinations were not measured, and an unmeasured cell must not read as a pass."
-            exit 1
-          fi
-
-          if [ -n "$regressions" ]; then
-            if [ "$GATING" = "true" ]; then
-              echo "::error::Licensing regressed against the control on:$regressions. The control completed a round trip, so this is about those Unity versions, not the account."
-              exit 1
-            fi
-            echo "::warning::Exploratory run (custom version list) - not gating. Regressions seen:$regressions"
-          fi
-
-          echo "All cells completed a full activate/test/return round trip."
+        run: bash scripts/licensing-matrix-gate.sh

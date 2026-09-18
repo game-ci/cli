@@ -70,7 +70,10 @@ jobs:
               - 'src/command/activate/**'
               - 'src/command/return-license/**'
               - 'src/model/docker.ts'
-              - 'scripts/licensing-verdict.sh'
+              # Globbed for the same reason as the platform scripts above: an
+              # enumerated list is what let four Windows scripts drift out of
+              # this filter unnoticed.
+              - 'scripts/licensing-*.sh'
               - 'scripts/run-licensing-probe-cell.sh'
               - 'scripts/fixtures/licensing/**'
               - '.github/workflows/licensing-capability-matrix.yml'
@@ -153,6 +156,15 @@ jobs:
       # being written into a table nobody reads.
       - name: Licensing probe cell tests
         run: bash scripts/test-licensing-probe-cell.sh
+      # The matrix's gate, which turns its cells into a pass or a failure. It
+      # now also decides whether a *recorded* upstream failure may go
+      # unpunished, and a tolerance applied to the wrong thing fails open -
+      # a leaked seat or an unmeasured cell would stop failing the build. That
+      # is why the decision lives in a script with tests rather than inline in
+      # the workflow, and why the tolerance cases below are asserted in both
+      # directions.
+      - name: Licensing matrix gate tests
+        run: bash scripts/test-licensing-matrix-gate.sh
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just
