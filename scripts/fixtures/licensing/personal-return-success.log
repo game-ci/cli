@@ -1,0 +1,32 @@
+# Provenance: licensing-capability-matrix.yml run 34989114739 (2026-09-15),
+# 2020.3.49f1 / personal, the `return-license` half. Trimmed to the licensing
+# lines; access tokens are masked as Unity masks them.
+#
+# A return that plainly succeeded, containing two lines a naive grader reads as
+# failure:
+#
+#   - "An error occured while trying to return the ULF license. Ulf license
+#     file not found" - the ULF route does not apply to a Personal seat, and
+#     the script says so and switches routes. It is the beginning of the
+#     success, not a failure.
+#   - "[Licensing::Module] Error: Serial number unavailable for ULF return" -
+#     printed on the same successful path, after the entitlement has already
+#     been handed back.
+#
+# Grading on the presence of "Error" or on the absence of a known failure
+# string gets this cell wrong in both directions, which is the whole argument
+# for lv_return_verdict's ordering: success evidence first, everything else
+# afterwards.
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Returning personal license seat
+An error occured while trying to return the ULF license. Ulf license file not found (/root/.local/share/unity3d/Unity/Unity_lic.ulf) (1404)
+No ULF license file to return - this seat is entitlement-based; returning it through the editor instead.
+[Licensing::Module] Successfully launched the LicensingClient (PId: 46)
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Entitlement-based licensing initiated
+[Licensing::Client] Successfully updated the access token
+[Licensing::Module] Successfully updated the access token <masked>...
+[Licensing::Client] Successfully processed license management request
+[Licensing::Module] Successfully returned the entitlement license
+[Licensing::Client] Successfully queried for the EntitlementGroupsDetails
+[Licensing::Module] Error: Serial number unavailable for ULF return; aborting operation

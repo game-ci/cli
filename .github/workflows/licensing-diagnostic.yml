@@ -32,10 +32,22 @@ permissions:
   contents: read
 
 concurrency:
-  # Shares the seat pool with the capability matrix, so it must not run
-  # alongside it - a probe that fails for want of a seat would be read as a
-  # probe that cannot work at all.
-  group: licensing-capability-matrix
+  # Deliberately NOT the capability matrix's group, even though both take seats
+  # from the same account.
+  #
+  # A concurrency group keeps only one *pending* run: a newer entrant cancels an
+  # older one that has not started. Sharing the matrix's group therefore meant a
+  # manual dispatch cancelled whatever matrix run was queued behind it - observed
+  # on 2026-09-18, when dispatching this workflow cancelled the licensing job of
+  # a PR's Tests run. That is a real red on a real PR caused by nothing, and
+  # `Tests gate` cannot tell it apart from a suite that failed.
+  #
+  # The cost of separating them is that a diagnostic can now overlap a matrix
+  # run, so the two can briefly contend for a seat. That is the lesser evil: it
+  # is bounded to this rare, manually-dispatched workflow, and it is detectable
+  # rather than silent - contention makes the matrix's control cell fail, and the
+  # report grades every cell `account-or-environment` when it does.
+  group: licensing-diagnostic
   cancel-in-progress: false
 
 jobs:
@@ -73,6 +85,26 @@ jobs:
 
           banner "PROBE 1: what does this account actually hold? (--showEntitlements)"
           "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 60
+          echo "exit=${PIPESTATUS[0]}"
+
+          # Deliberately BEFORE any entitlement priming, and deliberately with
+          # the same editor invocation as PROBE 3 below - one variable apart.
+          #
+          # The capability matrix fails 2020.3.49f1/personal through the CLI's
+          # own activate path, while a probe on 2026-09-11 succeeded on the same
+          # editor and account. The two differ in exactly two ways: this script
+          # runs --activate-all (PROBE 2, which writes
+          # UnityEntitlementLicense.xml) before the editor, and the matrix runs
+          # the editor inside a Unity project. Comparing this probe against
+          # PROBE 3 isolates the first, because both run without a project.
+          #
+          # If this fails and PROBE 3 succeeds, the priming is the difference
+          # and the fix belongs in the activation script. If both fail, the
+          # entitlement service is refusing this route outright and priming is
+          # irrelevant.
+          banner "PROBE 1b: editor BEFORE any entitlement priming (no project)"
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+            -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 | tail -n 40
           echo "exit=${PIPESTATUS[0]}"
 
           banner "PROBE 2: current code path (--activate-all, no --include-personal)"
@@ -123,6 +155,96 @@ jobs:
             banner "PROBE 6/7 skipped: no UNITY_SERIAL"
           fi
 
+          # What client 1.12.1 can actually be asked to do.
+          #
+          # Every conclusion drawn about this version so far has rested on one
+          # assumed absence - that 1.12.1 has no --include-personal - and on
+          # --activate-all, which asks for a subscription seat the account does
+          # not have and answers "No seat available". Nobody has ever read the
+          # option list. If it offers any route to a Personal seat, --activate-all
+          # is simply the wrong call and this version is not unsupported at all.
+          banner "PROBE 8: every option client 1.12.1 accepts"
+          "$CLIENT" --help 2>&1
+
+          banner "PROBE 9: activation-shaped options actually accepted"
+          # Each attempt is followed by a return, so a route that works does not
+          # leave the seat held by the probe. exit 33 is how this client refuses
+          # an option it does not have, which is the answer for most of these.
+          for FLAG in --activate-all --include-personal --activate-personal \
+                      --activate-seat --request-personal --updateEntitlementLicense \
+                      --syncEntitlements --activate-ulf; do
+            echo "--- $FLAG"
+            "$CLIENT" "$FLAG" --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 12
+            echo "exit=${PIPESTATUS[0]}"
+            "$CLIENT" --return-ulf >/dev/null 2>&1 || true
+          done
+
+          # This is where a promising-looking lead was killed, so it is worth
+          # stating as a result rather than as a question.
+          #
+          # PROBE 9 showed that --activate-ulf, unlike --activate-all, succeeds
+          # on the client 2020.3 bundles - "Successfully activated ULF license"
+          # with account credentials and no serial. --activate-all's own help
+          # text says it activates *subscriptions*, which a Personal account does
+          # not have, so "No seat available" was read as "this version cannot take
+          # a Personal seat" and --activate-ulf looked like the missing route.
+          #
+          # It is not. Measured 2026-09-18: the ULF it writes is read back by an
+          # editor given NO credentials - so the licence can only have come from
+          # the file - and that editor reports the SERIAL, not a Personal
+          # entitlement. --activate-ulf is --activate-all's sibling for the file
+          # format; on an account holding a serial, the ULF it hands back is the
+          # serial licence, which activate.sh already obtains with -serial. There
+          # was never a new Personal route here.
+          #
+          # The one thing it did establish is the half that matters more than the
+          # first: a licence we cannot give back is worse than one we never took.
+          # PROBE 12 confirms it can be returned from the same container.
+          banner "PROBE 10: --activate-ulf, and the files it leaves behind"
+          "$CLIENT" --return-ulf >/dev/null 2>&1 || true
+          "$CLIENT" --activate-ulf --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 10
+          echo "exit=${PIPESTATUS[0]}"
+          # Where it wrote, so the return path is a measured fact rather than an
+          # assumption - the cleanup in PROBE 9 reported "Ulf license file not
+          # found" at the path return_license.sh looks in.
+          find /root/.local/share/unity3d /root/.config/unity3d -name '*.ulf' 2>/dev/null | head -n 10
+          find /root/.local/share/unity3d /root/.config/unity3d -name '*.xml' 2>/dev/null | head -n 10
+
+          # What that ULF *is*, read off the file rather than inferred from the
+          # editor - because the editor cannot answer it on its own. The first
+          # logged run of PROBE 11 passed credentials, so the editor could have
+          # satisfied itself from the account and told us nothing; it reported the
+          # serial. PROBE 11 no longer passes them, and still reports the serial,
+          # which is what makes the answer above conclusive rather than a guess.
+          ULF=/root/.local/share/unity3d/Unity/Unity_lic.ulf
+          if [ -f "$ULF" ]; then
+            echo "--- ULF present ($(wc -c < "$ULF") bytes); identity fields:"
+            grep -aoE 'Serial[^ >"]*="[^"]*"|"Serial[^"]*":"[^"]*"|<Serial>[^<]*</Serial>|Personal|Pro(duction)?|Plus|Enterprise|Entitlement[^ >"]*="[^"]*"' "$ULF" \
+              | sort -u | head -n 25
+            echo "--- first 600 bytes:"
+            head -c 600 "$ULF" | tr -d '\0'
+            echo
+          else
+            echo "--- no ULF at $ULF, despite --activate-ulf reporting success"
+          fi
+
+          # No -username/-password here, deliberately, and this is the whole
+          # value of the probe. With credentials the editor can satisfy itself
+          # from the account and the run says nothing about whether PROBE 10's
+          # ULF was ever usable; a licensed editor with NO credentials can only
+          # have got its licence from a file on disk. That is the difference
+          # between "--activate-ulf wrote something" and "--activate-ulf wrote
+          # something the editor accepts", and only the second is a fix.
+          banner "PROBE 11: does the editor see a licence now? (NO credentials)"
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit 2>&1 \
+            | grep -iE "Licensing|Serial number assigned|License is not active|No valid Unity|Pro License" | head -n 20
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "PROBE 12: return the seat, same container"
+          "$CLIENT" --return-ulf 2>&1 | head -n 10
+          echo "exit=${PIPESTATUS[0]}"
+          "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 10 || true
+
           banner "cleanup: return anything that was taken"
           "$CLIENT" --return-ulf 2>&1 | head -n 10 || true
           PROBE
@@ -142,14 +264,41 @@ jobs:
 
       - name: Summarise
         if: always()
+        env:
+          VERSION: ${{ inputs.unityVersion }}
         run: |
           {
-            echo "## Licensing diagnostic - ${{ inputs.unityVersion }}"
+            echo "## Licensing diagnostic - $VERSION"
             echo ""
-            echo "Probes tried, in order: entitlements, current code path,"
-            echo "editor account-only (no serial), syncEntitlements, entitlements again."
+            echo "Probes, in the order they run:"
             echo ""
-            echo "Look for a seat assignment (\`ASSIGN_SEAT\`) or a serial being"
-            echo "assigned in any probe. If one appears in a probe other than #2,"
-            echo "there is a route this version supports that the CLI does not use."
+            echo "| # | What it asks |"
+            echo "| --- | --- |"
+            echo "| 1 | \`--showEntitlements\` - what does the account hold |"
+            echo "| 1b | editor, account credentials, **before** any priming |"
+            echo "| 2 | \`--activate-all\` - the CLI's current code path |"
+            echo "| 3 | editor, account credentials, after priming |"
+            echo "| 4 | \`--syncEntitlements\` |"
+            echo "| 5 | \`--showEntitlements\` again, after the attempts |"
+            echo "| 6 | editor with \`-serial\` |"
+            echo "| 7 | \`-returnlicense\`, same container |"
+            echo "| 8 | the client's full \`--help\` |"
+            echo "| 9 | every activation-shaped option it might accept |"
+            echo "| 10 | \`--activate-ulf\`, the files it leaves, and **what that ULF says it is** |"
+            echo "| 11 | editor **without** credentials - does it see that licence |"
+            echo "| 12 | \`--return-ulf\`, same container |"
+            echo ""
+            echo "Compare 1b against 3: they differ only by the priming in probe 2,"
+            echo "so if they disagree, priming is the variable."
+            echo ""
+            echo "Probe 10 is the one to read first, and as of 2026-09-18 it has an"
+            echo "answer: a ULF activation that succeeds does not mean a licence type,"
+            echo "and the ULF this one writes is read back by a credential-free editor"
+            echo "as the **serial**. So it is the serial route under another name, which"
+            echo "activate.sh already takes with -serial, and there is no Personal route"
+            echo "to be found here."
+            echo ""
+            echo "What would indicate a real new route: a seat assignment"
+            echo "(\`ASSIGN_SEAT\`), or \`Serial number assigned to\` naming a"
+            echo "\`UnityPers\` entitlement, in a probe the CLI does not already use."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,20 @@
+# Provenance: licensing-capability-matrix.yml run 34989114739 (2026-09-15),
+# 2020.3.49f1 / serial, the `return-license` half. Trimmed to the licensing
+# lines. The serial is masked by Unity; it is not recoverable from this file.
+#
+# The activation and this return ran as two separate `game-ci` commands, so they
+# got two containers and two machine identities, and the return was refused
+# every time - as it must be, because the licence is bound to the machine that
+# took it. The matrix graded this "unmeasurable", which is right, but the reason
+# is worth keeping visible: activating and returning as separate commands cannot
+# round-trip a serial (or any machine-bound) seat at all. A real build does both
+# in one container, so a cell shaped like this measures the harness, not the
+# product. That is why the matrix's cells now run a single `game-ci test`.
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-root"
+Returning serial license
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Module] Error: Failed to return entitlement license
+[Licensing::Client] An error occurred attempting to return the ULF license (groupId: F4-R7MU-NE6Q-Q9GD-5SWP-XXXX, status code: 1400, message: "Machine bindings don't match")
+##[warning] Could not return the Unity license: it is bound to a different machine than the one returning it.
+##[warning] This is expected when activation and return happen on different machines or containers.
+##[warning] If activations later run out, release them at https://id.unity.com.

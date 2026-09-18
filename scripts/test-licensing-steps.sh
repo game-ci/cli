@@ -194,11 +194,8 @@ check "and reports success" "$OUT" "Activation complete."
 # Regression, live on 2020.3.49f1 despite the success case just above: this
 # editor route treated "Successfully resolved entitlements" alone as proof of
 # a granted seat, but that line only means the query to Unity's server
-# succeeded - it prints even when the account has no Personal entitlement for
-# this editor at all. Confirmed live via --showEntitlements returning "No
-# licenses were found" for an account that activates fine via UNITY_SERIAL,
-# right after this exact log shape. Only "Serial number assigned to" reports
-# a real grant.
+# succeeded - it prints on the failing runs too. Only "Serial number assigned
+# to" reports a real grant.
 : > "$ARGV_LOG"
 OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" \
   STUB_CLIENT_NO_INCLUDE_PERSONAL=1 UNITY_LICENSE_RETRY_MAX_ATTEMPTS=1 \
@@ -212,6 +209,29 @@ refute "editor route does not report success on resolved-but-empty entitlements"
 check_failed "and exits non-zero" "$NO_ENTITLEMENT_STATUS"
 check "and explains it is not a seat-limit problem" "$OUT" \
   "no Personal license activation for this editor on this account"
+
+# What this message is allowed to conclude, and what it is not.
+#
+# It used to end with "this editor version may not support headless Personal
+# activation on this account at all". That is a statement about a Unity version,
+# and it was wrong: the identical route on the identical editor, account and
+# image tag was measured granting a seat on 2026-09-11
+# ("Serial number assigned to: <id>-UnityPersXXXX") and failing on 2026-09-18,
+# with no code change between them. A user was told their version was
+# unsupported on the strength of one of those runs.
+#
+# So the message must offer what actually works rather than a verdict. Pinned
+# because the wrong version of this sentence is the single most expensive thing
+# in this file: it sends people to change Unity versions, or to give up, when
+# re-running or switching to the serial route is what helps.
+refute "does not tell the user their Unity version is unsupported" "$OUT" \
+  "may not support headless Personal"
+refute "and offers no other 'no known fix' verdict" "$OUT" \
+  "no known code-side fix"
+check "instead saying a re-run can clear it" "$OUT" "Re-run."
+check "and pointing at the serial route as the working alternative" "$OUT" \
+  "set UNITY_SERIAL"
+check "and at the supported editors with a client route" "$OUT" "2022.3 or newer"
 
 # The modern client must keep using the client route, not regress onto the
 # editor - the editor route exists only for editors that cannot do it.
@@ -784,6 +804,73 @@ check "ACTIVATE_ONLY activates" "$(cat "$ARGV_LOG")" "--activate-all"
 # Deliberate: `game-ci activate` hands a live license to a later step, which
 # is what `game-ci return-license` then releases.
 refute "ACTIVATE_ONLY leaves the seat held by design" "$(cat "$ARGV_LOG")" "--return-ulf"
+
+echo "Platform parity: one fact, written once per platform"
+# Each of these strings describes what Unity prints, so every platform has to
+# agree on it - and each is written out separately, in two languages, under
+# three different variable names. Fixes have landed on one platform only before
+# (#280 was written to restore parity after exactly that), and the capability
+# matrix reads the *ubuntu* patterns and grades every other platform's output
+# against them, so a divergence there is invisible to the matrix by design.
+#
+# Checked by VALUE, not by variable name: the names genuinely differ
+# (UNITY_ACTIVATE_TRANSIENT_PATTERN on ubuntu,
+# ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN on mac, $TransientPattern on
+# Windows), so a name-based check would need a mapping table that rots the
+# moment someone renames a variable - and would then pass while the values
+# disagreed. Reading the value out of the script that owns it and requiring the
+# same literal everywhere else catches both directions, a pattern edited on one
+# platform and a pattern dropped from one.
+pattern_parity() {
+  local label="$1" var="$2" source_rel="$3"
+  shift 3
+
+  local source_file="$REPO_ROOT/$source_rel" value missing="" f
+  value="$(sed -n "s/^$var=['\"]\(.*\)['\"]\$/\1/p" "$source_file" | head -n 1)"
+
+  if [ -z "$value" ]; then
+    echo "  FAIL $label: could not read $var from $source_rel"
+    FAIL=$((FAIL + 1))
+    return
+  fi
+
+  for f in "$@"; do
+    grep -qF -- "$value" "$REPO_ROOT/$f" || missing="$missing $f"
+  done
+
+  if [ -z "$missing" ]; then
+    echo "  PASS $label agrees on every platform"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL $label missing or different in:$missing"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+RETURN_SCRIPTS="dist/platforms/mac/steps/return_license.sh \
+dist/platforms/windows/return_license.ps1 \
+dist/platforms/windows/steps/return_license.ps1"
+ACTIVATE_SCRIPTS="dist/platforms/mac/steps/activate.sh \
+dist/platforms/windows/activate.ps1 \
+dist/platforms/windows/steps/activate.ps1"
+
+# shellcheck disable=SC2086
+pattern_parity "the return success pattern" UNITY_LICENSE_RETURN_SUCCESS_PATTERN \
+  dist/platforms/ubuntu/steps/return_license.sh $RETURN_SCRIPTS
+# shellcheck disable=SC2086
+pattern_parity "the permanent-failure pattern" UNITY_LICENSE_RETURN_PERMANENT_PATTERN \
+  dist/platforms/ubuntu/steps/return_license.sh $RETURN_SCRIPTS
+# shellcheck disable=SC2086
+pattern_parity "the return transient pattern" UNITY_LICENSE_RETURN_TRANSIENT_PATTERN \
+  dist/platforms/ubuntu/steps/return_license.sh $RETURN_SCRIPTS
+# shellcheck disable=SC2086
+pattern_parity "the nothing-held pattern" UNITY_LICENSE_RETURN_NO_ULF_PATTERN \
+  dist/platforms/ubuntu/steps/return_license.sh $RETURN_SCRIPTS
+# This one is the reason the check exists: it is named differently on every
+# platform, and mac is the one that would silently lose it in a rename.
+# shellcheck disable=SC2086
+pattern_parity "the activation transient pattern" UNITY_ACTIVATE_TRANSIENT_PATTERN \
+  dist/platforms/ubuntu/steps/activate.sh $ACTIVATE_SCRIPTS
 
 echo
 if [ "$FAIL" -gt 0 ]; then

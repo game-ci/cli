@@ -45,17 +45,37 @@ jobs:
               - '.github/workflows/tests.yml'
             # Narrower than `cli` on purpose: the licensing capability matrix
             # activates against real editors and consumes real seats, so it is
-            # gated on the activation scripts themselves rather than on all of
-            # dist/ or src/.
+            # gated on the code that decides licensing rather than on all of
+            # dist/ or src/. It is wider than it used to be, though - the old
+            # list was the activation scripts alone, which missed everything
+            # that decides whether the seat comes BACK: the entrypoints and
+            # runsteps that arm the return trap, and the Docker model that
+            # decides whether activate and return share a container at all.
+            # That last one is the difference between a measurable return and a
+            # permanent "Machine bindings don't match".
             licensing:
-              - 'dist/platforms/*/steps/activate.sh'
-              - 'dist/platforms/*/steps/licensing_method.sh'
-              - 'dist/platforms/*/steps/return_license.sh'
-              - 'dist/platforms/windows/activate.ps1'
-              - 'dist/platforms/windows/return_license.ps1'
+              # Extension-globbed and depth-globbed rather than enumerated:
+              # the previous list named each platform's scripts at each
+              # directory level, and missed four of them when Windows grew a
+              # steps/ directory (and ubuntu's runsteps.sh before that). A PR
+              # changing only one of those skipped this gate entirely, which
+              # is the failure mode the gate exists to prevent.
+              - 'dist/platforms/**/activate.*'
+              - 'dist/platforms/**/return_license.*'
+              - 'dist/platforms/**/licensing_method.*'
+              - 'dist/platforms/**/runsteps.*'
+              - 'dist/platforms/**/entrypoint.*'
+              - 'dist/BlankProject/**'
               - 'src/logic/unity/license/**'
               - 'src/command/activate/**'
               - 'src/command/return-license/**'
+              - 'src/model/docker.ts'
+              # Globbed for the same reason as the platform scripts above: an
+              # enumerated list is what let four Windows scripts drift out of
+              # this filter unnoticed.
+              - 'scripts/licensing-*.sh'
+              - 'scripts/run-licensing-probe-cell.sh'
+              - 'scripts/fixtures/licensing/**'
               - '.github/workflows/licensing-capability-matrix.yml'
 
   tests:
@@ -118,6 +138,33 @@ jobs:
       - name: Licensing step behaviour tests (dist/platforms/windows)
         shell: pwsh
         run: ./scripts/test-licensing-steps.ps1
+      # How a licensing run's outcome is GRADED, tested against captured real
+      # Unity logs. Every licensing incident in this repository was a grading
+      # error rather than an activation error - "Activation complete." printed
+      # with no seat assigned, a pass awarded for the absence of a known failure
+      # string, a return pattern copied and gone stale - and none of them was
+      # reachable from the stub-based suites above, because a stub emits what
+      # the test author believed Unity emits. The fixtures are what real editors
+      # actually emitted, including the run that assigned a Personal serial on
+      # 2020.3.49f1 after that version had been declared incapable of it.
+      - name: Licensing verdict tests (activation/return grading)
+        run: bash scripts/test-licensing-verdict.sh
+      # The capability matrix's cell body, driven by a stubbed CLI. Pins the two
+      # preconditions that have already cost real runs - a project the CLI will
+      # accept, and a git repository inside it for version detection to shell
+      # out to - and that a leak or a regression fails the cell rather than
+      # being written into a table nobody reads.
+      - name: Licensing probe cell tests
+        run: bash scripts/test-licensing-probe-cell.sh
+      # The matrix's gate, which turns its cells into a pass or a failure. It
+      # now also decides whether a *recorded* upstream failure may go
+      # unpunished, and a tolerance applied to the wrong thing fails open -
+      # a leaked seat or an unmeasured cell would stop failing the build. That
+      # is why the decision lives in a script with tests rather than inline in
+      # the workflow, and why the tolerance cases below are asserted in both
+      # directions.
+      - name: Licensing matrix gate tests
+        run: bash scripts/test-licensing-matrix-gate.sh
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just
@@ -364,10 +411,11 @@ jobs:
   # otherwise a skipped-but-required job blocks every scoped PR.
   tests-gate:
     name: Tests gate
-    # licensing-matrix is included deliberately even though it is
-    # reporting-only: its probe steps are continue-on-error, so an
-    # unsupported combination cannot fail it, and anything that DOES fail
-    # it is real breakage in the workflow itself rather than a red cell.
+    # licensing-matrix is a real gate now, not a report. It fails when a
+    # required combination cannot complete a licensing round trip, when a seat
+    # is leaked, or when its own control cell cannot activate - the last of
+    # which means the account is the variable and the run is inconclusive
+    # rather than green.
     needs: [tests, macos-install-smoke-test, unity-tests, orchestrator-tests, orchestrator-integration, licensing-matrix]
     if: always()
     runs-on: ubuntu-latest
@@ -375,8 +423,19 @@ jobs:
     steps:
       - name: Verify no suite failed
         run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            echo "A test suite failed."
+          echo "Suite results: ${{ join(needs.*.result, ' ') }}"
+
+          # Cancelled is checked alongside failed, not ignored. A licensing
+          # matrix job that is cancelled while queued - a manual dispatch
+          # supersedes a pending run in the same concurrency group, which is how
+          # seats are kept from being contended - is a suite that did not run,
+          # and "did not run" must not read as "found nothing wrong". That is
+          # the exact failure mode this workflow was rebuilt to remove, and the
+          # aggregate gate is where it would otherwise reappear.
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] ||
+             [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "A test suite failed or was cancelled."
             exit 1
           fi
+
           echo "All test suites that ran are green."
