@@ -19,8 +19,7 @@ echo "Licensing method: ${LICENSING_METHOD:-<none>}"
 # UnityEnvironment.getVariables), one knob covers all activation modes since
 # they're the same underlying flakiness. --licenseRetryMaxAttempts=1
 # disables retrying.
-ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
-ACTIVATE_RETRY_DELAY_SECONDS=20
+ACTIVATE_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-5}"
 ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 
 # A machine-binding mismatch is permanent, not flaky: the .ulf is cryptographically
@@ -103,8 +102,8 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
       # live this session on both mac and windows - doubling the wait each
       # attempt gives meaningfully more headroom to ride one out without
       # slowing down the common case (most retries succeed on attempt 2).
-      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
-      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ACTIVATE_ATTEMPT")"
+      unity_license_retry_notice "Unity activation" "$ACTIVATE_ATTEMPT" "$ACTIVATE_MAX_ATTEMPTS" "$ACTIVATE_RETRY_DELAY"
       sleep "$ACTIVATE_RETRY_DELAY"
       continue
     fi
@@ -140,8 +139,8 @@ if [[ "$LICENSING_METHOD" == "file" ]]; then
       fi
 
       if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
-        ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
-        echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+        ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ACTIVATE_ATTEMPT")"
+        unity_license_retry_notice "Personal activation" "$ACTIVATE_ATTEMPT" "$ACTIVATE_MAX_ATTEMPTS" "$ACTIVATE_RETRY_DELAY"
         sleep "$ACTIVATE_RETRY_DELAY"
         continue
       fi
@@ -200,8 +199,8 @@ elif [[ "$LICENSING_METHOD" == "serial" ]]; then
       # live this session on both mac and windows - doubling the wait each
       # attempt gives meaningfully more headroom to ride one out without
       # slowing down the common case (most retries succeed on attempt 2).
-      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
-      echo "Unity activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ACTIVATE_ATTEMPT")"
+      unity_license_retry_notice "Unity activation" "$ACTIVATE_ATTEMPT" "$ACTIVATE_MAX_ATTEMPTS" "$ACTIVATE_RETRY_DELAY"
       sleep "$ACTIVATE_RETRY_DELAY"
       continue
     fi
@@ -272,8 +271,8 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
       UNITY_EXIT_CODE=1
 
       if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
-        ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
-        echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+        ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ACTIVATE_ATTEMPT")"
+        unity_license_retry_notice "Personal activation" "$ACTIVATE_ATTEMPT" "$ACTIVATE_MAX_ATTEMPTS" "$ACTIVATE_RETRY_DELAY"
         sleep "$ACTIVATE_RETRY_DELAY"
         continue
       fi
@@ -305,8 +304,8 @@ elif [[ "$LICENSING_METHOD" == "personal" ]]; then
     fi
 
     if [ "$ACTIVATE_ATTEMPT" -lt "$ACTIVATE_MAX_ATTEMPTS" ] && grep -qE "$ACTIVATE_TRANSIENT_LICENSE_ERROR_PATTERN" "$ACTIVATE_LOG"; then
-      ACTIVATE_RETRY_DELAY=$((ACTIVATE_RETRY_DELAY_SECONDS * (1 << (ACTIVATE_ATTEMPT - 1))))
-      echo "Personal activation failed with a known-transient licensing error (attempt $ACTIVATE_ATTEMPT/$ACTIVATE_MAX_ATTEMPTS) - retrying in ${ACTIVATE_RETRY_DELAY}s..."
+      ACTIVATE_RETRY_DELAY="$(unity_license_retry_delay "$ACTIVATE_ATTEMPT")"
+      unity_license_retry_notice "Personal activation" "$ACTIVATE_ATTEMPT" "$ACTIVATE_MAX_ATTEMPTS" "$ACTIVATE_RETRY_DELAY"
       sleep "$ACTIVATE_RETRY_DELAY"
       continue
     fi

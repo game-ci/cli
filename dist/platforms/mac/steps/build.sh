@@ -218,7 +218,7 @@ run_unity_build() {
 # var - so a genuine (non-transient) license misconfiguration can be set to
 # fail on the first attempt (--licenseRetryMaxAttempts=1) instead of always
 # paying for 4 attempts with no way to turn it down.
-UNITY_BUILD_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
+UNITY_BUILD_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-5}"
 UNITY_BUILD_RETRY_DELAY_SECONDS=20
 UNITY_BUILD_TRANSIENT_LICENSE_ERROR_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active'
 

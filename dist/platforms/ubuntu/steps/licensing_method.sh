@@ -17,6 +17,40 @@
 # dist/platforms/windows/licensing_method.ps1's own history for why that
 # divergence existed and why it was safe to remove).
 #
+#
+# Retry policy for licensing calls that fail with a known-transient error.
+#
+# Both halves live here - how long to wait, and what to tell the user while they
+# wait - because they used to be copied into every retry loop in this
+# repository: thirty-odd near-identical messages across two languages and four
+# platforms, each with its own variable names. That made the wording impossible
+# to change once and the delay impossible to tune at all, since the base was a
+# bare literal in each file.
+#
+# The notice is a ::warning:: rather than a plain echo so it surfaces in the
+# Actions UI where a user actually looks, instead of several thousand lines into
+# a build log. Retrying is a decision this tool makes on the user's behalf, and
+# a run that quietly re-tries for five minutes then succeeds looks identical to
+# one that was never in trouble - which is information they are entitled to.
+#
+UNITY_LICENSE_RETRY_DELAY_SECONDS_DEFAULT=20
+
+# Seconds to wait after a failed attempt, doubling each time: 20, 40, 80, 160.
+# Override UNITY_LICENSE_RETRY_DELAY_SECONDS to widen or narrow the whole window
+# without editing anything here.
+#
+# $1 - the attempt that just failed (1-based).
+unity_license_retry_delay() {
+  local attempt="$1"
+  local base="${UNITY_LICENSE_RETRY_DELAY_SECONDS:-$UNITY_LICENSE_RETRY_DELAY_SECONDS_DEFAULT}"
+  echo $((base * (1 << (attempt - 1))))
+}
+
+# $1 - what failed, e.g. "Unity activation". $2 - attempt. $3 - max. $4 - delay.
+unity_license_retry_notice() {
+  echo "::warning::$1 hit a known-transient Unity licensing error (attempt $2 of $3). This is normally a temporary problem at Unity's end rather than anything wrong with your project or credentials, so it will retry in $4s."
+}
+
 resolve_unity_licensing_method() {
   if [[ -n "${UNITY_LICENSING_METHOD:-}" ]]; then
     echo "$UNITY_LICENSING_METHOD"

@@ -192,5 +192,39 @@ foreach ($set in @(
 Clear-LicenseEnv
 
 Write-Host ""
+Write-Host "Retrying a known-transient failure"
+# The retry policy - how long to wait and what to tell the user - lives in one
+# place now (Get-UnityLicenseRetryDelay / Write-UnityLicenseRetryNotice in
+# resolve_unity_path.ps1), and these assertions are what make that safe to rely
+# on. The notice is a ::warning:: rather than a plain Write-Host so it reaches
+# the Actions UI: retrying is a decision the tool makes on the user's behalf,
+# and a run that silently retries for five minutes and then succeeds looks
+# exactly like a run that was never in trouble.
+$retryHelpers = Join-Path $repoRoot 'dist/platforms/windows/steps/resolve_unity_path.ps1'
+
+# RunMethod's shape: a child process, because the notice is written with
+# Write-Host, which bypasses the pipeline in-process and would not be captured.
+function RunRetryHelpers {
+  param([string]$Body)
+  $out = & pwsh -NoProfile -Command "`$ErrorActionPreference = 'Stop'; . '$retryHelpers'; $Body" 2>&1
+  return ($out | Out-String).Trim()
+}
+
+Clear-LicenseEnv
+Check "the first retry waits the base delay" (RunRetryHelpers 'Get-UnityLicenseRetryDelay -Attempt 1') 20
+Check "the second doubles it" (RunRetryHelpers 'Get-UnityLicenseRetryDelay -Attempt 2') 40
+Check "and the fifth is the far end of the window" (RunRetryHelpers 'Get-UnityLicenseRetryDelay -Attempt 5') 320
+
+$Env:UNITY_LICENSE_RETRY_DELAY_SECONDS = '5'
+Check "the whole window is tunable without editing the scripts" (RunRetryHelpers 'Get-UnityLicenseRetryDelay -Attempt 3') 20
+Clear-LicenseEnv
+
+$notice = RunRetryHelpers "Write-UnityLicenseRetryNotice -What 'Unity activation' -Attempt 2 -Max 5 -Delay 40"
+CheckContains "the notice is an annotation, so it reaches the Actions UI" $notice '::warning::'
+CheckContains "and names what was being done" $notice 'Unity activation'
+CheckContains "and which attempt this is" $notice '(attempt 2 of 5)'
+CheckContains "and that it is not the user's fault" $notice "rather than anything wrong with your project or credentials"
+CheckContains "and how long until it tries again" $notice 'retry in 40s'
+Write-Host ""
 Write-Host "Licensing step tests (PowerShell): $script:pass passed, $script:fail failed"
 if ($script:fail -gt 0) { exit 1 }

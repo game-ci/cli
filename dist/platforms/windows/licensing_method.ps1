@@ -24,6 +24,40 @@
 # (previously attempted a doomed serial activation with empty credentials, now
 # reports the same guidance message every other platform already gives).
 #
+#
+# Retry policy for licensing calls that fail with a known-transient error.
+#
+# Both halves live here - how long to wait, and what to tell the user while they
+# wait - because they used to be copied into every retry loop in this
+# repository: thirty-odd near-identical messages across two languages and four
+# platforms, each with its own variable names. That made the wording impossible
+# to change once and the delay impossible to tune at all, since the base was a
+# bare literal in each file.
+#
+# The notice is a ::warning:: rather than a plain Write-Host so it surfaces in
+# the Actions UI where a user actually looks, instead of several thousand lines
+# into a build log. Retrying is a decision this tool makes on the user's behalf,
+# and a run that quietly re-tries for five minutes then succeeds looks identical
+# to one that was never in trouble - which is information they are entitled to.
+#
+$UnityLicenseRetryDelaySecondsDefault = 20
+
+# Seconds to wait after a failed attempt, doubling each time: 20, 40, 80, 160.
+# Override UNITY_LICENSE_RETRY_DELAY_SECONDS to widen or narrow the whole window
+# without editing anything here.
+function Get-UnityLicenseRetryDelay {
+  param([int]$Attempt)
+
+  $Base = if ($Env:UNITY_LICENSE_RETRY_DELAY_SECONDS) { [int]$Env:UNITY_LICENSE_RETRY_DELAY_SECONDS } else { $UnityLicenseRetryDelaySecondsDefault }
+  return [int]($Base * [math]::Pow(2, $Attempt - 1))
+}
+
+function Write-UnityLicenseRetryNotice {
+  param([string]$What, [int]$Attempt, [int]$Max, [int]$Delay)
+
+  Write-Host "::warning::$What hit a known-transient Unity licensing error (attempt $Attempt of $Max). This is normally a temporary problem at Unity's end rather than anything wrong with your project or credentials, so it will retry in ${Delay}s."
+}
+
 function Get-UnityLicensingMethod {
   if ($Env:UNITY_LICENSING_METHOD) {
     return $Env:UNITY_LICENSING_METHOD

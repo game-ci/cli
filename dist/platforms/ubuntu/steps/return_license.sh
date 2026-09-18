@@ -24,8 +24,7 @@ RETURN_STRATEGY="$(resolve_unity_license_return_strategy)"
 # known-transient signatures build.sh/activate.sh already retry on (see
 # mac/steps/build.sh) and, critically, logs loudly if every attempt is
 # exhausted, since a genuinely leaked seat needs a human to know about it.
-UNITY_LICENSE_RETURN_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-4}"
-UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS=20
+UNITY_LICENSE_RETURN_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-5}"
 UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
 
 # Permanent by construction - see the guards below.
@@ -98,8 +97,8 @@ if [[ "$RETURN_STRATEGY" == "floating" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Floating license return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_DELAY}s..."
+      UNITY_LICENSE_RETURN_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Floating license return" "$ATTEMPT" "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" "$UNITY_LICENSE_RETURN_DELAY"
       sleep "$UNITY_LICENSE_RETURN_DELAY"
       continue
     fi
@@ -211,8 +210,8 @@ elif [[ "$RETURN_STRATEGY" == "personal" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "Personal license return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_DELAY}s..."
+      UNITY_LICENSE_RETURN_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "Personal license return" "$ATTEMPT" "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" "$UNITY_LICENSE_RETURN_DELAY"
       sleep "$UNITY_LICENSE_RETURN_DELAY"
       continue
     fi
@@ -274,8 +273,8 @@ elif [[ "$RETURN_STRATEGY" == "serial" ]]; then
 
     if [ "$ATTEMPT" -lt "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" ] && grep -qE "$UNITY_LICENSE_RETURN_TRANSIENT_PATTERN" "$RETURN_LOG"; then
       # Exponential backoff - see mac/steps/activate.sh's matching comment.
-      UNITY_LICENSE_RETURN_DELAY=$((UNITY_LICENSE_RETURN_RETRY_DELAY_SECONDS * (1 << (ATTEMPT - 1))))
-      echo "License return failed with a known-transient licensing error (attempt $ATTEMPT/$UNITY_LICENSE_RETURN_MAX_ATTEMPTS) - retrying in ${UNITY_LICENSE_RETURN_DELAY}s..."
+      UNITY_LICENSE_RETURN_DELAY="$(unity_license_retry_delay "$ATTEMPT")"
+      unity_license_retry_notice "License return" "$ATTEMPT" "$UNITY_LICENSE_RETURN_MAX_ATTEMPTS" "$UNITY_LICENSE_RETURN_DELAY"
       sleep "$UNITY_LICENSE_RETURN_DELAY"
       continue
     fi
