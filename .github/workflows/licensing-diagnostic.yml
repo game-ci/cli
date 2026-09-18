@@ -143,6 +143,30 @@ jobs:
             banner "PROBE 6/7 skipped: no UNITY_SERIAL"
           fi
 
+          # What client 1.12.1 can actually be asked to do.
+          #
+          # Every conclusion drawn about this version so far has rested on one
+          # assumed absence - that 1.12.1 has no --include-personal - and on
+          # --activate-all, which asks for a subscription seat the account does
+          # not have and answers "No seat available". Nobody has ever read the
+          # option list. If it offers any route to a Personal seat, --activate-all
+          # is simply the wrong call and this version is not unsupported at all.
+          banner "PROBE 8: every option client 1.12.1 accepts"
+          "$CLIENT" --help 2>&1
+
+          banner "PROBE 9: activation-shaped options actually accepted"
+          # Each attempt is followed by a return, so a route that works does not
+          # leave the seat held by the probe. exit 33 is how this client refuses
+          # an option it does not have, which is the answer for most of these.
+          for FLAG in --activate-all --include-personal --activate-personal \
+                      --activate-seat --request-personal --updateEntitlementLicense \
+                      --syncEntitlements --activate-ulf; do
+            echo "--- $FLAG"
+            "$CLIENT" "$FLAG" --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 12
+            echo "exit=${PIPESTATUS[0]}"
+            "$CLIENT" --return-ulf >/dev/null 2>&1 || true
+          done
+
           banner "cleanup: return anything that was taken"
           "$CLIENT" --return-ulf 2>&1 | head -n 10 || true
           PROBE
