@@ -61,9 +61,38 @@ STUB_BIN="$WORK/bin"
 mkdir -p "$STUB_BIN"
 cat > "$STUB_BIN/bun" <<'STUB'
 #!/usr/bin/env bash
+# The probe resolves the editor image by asking the CLI (`bun -e ...`) before
+# the run. A fixed reference is the right answer for this stub: the point of
+# that call is that the probe does not rebuild the tag itself, not that this
+# fixture knows what the tag is.
+for arg in "$@"; do
+  if [ "$arg" = "-e" ]; then
+    echo "unityci/editor:ubuntu-2020.3.49f1-linux-il2cpp-3"
+    exit 0
+  fi
+done
 cat "${STUB_LOG:?STUB_LOG must be set}"
 STUB
 chmod +x "$STUB_BIN/bun"
+
+# A `docker` that records every pull and can be told to fail the first few, so
+# the warm-up's retry, its give-up path and its permanent-error path are all
+# reachable without a registry or a multi-gigabyte download. DOCKER_STUB_FAILURE
+# is what the failing attempts print, so a test can say "this is a manifest
+# that does not exist" as opposed to "this is a network that gave up".
+cat > "$STUB_BIN/docker" <<'STUB'
+#!/usr/bin/env bash
+attempts="${DOCKER_STUB_ATTEMPTS:?DOCKER_STUB_ATTEMPTS must be set}"
+count=0
+[ -f "$attempts" ] && count="$(wc -l < "$attempts")"
+echo "$*" >> "$attempts"
+if [ "$count" -lt "${DOCKER_STUB_FAIL_FIRST:-0}" ]; then
+  echo "${DOCKER_STUB_FAILURE:-net/http: request canceled while waiting for connection}" >&2
+  exit 1
+fi
+exit 0
+STUB
+chmod +x "$STUB_BIN/docker"
 
 # Runs one cell and leaves its exit status in CELL_STATUS, its output in
 # CELL_OUT, and its result file at $WORK/out/results/<version>-<method>.txt.
@@ -72,6 +101,7 @@ run_cell() {
   local out="$WORK/out"
   rm -rf "$out"
   mkdir -p "$out"
+  rm -f "$WORK/docker-attempts"
 
   CELL_OUT="$(
     cd "$REPO_ROOT" && PATH="$STUB_BIN:$PATH" \
@@ -80,6 +110,10 @@ run_cell() {
       GATING="$gating" \
       LICENSING_PROBE_PROJECT_DIR="$SANDBOX/probe-project" \
       LICENSING_PROBE_OUTPUT_DIR="$out" \
+      LICENSING_PROBE_PULL_DELAY_SECONDS=0 \
+      DOCKER_STUB_ATTEMPTS="$WORK/docker-attempts" \
+      DOCKER_STUB_FAIL_FIRST="${DOCKER_STUB_FAIL_FIRST:-0}" \
+      DOCKER_STUB_FAILURE="${DOCKER_STUB_FAILURE:-}" \
       bash "$PROBE" "$version" "$method" 2>&1
   )"
   CELL_STATUS=$?
@@ -236,6 +270,87 @@ run_cell 2020.3.49f1 personal \
   "$FIXTURES/2020.3.49f1-personal-editor-route-granted.log" pass
 check_eq "a tolerance never covers a leak, even on the tolerated cell" \
   "$CELL_STATUS" "1"
+
+echo
+echo "Editor image warm-up"
+# A cell that never launched Unity says nothing about licensing, and a green
+# job beside it is read as "measured, and capable". This is the exact shape of
+# the 2026-09-18 failure: a Docker Hub token request timed out, the cell
+# reported (inconclusive), the job passed, and the aggregate gate failed the
+# run - two components disagreeing about what the same cell meant.
+#
+# The fixture is a real round trip, so the verdict is "pass" only when the CLI
+# stub is replayed; instead these assert on the warm-up's own behaviour, which
+# is what the timeout exercised. DOCKER_STUB_FAIL_FIRST makes the pull fail the
+# way the registry did.
+DOCKER_STUB_FAIL_FIRST=1 run_cell 2020.3.49f1 personal \
+  "$FIXTURES/personal-roundtrip-success.log" pass
+check_eq "a failed pull is retried rather than costing the cell" \
+  "$(wc -l < "$WORK/docker-attempts" | tr -d ' ')" "2"
+check_eq "and the cell still exits on what it measured" "$CELL_STATUS" "0"
+check "naming the attempt and the cause" "$CELL_OUT" \
+  "hit a registry or network error (attempt 1 of 3)"
+check "and attributing it to Docker Hub, not to this combination" "$CELL_OUT" \
+  "temporary problem at Docker Hub rather than anything about this combination"
+check "so the pull that follows it uses the resolved image" \
+  "$(head -n 1 "$WORK/docker-attempts")" \
+  "pull --quiet unityci/editor:ubuntu-2020.3.49f1-linux-il2cpp-3"
+
+# A warm-up is not allowed to become a new way for a cell to go red, so the
+# give-up path is not allowed to be fatal - and it must not write into cell.log,
+# which is what the verdict is graded from.
+DOCKER_STUB_FAIL_FIRST=99 run_cell 2020.3.49f1 personal \
+  "$FIXTURES/personal-roundtrip-success.log" pass
+check_eq "the warm-up gives up after the configured attempts" \
+  "$(wc -l < "$WORK/docker-attempts" | tr -d ' ')" "3"
+check_eq "giving up does not fail the cell" "$CELL_STATUS" "0"
+check "and says the run continues anyway" "$CELL_OUT" \
+  "Continuing anyway - the CLI pulls the image itself"
+if grep -q "Could not warm the editor image" "$WORK/out/cell.log" 2>/dev/null; then
+  echo "  FAIL the warm-up wrote into the graded log"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS the warm-up stays out of the log the verdict is graded from"
+  PASS=$((PASS + 1))
+fi
+
+# A tag that does not exist will not exist on the third attempt either, and
+# reporting it as a temporary problem at Docker Hub would be a claim the probe
+# has no evidence for - on the one failure a reader most needs to see quickly.
+DOCKER_STUB_FAIL_FIRST=99 \
+DOCKER_STUB_FAILURE="manifest unknown" \
+  run_cell 2020.3.49f1 personal "$FIXTURES/personal-roundtrip-success.log" pass
+check_eq "a tag that does not exist is not retried" \
+  "$(wc -l < "$WORK/docker-attempts" | tr -d ' ')" "1"
+check "and is reported as permanent, not as a blip" "$CELL_OUT" \
+  "Not retrying: this is not a transient error"
+check_eq "without failing the cell either" "$CELL_STATUS" "0"
+
+echo
+echo "Unmeasured cells"
+# The gate fails on these; the job has to agree with the gate. A log that never
+# reached Unity is the shape both the registry timeout and the two broken-probe
+# incidents took, so it is worth pinning that neither reads as a pass.
+unmeasured="$FIXTURES/registry-timeout-never-reached-unity.log"
+
+run_cell 2020.3.49f1 serial "$unmeasured" pass
+check_eq "a cell that never reached Unity does not pass the job" "$CELL_STATUS" "1"
+check "it is recorded as inconclusive" "$(cat "$CELL_RESULT")" \
+  "classification='inconclusive'"
+check "and refused as evidence about the version" "$CELL_OUT" \
+  "was never measured - the editor did not start"
+check "sending the reader to a re-run" "$CELL_OUT" "Re-run the job"
+check "rather than to the Unity version" "$CELL_OUT" "not evidence about licensing either way"
+
+# Same cell, exploratory run: recorded, surfaced, not enforced - the same
+# treatment a regression gets, for the same reason.
+run_cell 2020.3.49f1 serial "$unmeasured" pass false
+check_eq "an unmeasured cell on an exploratory run does not fail the job" \
+  "$CELL_STATUS" "0"
+check "but is still surfaced as not measured" "$CELL_OUT" \
+  "read the cell as absent rather than as capable"
+check "and still recorded as inconclusive" "$(cat "$CELL_RESULT")" \
+  "classification='inconclusive'"
 
 echo
 if [ "$FAIL" -gt 0 ]; then

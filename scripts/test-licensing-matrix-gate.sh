@@ -158,6 +158,11 @@ gate pass true true 2026-09-18
 check_eq "an unmeasured cell fails" "$GATE_STATUS" "1"
 check "because unmeasured must not read as pass" "$GATE_OUT" \
   "must not read as a pass"
+# The cell now fails its own job on this too, and both messages have to send
+# the reader to the same next step: a registry timeout is the usual cause, and
+# it is fixed by re-running rather than by changing the Unity version.
+check "and sends the reader to a re-run, naming the usual cause" "$GATE_OUT" \
+  "a registry or network error pulling the editor image is the usual cause"
 
 reset_cells
 cell 2020.3.49f1 personal --verdict "fail:seat-leaked(return=fail)" \

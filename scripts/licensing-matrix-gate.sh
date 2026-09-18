@@ -106,7 +106,7 @@ if [ -n "$leaked" ]; then
 fi
 
 if [ -n "$inconclusive" ]; then
-  echo "::error::Probe never reached Unity on:$inconclusive. Not a licensing finding, but those combinations were not measured, and an unmeasured cell must not read as a pass."
+  echo "::error::Probe never reached Unity on:$inconclusive. Not a licensing finding, but those combinations were not measured, and an unmeasured cell must not read as a pass. Re-run the job - a registry or network error pulling the editor image is the usual cause, and the cell now retries that itself."
   exit 1
 fi
 

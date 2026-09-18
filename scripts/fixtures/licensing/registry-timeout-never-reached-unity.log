@@ -1,0 +1,33 @@
+# Provenance: licensing-capability-matrix.yml run 35399707060 (2026-09-18),
+# 2020.3.49f1 / serial, captured from the cell's own cell.log, verbatim except
+# for the working directory.
+#
+# A Docker Hub token request timed out, so `docker run` never started a
+# container and Unity was never launched. The cell reported
+# fail:no-activation(grant=unknown:never-reached-unity) -> inconclusive, and
+# passed its own job while the aggregate gate failed the run on the same cell:
+# one component reporting a green tick that a capability matrix is read as
+# "measured, and capable", the other reporting that nothing was measured.
+#
+# It is kept as a fixture rather than described because "never reached Unity" is
+# the shape three separate incidents have taken - this timeout, and the two
+# broken-probe runs where the project or its git repository was wrong - and in
+# none of them is the absence of licensing output evidence about the version.
+[INFO] linux StandaloneLinux64 2020.3.49f1
+::group::Unity test
+[WARN] running docker process for linux (linux)
+Unable to find image 'unityci/editor:ubuntu-2020.3.49f1-linux-il2cpp-3' locally
+docker: Error response from daemon: Head "https://registry-1.docker.io/v2/unityci/editor/manifests/ubuntu-2020.3.49f1-linux-il2cpp-3": Get "https://auth.docker.io/token?account=githubactions&scope=repository%3Aunityci%2Feditor%3Apull&service=registry.docker.io": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+
+Run 'docker run --help' for more information
+::endgroup::
+[ERROR] Error: Unable to find image 'unityci/editor:ubuntu-2020.3.49f1-linux-il2cpp-3' locally
+docker: Error response from daemon: Head "https://registry-1.docker.io/v2/unityci/editor/manifests/ubuntu-2020.3.49f1-linux-il2cpp-3": Get "https://auth.docker.io/token?account=githubactions&scope=repository%3Aunityci%2Feditor%3Apull&service=registry.docker.io": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+
+Run 'docker run --help' for more information
+
+    at <anonymous> (/home/runner/work/cli/cli/src/model/system/system.ts:105:36)
+    at emit (node:events:103:22)
+    at #maybeClose (node:child_process:827:16)
+    at #handleOnExit (node:child_process:570:72)
+    at processTicksAndRejections (native:7:39)
