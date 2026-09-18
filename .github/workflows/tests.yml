@@ -409,8 +409,19 @@ jobs:
     steps:
       - name: Verify no suite failed
         run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            echo "A test suite failed."
+          echo "Suite results: ${{ join(needs.*.result, ' ') }}"
+
+          # Cancelled is checked alongside failed, not ignored. A licensing
+          # matrix job that is cancelled while queued - a manual dispatch
+          # supersedes a pending run in the same concurrency group, which is how
+          # seats are kept from being contended - is a suite that did not run,
+          # and "did not run" must not read as "found nothing wrong". That is
+          # the exact failure mode this workflow was rebuilt to remove, and the
+          # aggregate gate is where it would otherwise reappear.
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] ||
+             [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "A test suite failed or was cancelled."
             exit 1
           fi
+
           echo "All test suites that ran are green."
