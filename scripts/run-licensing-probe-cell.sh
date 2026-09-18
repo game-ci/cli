@@ -137,6 +137,11 @@ mkdir -p "$OUTPUT_DIR/results"
 # here. The tag rules - module suffix, il2cpp-vs-mono by host and version, the
 # rolling image version - live in src/model/unity/runner/runner-image-tag.ts,
 # and a second copy of them would drift the first time any of them changed.
+#
+# `linux` is the host the CLI resolves on the ubuntu runner this matrix runs on,
+# so it matches the tag the run below asks for. Off that runner the reference
+# can differ, which costs nothing: the pull fails, warns, and the CLI pulls what
+# it actually wants.
 LICENSING_PROBE_PULL_ATTEMPTS="${LICENSING_PROBE_PULL_ATTEMPTS:-3}"
 LICENSING_PROBE_PULL_DELAY_SECONDS="${LICENSING_PROBE_PULL_DELAY_SECONDS:-20}"
 
