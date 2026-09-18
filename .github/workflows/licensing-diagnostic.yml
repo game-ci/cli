@@ -179,6 +179,38 @@ jobs:
             "$CLIENT" --return-ulf >/dev/null 2>&1 || true
           done
 
+          # PROBE 9 found it: on the client 2020.3 bundles, --activate-ulf with
+          # account credentials and no serial returns "Successfully activated
+          # ULF license". Every conclusion drawn about this version rested on
+          # --activate-all, whose own help text says it activates
+          # *subscriptions* - which a Personal account does not have, hence the
+          # "No seat available" that was read as "this version cannot do this".
+          #
+          # These probes check the other half, which matters more than the
+          # first: a licence we cannot give back is worse than one we never
+          # took. PROBE 11 confirms the editor actually sees it, and PROBE 12
+          # confirms it can be returned.
+          banner "PROBE 10: --activate-ulf, and the files it leaves behind"
+          "$CLIENT" --return-ulf >/dev/null 2>&1 || true
+          "$CLIENT" --activate-ulf --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 10
+          echo "exit=${PIPESTATUS[0]}"
+          # Where it wrote, so the return path is a measured fact rather than an
+          # assumption - the cleanup in PROBE 9 reported "Ulf license file not
+          # found" at the path return_license.sh looks in.
+          find /root/.local/share/unity3d /root/.config/unity3d -name '*.ulf' 2>/dev/null | head -n 10
+          find /root/.local/share/unity3d /root/.config/unity3d -name '*.xml' 2>/dev/null | head -n 10
+
+          banner "PROBE 11: does the editor see a licence now?"
+          unity-editor -logFile /dev/stdout -batchmode -nographics -quit \
+            -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" 2>&1 \
+            | grep -iE "Licensing|Serial number assigned|License is not active|No valid Unity|Pro License" | head -n 20
+          echo "exit=${PIPESTATUS[0]}"
+
+          banner "PROBE 12: return the seat, same container"
+          "$CLIENT" --return-ulf 2>&1 | head -n 10
+          echo "exit=${PIPESTATUS[0]}"
+          "$CLIENT" --showEntitlements --username "$UNITY_EMAIL" --password "$UNITY_PASSWORD" 2>&1 | head -n 10 || true
+
           banner "cleanup: return anything that was taken"
           "$CLIENT" --return-ulf 2>&1 | head -n 10 || true
           PROBE
