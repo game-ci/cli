@@ -90,6 +90,10 @@ if [ -z "$start" ]; then
   fail=1
 else
   FINAL="$(mktemp)"
+  # On every exit path, not just the normal one: an interrupt between here and
+  # the end would otherwise leave the temp file behind.
+  trap 'rm -f "$FINAL"' EXIT
+
   tail -n "+$start" "$LOG" > "$FINAL"
 
   if ! grep -qF "$REASON" "$FINAL"; then
@@ -104,8 +108,6 @@ else
     echo "::error::the final error quotes docker's pull noise back as the cause - this is the Mirror#4128 regression"
     fail=1
   fi
-
-  rm -f "$FINAL"
 fi
 
 # --- The heading, over the whole log ----------------------------------

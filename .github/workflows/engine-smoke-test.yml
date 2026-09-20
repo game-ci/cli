@@ -370,11 +370,14 @@ jobs:
       # never runs it. (It is also not an option there, and the CLI parses
       # strictly, so passing it would fail the invocation outright.)
       - name: Run the aborting build and grade the message
+        # Declared as env rather than interpolated into the script body below:
+        # ${{ }} expands into the source before bash ever sees it, which makes a
+        # workflow_dispatch input shell code instead of data.
+        env:
+          UNITY_VERSION: ${{ github.event.inputs.unity-version || '2019.4.40f1' }}
         run: |
           set -uo pipefail
           LOG=/tmp/unity-abort-build.log
-
-          UNITY_VERSION="${{ github.event.inputs.unity-version || '2019.4.40f1' }}"
 
           # Captured to a FILE, never piped through tee: writes to a pipe are
           # asynchronous, so the CLI's process.exit(1) can truncate the very
@@ -399,11 +402,12 @@ jobs:
       # relative to the exit-code capture could lose the reason while the build
       # step above stayed green.
       - name: Run the aborting test and grade the message
+        # Same reason as the build step above.
+        env:
+          UNITY_VERSION: ${{ github.event.inputs.unity-version || '2019.4.40f1' }}
         run: |
           set -uo pipefail
           LOG=/tmp/unity-abort-test.log
-
-          UNITY_VERSION="${{ github.event.inputs.unity-version || '2019.4.40f1' }}"
 
           # --docker is what selects the container flow; without it this would
           # run the experimental `unity test` CLI path instead.
