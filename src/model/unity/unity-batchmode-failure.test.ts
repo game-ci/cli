@@ -53,6 +53,18 @@ describe('UnityBatchmodeFailure', () => {
       expect(described).toContain('not a\ndocker/game-ci infrastructure problem');
     });
 
+    // Regression: Docker.run passes no originalMessage, because its error
+    // text is `docker run`'s stderr - pull progress it has already streamed
+    // live. Appending that under "Original error:" made
+    // MirrorNetworking/Mirror#4128 read as an editor failing to load a
+    // version when Unity had in fact aborted on script compiler errors.
+    it('omits the original-error section when the caller supplies nothing to add', () => {
+      const described = UnityBatchmodeFailure.describe(realWorldStdout);
+
+      expect(described).toContain('Scripts have compiler errors.');
+      expect(described).not.toContain('Original error:');
+    });
+
     it('returns undefined when there is nothing to extract, leaving the caller to fall back to the original error', () => {
       expect(UnityBatchmodeFailure.describe('some unrelated stdout', 'Command exited with code 1')).toBeUndefined();
       expect(UnityBatchmodeFailure.describe(undefined, 'Command exited with code 1')).toBeUndefined();

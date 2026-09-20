@@ -157,7 +157,14 @@ class Docker {
       // failure this command hits, and error.message alone never contains
       // it - see UnityBatchmodeFailure's own comment for why. Checked first
       // since it's the highest-value case to get right.
-      const batchmodeFailure = UnityBatchmodeFailure.describe(error.stdout, error.message);
+      // No originalMessage: this command's error text is `docker run`'s own
+      // stderr - pull progress, led by its benign "Unable to find image ...
+      // locally" status line - which System.run has already streamed live
+      // above. Repeating it under an "Original error:" heading asserted it
+      // was the cause: MirrorNetworking/Mirror#4128 read as an editor failing
+      // to load 6000.3.23f1 when the real cause was scripts failing to
+      // compile, two lines up in the same message.
+      const batchmodeFailure = UnityBatchmodeFailure.describe(error.stdout);
       if (batchmodeFailure) {
         throw new Error(batchmodeFailure);
       }
