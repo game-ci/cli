@@ -105,8 +105,9 @@ describe("Docker", () => {
     });
     System.run = mock(() => Promise.reject(dockerError));
 
-    await expect(
-      Docker.run("game-ci/unity-editor-stub:latest", {
+    let rejection: Error | undefined;
+    try {
+      await Docker.run("game-ci/unity-editor-stub:latest", {
         hostOS: "linux",
         hostPlatform: "linux",
         currentWorkDir: "/home/runner/work/cli/cli",
@@ -117,8 +118,19 @@ describe("Docker", () => {
         dockerWorkspacePath: "/github/workspace",
         engine: "unity",
         runTests: true,
-      } as any),
-    ).rejects.toThrow(/Scripts have compiler errors\./);
+      } as any);
+    } catch (error: any) {
+      rejection = error;
+    }
+
+    expect(rejection?.message).toContain('Scripts have compiler errors.');
+
+    // And it must not be quoted back at the reader as the cause: System.run
+    // already streamed this stderr live, and leading with "Unable to find
+    // image ... locally" under an "Original error:" heading is exactly what
+    // made MirrorNetworking/Mirror#4128 read as an editor failing to load
+    // 6000.3.23f1 rather than scripts failing to compile.
+    expect(rejection?.message).not.toContain('Unable to find image');
   });
 
   it("still throws the original error when there is no Unity abort reason to extract", async () => {
