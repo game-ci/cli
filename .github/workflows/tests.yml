@@ -190,6 +190,18 @@ jobs:
         # lands in that window - e.g. this repo's own version-bump commit,
         # created right after cutting the release it's for - hit exactly
         # this 404 in practice, failing Tests on main itself, not just a PR.
+        #
+        # GH_TOKEN because install.sh resolves "latest" through the GitHub
+        # API and only authenticates when handed one (see its own comment).
+        # Unauthenticated is 60 requests/hour *per IP*, and Actions runners
+        # share IPs across unrelated repos and orgs - so the macOS job below,
+        # running the same install.sh against the same endpoint seconds
+        # later, was 403ing on that limit while this job passed beside it.
+        # install.sh reads GITHUB_TOKEN or GH_TOKEN and treats an empty one
+        # as no token, so a fork PR (no secrets, read-only github.token)
+        # degrades to today's unauthenticated behaviour rather than failing.
+        env:
+          GH_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
         run: |
           for attempt in 1 2 3 4 5; do
             # install.sh writes progress to stderr and only the final binary
@@ -203,7 +215,7 @@ jobs:
               echo "FAIL: scripts/install.sh still failing after 5 attempts"
               exit 1
             fi
-            echo "install.sh failed (attempt $attempt/5) - likely the latest release's binaries are still uploading - retrying in 30s..."
+            echo "install.sh failed (attempt $attempt/5) - see the error above; retrying in 30s..."
             sleep 30
           done
           [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
@@ -221,6 +233,10 @@ jobs:
       # above has already established that the latest release is fully
       # uploaded.
       - name: Smoke-test the root install.sh wrapper
+        # Same GH_TOKEN reason as the step above: the wrapper defaults to
+        # "latest" and resolves it through the same API call.
+        env:
+          GH_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
         run: |
           export GAME_CI_INSTALL=/tmp/root-install-sh-smoke-test
           sh ./install.sh
@@ -257,8 +273,10 @@ jobs:
             *) echo "FAIL: expected macOS's system bash to be 3.x, got $bash_version - this job no longer covers the bash-3.2 compatibility class it exists for"; exit 1 ;;
           esac
       - name: Smoke-test scripts/install.sh against the latest release
-        # Same retry rationale as the ubuntu job: "latest" can resolve to a
-        # release whose binaries are still uploading.
+        # Same retry rationale, and the same GH_TOKEN reason, as the ubuntu
+        # job above - this is the job the token exists to stop 403ing.
+        env:
+          GH_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
         run: |
           for attempt in 1 2 3 4 5; do
             if binary_path="$(/bin/bash scripts/install.sh latest /tmp/install-sh-smoke-test)"; then
@@ -268,13 +286,17 @@ jobs:
               echo "FAIL: scripts/install.sh still failing after 5 attempts"
               exit 1
             fi
-            echo "install.sh failed (attempt $attempt/5) - likely the latest release's binaries are still uploading - retrying in 30s..."
+            echo "install.sh failed (attempt $attempt/5) - see the error above; retrying in 30s..."
             sleep 30
           done
           [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
           [ -d "$(dirname "$binary_path")/dist" ] || { echo "FAIL: dist/ was not extracted next to $binary_path"; exit 1; }
           "$binary_path" --help
       - name: Smoke-test the root install.sh wrapper
+        # Same GH_TOKEN reason as the step above: the wrapper defaults to
+        # "latest" and resolves it through the same API call.
+        env:
+          GH_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
         run: |
           export GAME_CI_INSTALL=/tmp/root-install-sh-smoke-test
           /bin/sh ./install.sh
