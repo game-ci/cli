@@ -247,6 +247,187 @@ jobs:
 
           echo "Shipped binary verified end to end against a real container"
 
+  # ─── Unity — the Mirror#4128 abort message, end to end ─────────
+  # The incident: a container aborted Unity, docker led its own stderr with the
+  # benign "Unable to find image '...' locally" pre-pull notice, and the CLI's
+  # final error appended that stderr under an "Original error:" heading. The
+  # message therefore read as an editor failing to load a Unity version, while
+  # Unity's real reason - a genuine script compile error - sat two lines above
+  # it. Two Mirror maintainers went hunting for a version problem (see #288).
+  #
+  # src/model/docker.test.ts already asserts the corrected message, but it
+  # hard-codes BOTH streams onto its fake error, so it stays green if Docker.run
+  # reads the wrong stream or System.run ever folds them together. That plumbing
+  # is precisely what broke. Nothing in CI ran a real `docker run` through it, so
+  # this job does, and grades what the user is actually shown
+  # (scripts/assert-unity-abort-message.sh, itself tested by its sibling in
+  # tests.yml).
+  #
+  # Both CLI routes are exercised, because they reach stdout differently:
+  # build.sh runs the editor with `-logfile /dev/stdout`, whereas test.sh writes
+  # the log to a file and cats it after capturing the exit code. The stub below
+  # honours whichever spelling it is handed.
+  unity-abort-message:
+    name: Unity abort message (Mirror#4128)
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.unity == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Same stub shape as unity-build's above, with two differences: it fails
+      # the way the incident failed, and it puts each half on the stream reality
+      # puts it on.
+      #
+      # Docker cannot supply the stderr half itself here: this image is built
+      # locally a few lines up, so there is nothing for docker to pull and
+      # docker writes nothing. The container emits that text on the stream docker
+      # would have used, leading with the same benign "not cached locally" line.
+      - name: Build aborting-editor stub
+        run: |
+          mkdir -p /tmp/unity-abort-stub-ctx
+          cat > /tmp/unity-abort-stub-ctx/unity-editor <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+
+          # Activation has to succeed, or runsteps.sh exits before ever reaching
+          # the build/test step. Same licence line unity-build's stub prints,
+          # which activate.sh greps for.
+          if printf '%s\n' "$*" | grep -q -- '-manualLicenseFile'; then
+            echo "LICENSE SYSTEM [CI Stub] Next license update check is after 2099-01-01T00:00:00"
+            exit 0
+          fi
+
+          # Where Unity was told to write its log. build.sh passes
+          # `-logfile /dev/stdout`; test.sh passes `-logFile <artifacts>/x.log`
+          # and cats it afterwards. Honouring both keeps each route's abort
+          # reason on the stream that route really puts it on.
+          LOG_DEST=""
+          while [ "$#" -gt 0 ]; do
+            case "$1" in
+              -logFile|-logfile)
+                LOG_DEST="${2:-}"
+                shift 2
+                ;;
+              *)
+                shift
+                ;;
+            esac
+          done
+
+          # Docker's own stderr in the incident: harmless status output whose
+          # first line names an image it is about to pull. Quoted back under an
+          # "Original error:" heading, it read as an editor failing to load that
+          # version.
+          {
+            echo "Unable to find image 'game-ci/unity-abort-stub:latest' locally"
+            echo "latest: Pulling from game-ci/unity-abort-stub"
+          } >&2
+
+          # Unity's own reason, on Unity's own stream. The grader keys on this
+          # exact pairing - and on the two stderr lines above - to prove the
+          # incident was really reproduced rather than passing its absence
+          # checks vacuously.
+          print_abort() {
+            echo "Aborting batchmode due to failure:"
+            echo "Scripts have compiler errors."
+          }
+
+          if [ -z "$LOG_DEST" ] || [ "$LOG_DEST" = "/dev/stdout" ]; then
+            print_abort
+          else
+            mkdir -p "$(dirname "$LOG_DEST")"
+            print_abort > "$LOG_DEST"
+          fi
+          exit 1
+          SCRIPT
+          chmod +x /tmp/unity-abort-stub-ctx/unity-editor
+
+          cat > /tmp/unity-abort-stub-ctx/Dockerfile <<'DOCKERFILE'
+          FROM alpine:3.19
+          RUN apk add --no-cache bash coreutils git
+          COPY unity-editor /usr/local/bin/unity-editor
+          RUN chmod +x /usr/local/bin/unity-editor
+          WORKDIR /github/workspace
+          DOCKERFILE
+
+          docker build -t game-ci/unity-abort-stub:latest -f /tmp/unity-abort-stub-ctx/Dockerfile /tmp/unity-abort-stub-ctx
+
+      # No --allowDirtyBuild here, unlike unity-build's second run: versioning's
+      # dirty check is a yargs middleware registered inside
+      # VersioningOptions.configure, which only `game-ci build` calls - `test`
+      # never runs it. (It is also not an option there, and the CLI parses
+      # strictly, so passing it would fail the invocation outright.)
+      - name: Run the aborting build and grade the message
+        # Declared as env rather than interpolated into the script body below:
+        # ${{ }} expands into the source before bash ever sees it, which makes a
+        # workflow_dispatch input shell code instead of data.
+        env:
+          UNITY_VERSION: ${{ github.event.inputs.unity-version || '2019.4.40f1' }}
+        run: |
+          set -uo pipefail
+          LOG=/tmp/unity-abort-build.log
+
+          # Captured to a FILE, never piped through tee: writes to a pipe are
+          # asynchronous, so the CLI's process.exit(1) can truncate the very
+          # message under test. File writes are synchronous.
+          if bun run src/index.ts build test-project \
+            --engineVersion "${UNITY_VERSION}" \
+            --targetPlatform StandaloneLinux64 \
+            --customImage game-ci/unity-abort-stub:latest \
+            --unityLicense ci-stub-license \
+            > "$LOG" 2>&1; then
+            echo "::error::the aborting stub build was expected to fail, but exited 0"
+            cat "$LOG"
+            exit 1
+          fi
+
+          cat "$LOG"
+          bash scripts/assert-unity-abort-message.sh "$LOG"
+
+      # The incident was `game-ci test`, not `build`, and test.sh reaches stdout
+      # by cat-ing the log file rather than via -logfile /dev/stdout. Same
+      # Docker.run catch either way, but a future change to that cat's position
+      # relative to the exit-code capture could lose the reason while the build
+      # step above stayed green.
+      - name: Run the aborting test and grade the message
+        # Same reason as the build step above.
+        env:
+          UNITY_VERSION: ${{ github.event.inputs.unity-version || '2019.4.40f1' }}
+        run: |
+          set -uo pipefail
+          LOG=/tmp/unity-abort-test.log
+
+          # --docker is what selects the container flow; without it this would
+          # run the experimental `unity test` CLI path instead.
+          if bun run src/index.ts test test-project \
+            --docker \
+            --engineVersion "${UNITY_VERSION}" \
+            --targetPlatform StandaloneLinux64 \
+            --testPlatforms editmode \
+            --coverageEnabled false \
+            --customImage game-ci/unity-abort-stub:latest \
+            --unityLicense ci-stub-license \
+            > "$LOG" 2>&1; then
+            echo "::error::the aborting stub test run was expected to fail, but exited 0"
+            cat "$LOG"
+            exit 1
+          fi
+
+          cat "$LOG"
+          bash scripts/assert-unity-abort-message.sh "$LOG"
+
   # ─── Godot — detect + build using third-party image ────────────
   godot-build:
     name: Godot build
@@ -503,7 +684,7 @@ jobs:
   # blocks every path-scoped PR, which would defeat the filtering.
   smoke-gate:
     name: Engine smoke gate
-    needs: [unity-build, godot-build, unreal-build, protocol-tests]
+    needs: [unity-build, unity-abort-message, godot-build, unreal-build, protocol-tests]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

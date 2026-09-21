@@ -127,6 +127,15 @@ class Docker {
       // Multiline values (a .ulf's XML) are emitted as bare `--env NAME`, so
       // the docker client has to inherit them from its own environment - see
       // ImageEnvironmentFactory.getInheritedEnvVars.
+      //
+      // Deliberately no `silent` key, which leaves options.silent undefined -
+      // falsy, but not the `false` System.run's signature default was written
+      // to express, since a default object only applies when the argument is
+      // itself undefined. Two things below depend on that: System.run streams
+      // both streams live (so the catch block can drop docker's stderr as
+      // already-shown), and a non-silent run keeps `errorMessage` to stderr
+      // only rather than folding stdout into it. Passing silent: true here
+      // would silently lose docker's stderr from both the log and the message.
       const dockerRun = await System.run(command, undefined, {
         env: ImageEnvironmentFactory.getInheritedEnvVars(options, engineEnvVars(options)),
       });

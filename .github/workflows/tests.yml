@@ -165,6 +165,15 @@ jobs:
       # directions.
       - name: Licensing matrix gate tests
         run: bash scripts/test-licensing-matrix-gate.sh
+      # The grader engine-smoke-test.yml's unity-abort-message job runs against
+      # a real Docker run (the Mirror#4128 abort message). Its two "must not
+      # contain" assertions can only ever pass *vacuously* on a run that died
+      # early, so this drives it both directions against hand-written logs -
+      # including the pre-#293 message it exists to reject - to pin that a
+      # degraded stub or a reintroduced "Original error:" section still fails.
+      # No Docker, no Unity, no network.
+      - name: Unity abort message grader tests
+        run: bash scripts/test-assert-unity-abort-message.sh
       # scripts/install.sh is fetched and run directly by engine wrappers
       # (unity-builder and future ones) - see its own header comment - so a
       # syntax error here breaks every wrapper's CLI install step, not just
