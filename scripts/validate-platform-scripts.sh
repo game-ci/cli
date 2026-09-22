@@ -154,22 +154,34 @@ else
   echo "pwsh not available - skipping member-access check"
 fi
 echo "== Checking for regsvr32 with no /s and no kill afterwards (PowerShell) =="
-
+# regsvr32 without /s waits on a modal dialog forever, keeping the container
+# alive so `docker run` never returns. Each invocation is judged on its own, so
+# a /s call cannot vouch for a bare one. bash 3.2 compatible (no mapfile).
 while IFS= read -r -d '' file; do
-  code_only=$(grep -vE '^\s*#' "$file")
-  if grep -qE '(^|[^a-zA-Z0-9_-])regsvr32([[:space:]]|$)' <<< "$code_only"; then
-    if grep -qE '(^|[^a-zA-Z0-9_-])regsvr32[[:space:]]+/[sS]([[:space:]]|$)' <<< "$code_only"; then
+  # The cleanup names regsvr32 without launching it, so it is not an invocation.
+  call_lines=$(grep -nE '(^|[^a-zA-Z0-9_-])regsvr32([[:space:]]|$)' "$file" \
+                 | grep -vE '^[0-9]+:[[:space:]]*#' \
+                 | grep -vE 'Get-Process|Stop-Process' | cut -d: -f1 || true)
+  [ -z "$call_lines" ] && continue
+
+  while IFS= read -r ln; do
+    [ -z "$ln" ] && continue
+
+    call=$(sed -n "${ln}p" "$file")
+    if printf '%s\n' "$call" | grep -qE 'regsvr32[[:space:]]+/[sS]([[:space:]]|$)'; then
       continue
     fi
-    if grep -qE 'Stop-Process' <<< "$code_only" && grep -qE 'regsvr32' <<< "$(grep -B0 -A20 'regsvr32' <<< "$code_only")"; then
-      if grep -A20 -E '(^|[^a-zA-Z0-9_-])regsvr32([[:space:]]|$)' <<< "$code_only" | grep -qE "Get-Process[[:space:]]+-Name[[:space:]]+regsvr32"; then
-        continue
-      fi
+
+    window=$(sed -n "$((ln + 1)),$((ln + 20))p" "$file")
+    if printf '%s\n' "$window" | grep -qE 'Get-Process[[:space:]]+-Name[[:space:]]+regsvr32' \
+       && printf '%s\n' "$window" | grep -qE 'Stop-Process'; then
+      continue
     fi
-    echo "FAIL: $file calls regsvr32 without /s and never stops it - it waits on a modal dialog forever and keeps the container alive"
-    grep -nE '(^|[^a-zA-Z0-9_-])regsvr32([[:space:]]|$)' <<< "$code_only"
+
+    echo "FAIL: $file:$ln calls regsvr32 without /s and never stops it - it waits on a modal dialog forever and keeps the container alive"
+    echo "  $call"
     fail=1
-  fi
+  done <<< "$call_lines"
 done < <(find dist/platforms -type f -name '*.ps1' -print0)
 
 echo
