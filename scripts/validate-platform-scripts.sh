@@ -112,15 +112,47 @@ done < <(find dist/platforms -type f -name '*.ps1' -print0)
 
 echo
 echo "== Checking for quoted native-command arguments with a member-access suffix (PowerShell) =="
-while IFS= read -r -d '' file; do
-  code_only=$(grep -vE '^\s*#' "$file" | grep -vE '^\s*\$?[A-Za-z_:][A-Za-z0-9_:]*\s*=')
-  matches=$(grep -nE "[[:space:]][\"'][^\"']*[\"']\.[A-Za-z_][A-Za-z0-9_]*" <<< "$code_only" || true)
-  if [ -n "$matches" ]; then
-    echo "FAIL: $file passes a quoted string with a .member suffix as a native-command argument - PowerShell evaluates it as member access, yielding \$null, and drops the argument"
-    echo "$matches"
+# An argument beginning with a quote is parsed as an expression, so
+# `git config "url.https://...".insteadOf <value>` is member access on a String:
+# it yields $null, PowerShell drops $null native-command arguments, and git gets
+# the value with no key - so the rewrite is silently never written.
+#
+# Tokenised rather than grepped, so comments and quoted '#' cannot false-positive:
+# the broken form is String + Operator '.' + Member, while the correct
+# url."https://...".insteadOf is a single CommandArgument. Only argument position
+# counts - `$x = "abc".Length` is the same shape in expression context, and valid.
+if command -v pwsh >/dev/null 2>&1; then
+  if ! pwsh -NoProfile -Command '
+    $ErrorActionPreference = "Stop"
+    $failed = $false
+    Get-ChildItem -Path "dist/platforms" -Filter "*.ps1" -Recurse | ForEach-Object {
+      $err = $null
+      $tokens = [System.Management.Automation.PSParser]::Tokenize((Get-Content $_.FullName -Raw), [ref]$err)
+      if ($err) { return }  # syntax errors are reported by the check above
+
+      $inCommand = $false
+      for ($i = 0; $i -lt $tokens.Count; $i++) {
+        $t = $tokens[$i]
+
+        if ($t.Type -eq "Command") { $inCommand = $true; continue }
+        if ($t.Type -eq "NewLine" -or $t.Type -eq "StatementSeparator") { $inCommand = $false; continue }
+        if (-not $inCommand) { continue }
+
+        if ($t.Type -eq "String" -and ($i + 2) -lt $tokens.Count -and
+            $tokens[$i + 1].Type -eq "Operator" -and $tokens[$i + 1].Content -eq "." -and
+            $tokens[$i + 2].Type -eq "Member") {
+          Write-Host "FAIL: $($_.FullName):$($t.StartLine) passes a quoted string with a .$($tokens[$i + 2].Content) suffix as a native-command argument - PowerShell evaluates it as member access, yielding `$null, and drops the argument"
+          $script:failed = $true
+        }
+      }
+    }
+    if ($failed) { exit 1 }
+  '; then
     fail=1
   fi
-done < <(find dist/platforms -type f -name '*.ps1' -print0)
+else
+  echo "pwsh not available - skipping member-access check"
+fi
 
 echo
 if [ "$fail" -ne 0 ]; then
