@@ -132,4 +132,74 @@ describe('RunnerImageTag', () => {
       expect(image.imageRollingVersion).toStrictEqual(5);
     });
   });
+
+  describe('cross-OS container (Linux containers on Windows host)', () => {
+    it('uses ubuntu prefix when hostOS is linux, even on win32 hostPlatform', () => {
+      const image = new RunnerImageTag({
+        engineVersion: '6000.3.2f1',
+        targetPlatform: 'StandaloneWindows64',
+        hostPlatform: 'win32',
+        hostOS: 'linux',
+      });
+
+      expect(image.toString()).toContain('ubuntu-');
+      expect(image.toString()).not.toContain('windows-6000');
+    });
+
+    it('selects windows-mono (not windows-il2cpp) for StandaloneWindows64 in a Linux container', () => {
+      const image = new RunnerImageTag({
+        engineVersion: '6000.3.2f1',
+        targetPlatform: 'StandaloneWindows64',
+        hostPlatform: 'win32',
+        hostOS: 'linux',
+      });
+
+      expect(image.toString()).toContain('windows-mono');
+      expect(image.toString()).not.toContain('windows-il2cpp');
+    });
+
+    it('falls back to hostPlatform when hostOS is not set (backward compat)', () => {
+      const image = new RunnerImageTag({
+        engineVersion: '2099.1.1111',
+        targetPlatform: 'Test',
+        hostPlatform: 'win32',
+      });
+
+      expect(image.toString()).toContain('windows-');
+    });
+
+    it('uses windows prefix when hostOS is windows', () => {
+      const image = new RunnerImageTag({
+        engineVersion: '6000.3.2f1',
+        targetPlatform: 'StandaloneWindows64',
+        hostPlatform: 'win32',
+        hostOS: 'windows',
+      });
+
+      expect(image.toString()).toContain('windows-');
+      expect(image.toString()).toContain('windows-il2cpp');
+    });
+  });
+
+  describe('toNodePlatform', () => {
+    it('maps "windows" to "win32"', () => {
+      expect(RunnerImageTag.toNodePlatform('windows', 'win32')).toBe('win32');
+    });
+
+    it('maps "linux" to "linux"', () => {
+      expect(RunnerImageTag.toNodePlatform('linux', 'win32')).toBe('linux');
+    });
+
+    it('maps "darwin" to "darwin"', () => {
+      expect(RunnerImageTag.toNodePlatform('darwin', 'darwin')).toBe('darwin');
+    });
+
+    it('falls back to hostPlatform when hostOS is undefined', () => {
+      expect(RunnerImageTag.toNodePlatform(undefined, 'win32')).toBe('win32');
+    });
+
+    it('falls back to hostPlatform when hostOS is unrecognized', () => {
+      expect(RunnerImageTag.toNodePlatform('freebsd', 'linux')).toBe('linux');
+    });
+  });
 });
