@@ -301,9 +301,9 @@ class Docker {
       isUnityDefaultFlow && runTests
         ? `--volume "${cliDistPath}/test-standalone-scripts:/UnityTestRunnerAction:z"`
         : "",
-      sshAgent ? `--volume ${sshAgent}:/ssh-agent` : "",
-      sshAgent && !sshPublicKeysDirectoryPath ? "--volume /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro" : "",
-      sshPublicKeysDirectoryPath ? `--volume ${sshPublicKeysDirectoryPath}:/root/.ssh:ro` : "",
+      sshAgent ? `--volume "${sshAgent}:/ssh-agent"` : "",
+      sshAgent && !sshPublicKeysDirectoryPath ? '--volume "/home/runner/.ssh/known_hosts:/root/.ssh/known_hosts:ro"' : "",
+      sshPublicKeysDirectoryPath ? `--volume "${sshPublicKeysDirectoryPath}:/root/.ssh:ro"` : "",
       image,
       isUnityDefaultFlow ? "/bin/bash /entrypoint.sh" : wrappedCommands!,
     ]
