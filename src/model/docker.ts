@@ -280,8 +280,8 @@ class Docker {
       dockerMemoryLimit ? `--memory=${dockerMemoryLimit}` : "",
       resolveShmSize(dockerShmSize) ? `--shm-size=${resolveShmSize(dockerShmSize)}` : "",
       useHostNetwork ? "--net=host" : "",
-      `--volume "${home}":"/root:z"`,
-      `--volume "${currentWorkDir}":"${dockerWorkspacePath}:z"`,
+      `--volume "${home}:/root:z"`,
+      `--volume "${currentWorkDir}:${dockerWorkspacePath}:z"`,
       isUnityDefaultFlow ? `--volume "${cliDistPath}/default-build-script:/UnityBuilderAction:z"` : "",
       // Mounted for BOTH flows, unlike default-build-script: the settings
       // applier has to be available even when the user brings their own

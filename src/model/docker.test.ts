@@ -176,8 +176,8 @@ describe("Docker", () => {
     expect(command).toContain('--env UNITY_LICENSE="ci-stub-license"');
     // The line-continuation strip (` \\\n` -> space) must not eat an escaped backslash at the end of a value.
     expect(command).toContain('--env CUSTOM_PARAMETERS="trailing backslash \\\\" --env');
-    expect(command).toContain('--volume "/home/runner":"/root:z"');
-    expect(command).toContain('--volume "/home/runner/work/cli/cli":"/github/workspace:z"');
+    expect(command).toContain('--volume "/home/runner:/root:z"');
+    expect(command).toContain('--volume "/home/runner/work/cli/cli:/github/workspace:z"');
     expect(command).toContain("game-ci/unity-editor-stub:latest");
     expect(command).toContain("/bin/bash /entrypoint.sh");
     expect(command).not.toContain("\n");
