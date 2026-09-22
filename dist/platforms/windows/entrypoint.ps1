@@ -13,6 +13,8 @@ Get-ChildItem -Path c:\registry-keys -File | ForEach-Object {reg import $_.fulln
 # Register the Visual Studio installation so Unity can find it
 regsvr32 C:\ProgramData\Microsoft\VisualStudio\Setup\x64\Microsoft.VisualStudio.Setup.Configuration.Native.dll
 
+Get-Process -Name regsvr32 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
+
 # Install Visual C++ 2013 Redistributables - Unity fails on some GitHub
 # Actions Windows runners without this (see game-ci/cli#65, item 5).
 & "c:\steps\install_vcredist13.ps1"

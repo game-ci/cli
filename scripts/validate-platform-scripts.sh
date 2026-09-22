@@ -153,7 +153,51 @@ if command -v pwsh >/dev/null 2>&1; then
 else
   echo "pwsh not available - skipping member-access check"
 fi
+echo "== Checking for regsvr32 with no /s and no kill afterwards (PowerShell) =="
+# regsvr32 without /s waits on a modal dialog forever, keeping the container
+# alive so `docker run` never returns. Tokenised, so each invocation is judged
+# on its own: regsvr32.exe counts, `a; b` on one line is two invocations, and a
+# /s or a cleanup belonging to one call cannot vouch for another.
+if command -v pwsh >/dev/null 2>&1; then
+  if ! pwsh -NoProfile -Command '
+    $ErrorActionPreference = "Stop"
+    $failed = $false
+    Get-ChildItem -Path "dist/platforms" -Filter "*.ps1" -Recurse | ForEach-Object {
+      $file = $_.FullName
+      $err = $null
+      $tokens = [System.Management.Automation.PSParser]::Tokenize((Get-Content $file -Raw), [ref]$err)
+      if ($err) { return }
 
+      for ($i = 0; $i -lt $tokens.Count; $i++) {
+        if ($tokens[$i].Type -ne "Command" -or $tokens[$i].Content -notmatch "^regsvr32(\.exe)?$") { continue }
+
+        $line = $tokens[$i].StartLine
+        $silent = $false
+        for ($j = $i + 1; $j -lt $tokens.Count; $j++) {
+          if ($tokens[$j].Type -eq "NewLine" -or $tokens[$j].Type -eq "StatementSeparator") { break }
+          if ($tokens[$j].Content -eq "/s") { $silent = $true; break }
+        }
+        if ($silent) { continue }
+
+        $namedRegsvr = $false
+        $cleaned = $false
+        for ($j = $i + 1; $j -lt $tokens.Count -and $tokens[$j].StartLine -le ($line + 20); $j++) {
+          if ($tokens[$j].Type -eq "CommandArgument" -and $tokens[$j].Content -match "^regsvr32(\.exe)?$") { $namedRegsvr = $true }
+          if ($namedRegsvr -and $tokens[$j].Type -eq "Command" -and $tokens[$j].Content -eq "Stop-Process") { $cleaned = $true; break }
+        }
+        if ($cleaned) { continue }
+
+        Write-Host "FAIL: ${file}:${line} calls $($tokens[$i].Content) without /s and never stops it - it waits on a modal dialog forever and keeps the container alive"
+        $script:failed = $true
+      }
+    }
+    if ($failed) { exit 1 }
+  '; then
+    fail=1
+  fi
+else
+  echo "pwsh not available - skipping regsvr32 check"
+fi
 echo
 if [ "$fail" -ne 0 ]; then
   echo "One or more platform script checks failed - see FAIL lines above."
