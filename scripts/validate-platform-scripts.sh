@@ -111,6 +111,18 @@ while IFS= read -r -d '' file; do
 done < <(find dist/platforms -type f -name '*.ps1' -print0)
 
 echo
+echo "== Checking for quoted native-command arguments with a member-access suffix (PowerShell) =="
+while IFS= read -r -d '' file; do
+  code_only=$(grep -vE '^\s*#' "$file" | grep -vE '^\s*\$?[A-Za-z_:][A-Za-z0-9_:]*\s*=')
+  matches=$(grep -nE "[[:space:]][\"'][^\"']*[\"']\.[A-Za-z_][A-Za-z0-9_]*" <<< "$code_only" || true)
+  if [ -n "$matches" ]; then
+    echo "FAIL: $file passes a quoted string with a .member suffix as a native-command argument - PowerShell evaluates it as member access, yielding \$null, and drops the argument"
+    echo "$matches"
+    fail=1
+  fi
+done < <(find dist/platforms -type f -name '*.ps1' -print0)
+
+echo
 if [ "$fail" -ne 0 ]; then
   echo "One or more platform script checks failed - see FAIL lines above."
   exit 1
