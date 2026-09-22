@@ -155,35 +155,49 @@ else
 fi
 echo "== Checking for regsvr32 with no /s and no kill afterwards (PowerShell) =="
 # regsvr32 without /s waits on a modal dialog forever, keeping the container
-# alive so `docker run` never returns. Each invocation is judged on its own, so
-# a /s call cannot vouch for a bare one. bash 3.2 compatible (no mapfile).
-while IFS= read -r -d '' file; do
-  # The cleanup names regsvr32 without launching it, so it is not an invocation.
-  call_lines=$(grep -nE '(^|[^a-zA-Z0-9_-])regsvr32([[:space:]]|$)' "$file" \
-                 | grep -vE '^[0-9]+:[[:space:]]*#' \
-                 | grep -vE 'Get-Process|Stop-Process' | cut -d: -f1 || true)
-  [ -z "$call_lines" ] && continue
+# alive so `docker run` never returns. Tokenised, so each invocation is judged
+# on its own: regsvr32.exe counts, `a; b` on one line is two invocations, and a
+# /s or a cleanup belonging to one call cannot vouch for another.
+if command -v pwsh >/dev/null 2>&1; then
+  if ! pwsh -NoProfile -Command '
+    $ErrorActionPreference = "Stop"
+    $failed = $false
+    Get-ChildItem -Path "dist/platforms" -Filter "*.ps1" -Recurse | ForEach-Object {
+      $file = $_.FullName
+      $err = $null
+      $tokens = [System.Management.Automation.PSParser]::Tokenize((Get-Content $file -Raw), [ref]$err)
+      if ($err) { return }
 
-  while IFS= read -r ln; do
-    [ -z "$ln" ] && continue
+      for ($i = 0; $i -lt $tokens.Count; $i++) {
+        if ($tokens[$i].Type -ne "Command" -or $tokens[$i].Content -notmatch "^regsvr32(\.exe)?$") { continue }
 
-    call=$(sed -n "${ln}p" "$file")
-    if printf '%s\n' "$call" | grep -qE 'regsvr32[[:space:]]+/[sS]([[:space:]]|$)'; then
-      continue
-    fi
+        $line = $tokens[$i].StartLine
+        $silent = $false
+        for ($j = $i + 1; $j -lt $tokens.Count; $j++) {
+          if ($tokens[$j].Type -eq "NewLine" -or $tokens[$j].Type -eq "StatementSeparator") { break }
+          if ($tokens[$j].Content -eq "/s") { $silent = $true; break }
+        }
+        if ($silent) { continue }
 
-    window=$(sed -n "$((ln + 1)),$((ln + 20))p" "$file")
-    if printf '%s\n' "$window" | grep -qE 'Get-Process[[:space:]]+-Name[[:space:]]+regsvr32' \
-       && printf '%s\n' "$window" | grep -qE 'Stop-Process'; then
-      continue
-    fi
+        $namedRegsvr = $false
+        $cleaned = $false
+        for ($j = $i + 1; $j -lt $tokens.Count -and $tokens[$j].StartLine -le ($line + 20); $j++) {
+          if ($tokens[$j].Type -eq "CommandArgument" -and $tokens[$j].Content -match "^regsvr32(\.exe)?$") { $namedRegsvr = $true }
+          if ($namedRegsvr -and $tokens[$j].Type -eq "Command" -and $tokens[$j].Content -eq "Stop-Process") { $cleaned = $true; break }
+        }
+        if ($cleaned) { continue }
 
-    echo "FAIL: $file:$ln calls regsvr32 without /s and never stops it - it waits on a modal dialog forever and keeps the container alive"
-    echo "  $call"
+        Write-Host "FAIL: ${file}:${line} calls $($tokens[$i].Content) without /s and never stops it - it waits on a modal dialog forever and keeps the container alive"
+        $script:failed = $true
+      }
+    }
+    if ($failed) { exit 1 }
+  '; then
     fail=1
-  done <<< "$call_lines"
-done < <(find dist/platforms -type f -name '*.ps1' -print0)
-
+  fi
+else
+  echo "pwsh not available - skipping regsvr32 check"
+fi
 echo
 if [ "$fail" -ne 0 ]; then
   echo "One or more platform script checks failed - see FAIL lines above."
