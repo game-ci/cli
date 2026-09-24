@@ -176,8 +176,8 @@ describe("Docker", () => {
     expect(command).toContain('--env UNITY_LICENSE="ci-stub-license"');
     // The line-continuation strip (` \\\n` -> space) must not eat an escaped backslash at the end of a value.
     expect(command).toContain('--env CUSTOM_PARAMETERS="trailing backslash \\\\" --env');
-    expect(command).toContain('--volume "/home/runner":"/root:z"');
-    expect(command).toContain('--volume "/home/runner/work/cli/cli":"/github/workspace:z"');
+    expect(command).toContain('--volume "/home/runner:/root:z"');
+    expect(command).toContain('--volume "/home/runner/work/cli/cli:/github/workspace:z"');
     expect(command).toContain("game-ci/unity-editor-stub:latest");
     expect(command).toContain("/bin/bash /entrypoint.sh");
     expect(command).not.toContain("\n");
@@ -376,7 +376,7 @@ describe("Docker", () => {
       engine: "unity",
     });
 
-    expect(command).toContain("--volume /home/runner/.ssh/keys:/root/.ssh:ro");
+    expect(command).toContain('--volume "/home/runner/.ssh/keys:/root/.ssh:ro"');
     expect(command).not.toContain("known_hosts");
   });
 
@@ -393,7 +393,26 @@ describe("Docker", () => {
       engine: "unity",
     });
 
-    expect(command).toContain("--volume /home/runner/.ssh/keys:/root/.ssh:ro");
+    expect(command).toContain('--volume "/home/runner/.ssh/keys:/root/.ssh:ro"');
+  });
+
+  it("quotes Linux volume mounts completely so paths containing spaces remain a single argument on Windows/PowerShell", () => {
+    const command = (Docker as any).getLinuxCommand("game-ci/unity-editor-stub:latest", {
+      hostOS: "windows",
+      currentWorkDir: "C:/Program Files/GitHub/cli",
+      homeDir: "C:/Program Files/Users/runner",
+      cliDistPath: "C:/Program Files/GitHub/cli/dist",
+      sshAgent: "C:/Program Files/ssh/agent.sock",
+      sshPublicKeysDirectoryPath: "C:/Program Files/ssh/keys",
+      gitPrivateToken: "",
+      dockerWorkspacePath: "/github/workspace",
+      engine: "unity",
+    });
+
+    expect(command).toContain('--volume "C:/Program Files/Users/runner:/root:z"');
+    expect(command).toContain('--volume "C:/Program Files/GitHub/cli:/github/workspace:z"');
+    expect(command).toContain('--volume "C:/Program Files/ssh/agent.sock:/ssh-agent"');
+    expect(command).toContain('--volume "C:/Program Files/ssh/keys:/root/.ssh:ro"');
   });
 
   it("applies docker resource limits and isolation mode on Windows", () => {
