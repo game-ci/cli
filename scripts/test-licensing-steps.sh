@@ -678,6 +678,27 @@ check "and names the real cause instead of implying a leaked seat" "$OUT" \
   "bound to a different machine"
 refute "and does not send the user hunting a leak" "$OUT" "may still be held"
 
+# Return must not inherit activation's broad error classifier.  Unity emits an
+# unavailable access token both after a successful return and beside permanent
+# failures; without a success line it is ambiguous, not evidence that waiting
+# will make a second return possible.
+cat > "$WORK/unity-editor" <<'STUB'
+#!/usr/bin/env bash
+echo "EDITOR $*" >> "$ARGV_LOG"
+echo "[Licensing::Module] Error: Access token is unavailable; failed to update"
+echo "[Licensing::Module] Error: Failed to return entitlement license"
+exit 1
+STUB
+chmod +x "$WORK/unity-editor"
+
+: > "$ARGV_LOG"
+OUT=$(run_step UNITY_EMAIL="ci@example.com" UNITY_PASSWORD="pw123456" UNITY_SERIAL="F4-XXXX-XXXX-XXXX-XXXX-XXXX" \
+  UNITY_LICENSE_RETRY_MAX_ATTEMPTS=4 UNITY_LICENSE_RETRY_DELAY_SECONDS=0 \
+  bash -c 'source "$STEPS_DIR/return_license.sh"' 2>&1)
+refute "does not retry an ambiguous access-token message on return" "$OUT" \
+  "known-transient Unity licensing error"
+check "and only attempts the return once" "$(grep -c '^EDITOR' "$ARGV_LOG")" "1"
+
 # The return has to use the same route the activation used. activate.sh falls
 # back to the editor when the bundled client predates --include-personal
 # (2020.3.49f1 ships 1.12.1), and that route takes an *entitlement* seat - no
