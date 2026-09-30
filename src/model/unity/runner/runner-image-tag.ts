@@ -15,6 +15,7 @@ class RunnerImageTag {
     const {
       engineVersion = '2019.2.11f1',
       hostPlatform,
+      hostOS,
       targetPlatform,
       customImage,
       containerRegistryRepository = 'unityci/editor',
@@ -24,6 +25,11 @@ class RunnerImageTag {
     if (!RunnerImageTag.versionPattern.test(engineVersion)) {
       throw new Error(`Invalid version "${engineVersion}".`);
     }
+
+    // When the container OS differs from the host OS (e.g. --container-os=linux
+    // on a Windows host running Docker Desktop in Linux-containers mode), image
+    // tags and build-module selection must match the *container* OS, not the host.
+    const containerPlatform = RunnerImageTag.toNodePlatform(hostOS, hostPlatform);
 
     // Split on the last '/' so registries with a host+path prefix (e.g.
     // ghcr.io/example/editor) keep that whole prefix as the repository,
@@ -38,14 +44,27 @@ class RunnerImageTag {
     this.name = name;
     this.engineVersion = engineVersion;
     this.targetPlatform = targetPlatform;
-    this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(hostPlatform);
+    this.imagePlatformPrefix = RunnerImageTag.getImagePlatformPrefixes(containerPlatform);
     this.builderPlatform = RunnerImageTag.getTargetPlatformToTargetPlatformSuffixMap(
-      hostPlatform,
+      containerPlatform,
       targetPlatform,
       engineVersion,
     );
     // Rolls forward automatically within the pinned major (non-breaking updates).
     this.imageRollingVersion = Number(containerRegistryImageVersion);
+  }
+
+  /**
+   * Maps the resolved hostOS ('linux', 'windows', 'darwin') back to the
+   * Node-style platform string ('linux', 'win32', 'darwin') that
+   * getImagePlatformPrefixes and getTargetPlatformToTargetPlatformSuffixMap
+   * expect. Falls back to hostPlatform when hostOS is not set (backward
+   * compat with callers that only supply hostPlatform).
+   */
+  static toNodePlatform(hostOS: string | undefined, hostPlatform: string | undefined): string {
+    if (hostOS === 'windows') return 'win32';
+    if (hostOS === 'linux' || hostOS === 'darwin') return hostOS;
+    return hostPlatform ?? '';
   }
 
   static get versionPattern() {
