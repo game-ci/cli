@@ -23,7 +23,13 @@ $ReturnStrategy = Get-UnityLicenseReturnStrategy
 # mac/steps/return_license.sh and the host-mode windows/return_license.ps1
 # already pass).
 $MaxAttempts = if ($Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS) { [int]$Env:UNITY_LICENSE_RETRY_MAX_ATTEMPTS } else { 5 }
-$TransientPattern = 'TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
+# A return is not an activation. The activation/build pattern deliberately
+# accepts state/authentication messages because a new attempt can establish a
+# licence. On return, the same messages have been observed after a successful
+# return and beside permanent failures, so retrying them only delays cleanup and
+# can claim a seat is leaked when it was not. TimeoutPolicy is the one explicit
+# transport timeout for which a later attempt can plausibly help.
+$TransientPattern = 'TimeoutPolicy did not complete'
 
 # Permanent by construction: the entitlement is bound to the machine that
 # activated it, so no retry rebinds it. Checked separately because the same

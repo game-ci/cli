@@ -25,7 +25,13 @@ RETURN_STRATEGY="$(resolve_unity_license_return_strategy)"
 # a genuinely leaked seat needs a human to know about it (nothing here can
 # force Unity's server to release a seat it thinks is still in use).
 UNITY_LICENSE_RETURN_MAX_ATTEMPTS="${UNITY_LICENSE_RETRY_MAX_ATTEMPTS:-5}"
-UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete|Access token is unavailable|entitlement groups and 0 free entitlements|License activation has failed|No valid Unity Editor license found|License is not active|Serial number unavailable'
+# A return is not an activation.  The activation/build pattern deliberately
+# accepts state/authentication messages because a new attempt can establish a
+# licence.  On return, the same messages have been observed after a successful
+# return and beside permanent failures, so retrying them only delays cleanup and
+# can claim a seat is leaked when it was not.  TimeoutPolicy is the one explicit
+# transport timeout for which a later attempt can plausibly help.
+UNITY_LICENSE_RETURN_TRANSIENT_PATTERN='TimeoutPolicy did not complete'
 
 # Permanent by construction - see the guards below.
 UNITY_LICENSE_RETURN_PERMANENT_PATTERN="Machine bindings don't match"
