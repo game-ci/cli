@@ -119,6 +119,13 @@ jobs:
       # default, so this needs no extra setup.
       - name: Validate platform scripts (dist/platforms)
         run: bash scripts/validate-platform-scripts.sh
+      # Which subtarget the default build script asks Unity for. Handing Unity
+      # StandaloneBuildSubtarget.Default made it reuse the subtarget persisted
+      # in the project's Library, so a cached Library from a Server build
+      # turned later Player builds into Server builds. Compiles the resolver
+      # against Unity stubs with the .NET SDK ubuntu-latest ships.
+      - name: Default build script subtarget tests
+        run: bash scripts/test-build-subtarget.sh
       # Parsing those scripts isn't enough for the licensing steps: what
       # matters is which Unity.Licensing.Client invocation each credential
       # combination produces, and whether the seat is handed back on every
