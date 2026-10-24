@@ -62,14 +62,6 @@ namespace UnityBuilderAction
         // Gather values from project
         var scenes = EditorBuildSettings.scenes.Where(scene => scene.enabled).Select(s => s.path).ToArray();
 
-#if UNITY_2021_2_OR_NEWER
-        // Determine subtarget
-        StandaloneBuildSubtarget buildSubtarget;
-        if (!options.TryGetValue("standaloneBuildSubtarget", out var subtargetValue) || !Enum.TryParse(subtargetValue, out buildSubtarget)) {
-          buildSubtarget = default;
-        }
-#endif
-
         var target = (BuildTarget) Enum.Parse(typeof(BuildTarget), options["buildTarget"]);
 
         // Define BuildPlayer Options
@@ -79,7 +71,7 @@ namespace UnityBuilderAction
           target = target,
           options = buildOptions,
 #if UNITY_2021_2_OR_NEWER
-          subtarget = (int) buildSubtarget
+          subtarget = BuildSubtarget.Resolve(target, options)
 #endif
         };
 
