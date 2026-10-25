@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { SecretRedaction } from './secret-redaction.ts';
+import { SecretRedaction, createStreamRedactor } from './secret-redaction.ts';
 
 afterEach(() => {
   // Module-level registry shared across the whole test process.
@@ -74,5 +74,41 @@ describe('SecretRedaction', () => {
     SecretRedaction.registerFromOptions({ projectPath: '/home/runner/work/project' } as any);
 
     expect(SecretRedaction.redact('cd /home/runner/work/project')).toBe('cd /home/runner/work/project');
+  });
+});
+
+describe('createStreamRedactor', () => {
+  const collect = (chunks: string[]) => {
+    const redactor = createStreamRedactor();
+    return chunks.map((chunk) => redactor.push(chunk)).join('') + redactor.flush();
+  };
+
+  it('passes text through untouched when nothing is registered', () => {
+    expect(collect(['hello ', 'world'])).toBe('hello world');
+  });
+
+  it('redacts a secret split across two chunks', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect(['password=hunt', 'er2secret done'])).toBe('password=*** done');
+  });
+
+  it('redacts a secret split one character at a time', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect([...'a hunter2secret b'])).toBe('a *** b');
+  });
+
+  it('never emits a secret prefix before the rest arrives', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('x hunter2')).not.toContain('hunter2');
+  });
+
+  it('flushes held-back text that turned out not to be a secret', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect(['ends with hunter2'])).toBe('ends with hunter2');
   });
 });
