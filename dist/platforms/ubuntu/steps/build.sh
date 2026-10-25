@@ -158,6 +158,11 @@ if [ -n "$BUILD_PROFILE" ]; then
   BUILD_PROFILE_FLAGS=(-activeBuildProfile "$BUILD_PROFILE")
 fi
 
+# Split CUSTOM_PARAMETERS the way a shell would (quotes and backslashes honoured)
+# without executing it: xargs only parses, printf only echoes the tokens back.
+xargs -r true <<< "$CUSTOM_PARAMETERS" || { echo "Invalid customParameters (unbalanced quote?): $CUSTOM_PARAMETERS" >&2; exit 1; }
+mapfile -t customParameters < <(xargs -r printf '%s\n' <<< "$CUSTOM_PARAMETERS")
+
 ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
   -logfile /dev/stdout \
   $QUIT_FLAG \
@@ -178,7 +183,7 @@ ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
   -androidTargetSdkVersion "$ANDROID_TARGET_SDK_VERSION" \
   -androidExportType "$ANDROID_EXPORT_TYPE" \
   -androidSymbolType "$ANDROID_SYMBOL_TYPE" \
-  $CUSTOM_PARAMETERS
+  "${customParameters[@]}"
 
 # Catch exit code
 BUILD_EXIT_CODE=$?
