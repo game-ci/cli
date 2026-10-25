@@ -107,4 +107,45 @@ const SecretRedaction = {
   },
 };
 
-export { SecretRedaction, secretOptionKeys };
+/**
+ * Redacts text that arrives in pieces (live subprocess output), where a secret
+ * can be split across two chunks. A tail long enough to hold the start of any
+ * registered secret (twice its length: escaped characters gain a backslash) is
+ * withheld until more text arrives or flush() is called.
+ */
+function createStreamRedactor() {
+  let pending = '';
+
+  const emit = (final: boolean): string => {
+    if (secrets.size === 0) {
+      const text = pending;
+      pending = '';
+      return text;
+    }
+
+    let cut = final ? pending.length : pending.length - (Math.max(...[...secrets].map((s) => s.length)) * 2 - 1);
+    // A complete secret straddling the cut must not be half-emitted.
+    for (const secret of secrets) {
+      for (const match of pending.matchAll(secretPattern(secret))) {
+        if (match.index < cut && cut < match.index + match[0].length) cut = match.index;
+      }
+    }
+    if (cut <= 0) return '';
+
+    const out = SecretRedaction.redact(pending.slice(0, cut));
+    pending = pending.slice(cut);
+    return out;
+  };
+
+  return {
+    push(text: string): string {
+      pending += text;
+      return emit(false);
+    },
+    flush(): string {
+      return emit(true);
+    },
+  };
+}
+
+export { SecretRedaction, createStreamRedactor, secretOptionKeys };
