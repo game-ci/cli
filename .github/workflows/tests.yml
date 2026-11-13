@@ -126,6 +126,10 @@ jobs:
       # against Unity stubs with the .NET SDK ubuntu-latest ships.
       - name: Default build script subtarget tests
         run: bash scripts/test-build-subtarget.sh
+      # Unity kills the helper PIDs it recorded in Library as lingering helpers,
+      # and a PID left by a previous container can be the new editor itself.
+      - name: Stale Unity PID file tests (dist/platforms/ubuntu)
+        run: bash scripts/test-stale-pid-files.sh
       # Parsing those scripts isn't enough for the licensing steps: what
       # matters is which Unity.Licensing.Client invocation each credential
       # combination produces, and whether the seat is handed back on every

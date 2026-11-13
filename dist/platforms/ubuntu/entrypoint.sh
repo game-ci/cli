@@ -58,6 +58,8 @@ else
   echo "Not updating Android SDK."
 fi
 
+source /steps/clear_stale_pid_files.sh
+
 #
 # Run steps, either as root or as a user matching the host's UID/GID
 #
