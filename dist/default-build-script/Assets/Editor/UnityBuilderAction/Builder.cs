@@ -32,9 +32,11 @@ namespace UnityBuilderAction
         }
       }
 
-      // Depending on whether the build is using a build profile, buildPlayerOptions
-      // will be an instance of either BuildPlayerOptions or BuildPlayerWithProfileOptions.
-      dynamic buildPlayerOptions;
+      // Builds with either BuildPlayerOptions or BuildPlayerWithProfileOptions, depending on whether
+      // the build uses a build profile. Each call is statically typed: passing the options through
+      // `dynamic` corrupts them on the Windows editors of Unity 2019 and 2020, which then fail with
+      // "Error building player because build target was unsupported".
+      Func<BuildReport> buildPlayer;
 
       if (options.TryGetValue("activeBuildProfile", out var buildProfilePath)) {
         if (string.IsNullOrEmpty(buildProfilePath)) {
@@ -49,11 +51,12 @@ namespace UnityBuilderAction
         // No need to set active profile, as already set by `-activeBuildProfile` CLI argument.
         Debug.Log($"build profile: {buildProfile.name}");
 
-        buildPlayerOptions = new BuildPlayerWithProfileOptions {
+        var buildPlayerWithProfileOptions = new BuildPlayerWithProfileOptions {
           buildProfile = buildProfile,
           locationPathName = options["customBuildPath"],
           options = buildOptions,
         };
+        buildPlayer = () => BuildPipeline.BuildPlayer(buildPlayerWithProfileOptions);
 #else // UNITY_6000_0_OR_NEWER
         throw new Exception("Build profiles are not supported by this version of Unity (" + Application.unityVersion + ")");
 #endif // UNITY_6000_0_OR_NEWER
@@ -65,7 +68,7 @@ namespace UnityBuilderAction
         var target = (BuildTarget) Enum.Parse(typeof(BuildTarget), options["buildTarget"]);
 
         // Define BuildPlayer Options
-        buildPlayerOptions = new BuildPlayerOptions {
+        var buildPlayerOptions = new BuildPlayerOptions {
           scenes = scenes,
           locationPathName = options["customBuildPath"],
           target = target,
@@ -74,6 +77,7 @@ namespace UnityBuilderAction
           subtarget = BuildSubtarget.Resolve(target, options)
 #endif
         };
+        buildPlayer = () => BuildPipeline.BuildPlayer(buildPlayerOptions);
 
         // Apply Android settings
         if (target == BuildTarget.Android)
@@ -104,7 +108,7 @@ namespace UnityBuilderAction
       }
 
       // Perform build
-      BuildReport buildReport = BuildPipeline.BuildPlayer(buildPlayerOptions);
+      BuildReport buildReport = buildPlayer();
 
       // Summary
       BuildSummary summary = buildReport.summary;
