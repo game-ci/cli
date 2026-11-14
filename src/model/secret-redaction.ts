@@ -108,13 +108,46 @@ const SecretRedaction = {
 };
 
 /**
- * Redacts text that arrives in pieces (live subprocess output), where a secret
- * can be split across two chunks. A tail long enough to hold the start of any
- * registered secret (twice its length: escaped characters gain a backslash) is
- * withheld until more text arrives or flush() is called.
+ * A line longer than this with no line break is emitted in pieces rather than
+ * held indefinitely, keeping just enough of its tail back to catch a secret
+ * that straddles the piece boundary.
+ */
+const maximumHeldLineLength = 64 * 1024;
+
+/**
+ * The patterns live output is redacted with: every registered secret, plus each
+ * line of a multi-line secret (a licence file, say) on its own. Output is
+ * emitted a line at a time, so a multi-line secret can reach the log split
+ * across two emissions; masking its lines individually keeps both halves out.
+ * Longest first, so a whole secret is replaced before any of its lines.
+ */
+function streamPatterns(): RegExp[] {
+  const values = new Set<string>();
+
+  for (const secret of secrets) {
+    values.add(secret);
+
+    for (const line of secret.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.length >= minimumSecretLength) values.add(trimmed);
+    }
+  }
+
+  return [...values].sort((a, b) => b.length - a.length).map((value) => secretPattern(value));
+}
+
+/**
+ * Redacts text that arrives in pieces (live subprocess output). Text is
+ * emitted a whole line at a time, the way the GitHub Actions runner masks its
+ * own log: a secret within a line is always seen whole, lines from stdout and
+ * stderr interleave intact, and nothing is held back beyond the line still
+ * being written. flush() emits whatever remains.
  */
 function createStreamRedactor() {
   let pending = '';
+
+  const redactWith = (patterns: RegExp[], text: string) =>
+    patterns.reduce((redacted, pattern) => redacted.replaceAll(pattern, placeholder), text);
 
   const emit = (final: boolean): string => {
     if (secrets.size === 0) {
@@ -123,16 +156,24 @@ function createStreamRedactor() {
       return text;
     }
 
-    let cut = final ? pending.length : pending.length - (Math.max(...[...secrets].map((s) => s.length)) * 2 - 1);
-    // A complete secret straddling the cut must not be half-emitted.
-    for (const secret of secrets) {
-      for (const match of pending.matchAll(secretPattern(secret))) {
-        if (match.index < cut && cut < match.index + match[0].length) cut = match.index;
+    const patterns = streamPatterns();
+    let cut = final ? pending.length : Math.max(pending.lastIndexOf('\n'), pending.lastIndexOf('\r')) + 1;
+
+    if (cut === 0 && pending.length > maximumHeldLineLength) {
+      // Escaped characters gain a backslash, so a match can be twice as long as its value.
+      const longestMatch = Math.max(...[...secrets].map((secret) => secret.length)) * 2;
+      cut = pending.length - (longestMatch - 1);
+
+      for (const pattern of patterns) {
+        for (const match of pending.matchAll(pattern)) {
+          if (match.index < cut && cut < match.index + match[0].length) cut = match.index;
+        }
       }
     }
+
     if (cut <= 0) return '';
 
-    const out = SecretRedaction.redact(pending.slice(0, cut));
+    const out = redactWith(patterns, pending.slice(0, cut));
     pending = pending.slice(cut);
     return out;
   };

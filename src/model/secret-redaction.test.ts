@@ -63,7 +63,8 @@ describe('SecretRedaction', () => {
       projectPath: '/home/runner/work/project',
     } as any);
 
-    const command = 'docker run --env UNITY_PASSWORD="pa55word-value" --env UNITY_EMAIL="ci@example.com" --env UNITY_SERIAL="F4-ABCD-EFGH" /home/runner/work/project';
+    const command =
+      'docker run --env UNITY_PASSWORD="pa55word-value" --env UNITY_EMAIL="ci@example.com" --env UNITY_SERIAL="F4-ABCD-EFGH" /home/runner/work/project';
 
     expect(SecretRedaction.redact(command)).toBe(
       'docker run --env UNITY_PASSWORD="***" --env UNITY_EMAIL="***" --env UNITY_SERIAL="***" /home/runner/work/project',
@@ -110,5 +111,54 @@ describe('createStreamRedactor', () => {
     SecretRedaction.register('hunter2secret');
 
     expect(collect(['ends with hunter2'])).toBe('ends with hunter2');
+  });
+
+  it('emits a complete line at once, without holding back its tail', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('latest: Pulling from game-ci/unity-abort-stub\n')).toBe(
+      'latest: Pulling from game-ci/unity-abort-stub\n',
+    );
+  });
+
+  it('holds only the unfinished line', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('first\nsecond hun')).toBe('first\n');
+    expect(redactor.push('ter2secret\n')).toBe('second ***\n');
+  });
+
+  it('masks each line of a multi-line secret that reaches the log across two emissions', () => {
+    SecretRedaction.register('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License>');
+    const redactor = createStreamRedactor();
+
+    const out = redactor.push('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n') + redactor.push('</License>\n');
+
+    expect(out).not.toContain('ABCD-1234-EFGH');
+    expect(out).not.toContain('<License>');
+  });
+
+  it('replaces a whole multi-line secret with a single placeholder', () => {
+    SecretRedaction.register('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License>');
+
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('before <License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License> after\n')).toBe(
+      'before *** after\n',
+    );
+  });
+
+  it('emits an overlong line in pieces, still catching a secret split between them', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+    const filler = 'x'.repeat(64 * 1024);
+
+    const first = redactor.push(`${filler} hunter2`);
+    const rest = redactor.push('secret end') + redactor.flush();
+
+    expect(first.length).toBeGreaterThan(0);
+    expect(first + rest).toBe(`${filler} *** end`);
   });
 });
