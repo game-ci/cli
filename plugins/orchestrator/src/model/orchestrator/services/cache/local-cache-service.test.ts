@@ -142,7 +142,9 @@ describe('LocalCacheService', () => {
       expect(result).toBe(false);
     });
 
-    it('should restore from the latest tar file on cache hit', async () => {
+    it('should restore from the latest tar file on cache hit (explicit tar mode)', async () => {
+      // move-directory is the default since #40; tar remains available as an explicit opt-in
+      // (e.g. for distributing cache entries via the rclone/S3 built-in container hooks).
       (mockFs.existsSync as vi.Mock).mockReturnValue(true);
       (mockFs.readdirSync as vi.Mock).mockReturnValue(['lib-1000.tar', 'lib-2000.tar']);
       (mockFs.statSync as vi.Mock).mockImplementation((filePath: string) => ({
@@ -150,7 +152,9 @@ describe('LocalCacheService', () => {
       }));
       (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
 
-      const result = await LocalCacheService.restoreLibraryCache('/project', '/cache', 'key1');
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1', {
+        restoreMode: 'tar',
+      });
 
       expect(result).toBe(true);
       expect(OrchestratorSystem.Run).toHaveBeenCalledWith(
@@ -193,6 +197,49 @@ describe('LocalCacheService', () => {
       });
       expect(mockFs.renameSync).not.toHaveBeenCalled();
     });
+
+    it('should default to move-directory (rename) when no restoreMode is specified', async () => {
+      const cachePath = path.join('/cache', 'key1', 'Library');
+      const destPath = path.join('/project', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1');
+
+      expect(result).toBe(true);
+      expect(mockFs.renameSync).toHaveBeenCalledWith(cachePath, destPath);
+      expect(mockFs.cpSync).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to copy when rename fails with EXDEV (cross-volume)', async () => {
+      const cachePath = path.join('/cache', 'key1', 'Library');
+      const destPath = path.join('/project', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockImplementationOnce(() => {
+        const error: any = new Error('cross-device link');
+        error.code = 'EXDEV';
+        throw error;
+      });
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1');
+
+      expect(result).toBe(true);
+      expect(mockFs.renameSync).toHaveBeenCalledWith(cachePath, destPath);
+      const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(cachePath, staging, { recursive: true });
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, destPath);
+      expect(mockFs.rmSync).toHaveBeenCalledWith(cachePath, { recursive: true, force: true });
+    });
   });
 
   describe('saveLibraryCache', () => {
@@ -209,7 +256,8 @@ describe('LocalCacheService', () => {
       expect(mockFs.mkdirSync).not.toHaveBeenCalled();
     });
 
-    it('should create cache directory and save tar', async () => {
+    it('should create cache directory and save tar (explicit tar mode)', async () => {
+      // move-directory is the default since #40; tar remains available as an explicit opt-in.
       (mockFs.existsSync as vi.Mock).mockReturnValue(true);
       (mockFs.readdirSync as vi.Mock).mockImplementation((dirPath: string) => {
         if (String(dirPath).includes('Library') && !String(dirPath).includes('cache')) {
@@ -222,11 +270,57 @@ describe('LocalCacheService', () => {
 
       OrchestratorSystem.Run.mockResolvedValue('');
 
-      await LocalCacheService.saveLibraryCache('/project', '/cache', 'key1');
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', { saveMode: 'tar' });
       expect(mockFs.mkdirSync).toHaveBeenCalledWith(path.join('/cache', 'key1', 'Library'), {
         recursive: true,
       });
       expect(OrchestratorSystem.Run).toHaveBeenCalledWith(expect.stringContaining('tar -cf'), true);
+    });
+
+    it('should default to move-directory (rename) when no saveMode is specified', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockReturnValue(undefined);
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1');
+
+      expect(mockFs.renameSync).toHaveBeenCalledWith(folderPath, cachePath);
+      expect(mockFs.cpSync).not.toHaveBeenCalled();
+      expect(OrchestratorSystem.Run).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to copy when save rename fails with EXDEV (cross-volume)', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockImplementationOnce(() => {
+        const error: any = new Error('cross-device link');
+        error.code = 'EXDEV';
+        throw error;
+      });
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1');
+
+      expect(mockFs.renameSync).toHaveBeenCalledWith(folderPath, cachePath);
+      const staging = expect.stringContaining(path.join('/cache', 'key1', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(folderPath, staging, { recursive: true });
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, cachePath);
+      expect(mockFs.rmSync).toHaveBeenCalledWith(folderPath, { recursive: true, force: true });
     });
   });
 
@@ -271,6 +365,7 @@ describe('LocalCacheService', () => {
       OrchestratorSystem.Run.mockResolvedValue('');
 
       await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'tar',
         skipOnCrashEvidence: true,
         diagnostics: { importCompleted: true, crashEvidenceFound: true },
       });

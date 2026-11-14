@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { OrchestratorSystem } from '../core/orchestrator-system';
 import OrchestratorLogger from '../core/orchestrator-logger';
+import { moveDirectory } from './move-directory';
 import { getEngine } from '../../../engine';
 
 export type LocalCacheMode = 'tar' | 'move-directory' | 'copy-directory';
@@ -246,8 +247,13 @@ export class LocalCacheService {
         return false;
       }
 
-      if (options.restoreMode && options.restoreMode !== 'tar') {
-        return LocalCacheService.restoreDirectoryCache(projectPath, cachePath, folder, options);
+      // move-directory is the default mode (O(1) rename); tar is opt-in for cases that
+      // need it (e.g. distributing cache entries via the rclone/S3 built-in container hooks).
+      if (options.restoreMode !== 'tar') {
+        return LocalCacheService.restoreDirectoryCache(projectPath, cachePath, folder, {
+          ...options,
+          restoreMode: options.restoreMode ?? 'move-directory',
+        });
       }
 
       const files = fs.readdirSync(cachePath).filter((f) => f.endsWith('.tar'));
@@ -364,11 +370,15 @@ export class LocalCacheService {
       const cachePath = path.join(cacheRoot, cacheKey, folder);
       fs.mkdirSync(cachePath, { recursive: true });
 
-      if (options.saveMode && options.saveMode !== 'tar') {
+      // move-directory is the default mode (O(1) rename); tar is opt-in for cases that
+      // need it (e.g. distributing cache entries via the rclone/S3 built-in container hooks).
+      if (options.saveMode !== 'tar') {
+        const directorySaveMode: 'move-directory' | 'copy-directory' =
+          options.saveMode === 'copy-directory' ? 'copy-directory' : 'move-directory';
         LocalCacheService.saveDirectoryCache(
           folderPath,
           cachePath,
-          options.saveMode,
+          directorySaveMode,
           options.backgroundSave,
         );
 
@@ -414,7 +424,7 @@ export class LocalCacheService {
       const entries = fs.readdirSync(cachePath);
       if (entries.length > 0 && entries.every((entry) => entry.endsWith('.tar'))) {
         OrchestratorLogger.logWarning(
-          `[LocalCache] ${folder} cache at ${cachePath} contains tar archives; use localCacheMode=tar to restore it`,
+          `[LocalCache] ${folder} cache at ${cachePath} contains tar archives; use cacheMode=tar to restore it`,
         );
 
         return false;
@@ -428,7 +438,7 @@ export class LocalCacheService {
       if (options.restoreMode === 'copy-directory') {
         fs.cpSync(cachePath, dest, { recursive: true });
       } else {
-        fs.renameSync(cachePath, dest);
+        LocalCacheService.renameOrCopy(cachePath, dest);
       }
 
       if (
@@ -874,12 +884,33 @@ export class LocalCacheService {
     if (saveMode === 'copy-directory') {
       fs.cpSync(folderPath, cachePath, { recursive: true });
     } else {
-      fs.renameSync(folderPath, cachePath);
+      LocalCacheService.renameOrCopy(folderPath, cachePath);
     }
 
     OrchestratorLogger.log(
       `[LocalCache] ${path.basename(folderPath)} directory cache saved successfully`,
     );
+  }
+
+  /**
+   * Moves a directory, degrading to a staged copy when localCacheRoot sits on
+   * another volume than the workspace: slower, but the build keeps working
+   * instead of failing every restore and save.
+   */
+  private static renameOrCopy(source: string, destination: string): void {
+    const move = moveDirectory(source, destination);
+    if (move.method === 'rename') return;
+
+    OrchestratorLogger.logWarning(
+      `[LocalCache] move-directory rename failed (${move.renameError}) from ${source} to ` +
+        `${destination}; copied instead. This is slower - consider configuring ` +
+        `localCacheRoot on the same volume as the workspace.`,
+    );
+    if (move.sourceCleanupError) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] copied ${source} to ${destination} but could not remove the source: ${move.sourceCleanupError}`,
+      );
+    }
   }
 
   /**

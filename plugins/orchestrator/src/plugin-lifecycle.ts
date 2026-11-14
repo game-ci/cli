@@ -85,6 +85,8 @@ function getNumber(name: string, defaultValue: number): number {
 // Lazy getters — values are read from env/inputs at access time,
 // so they pick up whatever the composite action or user has set.
 
+let hasWarnedDeprecatedCacheMode = false;
+
 const config = {
   // Provider
   get providerStrategy() {
@@ -271,17 +273,32 @@ const config = {
   get localCacheFallbackKeys() {
     return getInput('localCacheFallbackKeys');
   },
-  get localCacheMode() {
-    const mode = getInput('localCacheMode') || 'tar';
+  get cacheMode() {
+    const explicitCacheMode = getInput('cacheMode');
+    const legacyLocalCacheMode = getInput('localCacheMode');
+    if (!explicitCacheMode && legacyLocalCacheMode && !hasWarnedDeprecatedCacheMode) {
+      hasWarnedDeprecatedCacheMode = true;
+      core.warning(
+        "[plugin-lifecycle] Input 'localCacheMode' is deprecated — use 'cacheMode' instead. " +
+          "'local' no longer accurately describes this input now that distributed rclone/S3 " +
+          'caching is a supported mode too. localCacheMode will keep working for now, but ' +
+          'prefer cacheMode going forward — see game-ci/roadmap#11.',
+      );
+    }
+    const mode = explicitCacheMode || legacyLocalCacheMode || 'move-directory';
     if (mode === 'canonical-overlay') {
       throw new Error(
-        '[plugin-lifecycle] localCacheMode: canonical-overlay has been removed. ' +
+        '[plugin-lifecycle] cacheMode: canonical-overlay has been removed. ' +
           "Use 'move-directory' (recommended for retained runners/build farms) or 'tar' " +
           '(recommended for remote/ephemeral caches, or combine with rclone/S3 built-in ' +
           'container hooks — see the caching docs for details).',
       );
     }
     return mode;
+  },
+  /** @deprecated Use `cacheMode` instead — kept only so internal call sites reading the old property name don't need to change too. */
+  get localCacheMode() {
+    return config.cacheMode;
   },
   get maxCacheEntries() {
     return Number(getInput('maxCacheEntries')) || 2;
@@ -616,7 +633,7 @@ export function createPlugin(): OrchestratorPlugin {
             : [];
           await LocalCacheService.restoreEngineCache(projectFullPath, cacheRoot, cacheKey, {
             fallbackKeys,
-            restoreMode: config.localCacheMode as any,
+            restoreMode: config.cacheMode as any,
           });
         }
       }
@@ -802,7 +819,7 @@ export function createPlugin(): OrchestratorPlugin {
         if (config.localCacheLibrary) {
           const projectFullPath = path.join(ws, coreParams.projectPath);
           await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
-            saveMode: config.localCacheMode as any,
+            saveMode: config.cacheMode as any,
             skipOnLfsPointerPoisoning: true,
             backgroundSave: config.backgroundCacheSave,
             maxCacheEntries: config.maxCacheEntries,

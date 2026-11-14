@@ -485,10 +485,14 @@ inputs:
     required: false
     default: ''
     description: 'Comma-separated explicit local cache fallback keys to try after the exact key.'
+  cacheMode:
+    required: false
+    default: ''
+    description: 'Library cache mode: move-directory (default, O(1) rename, falls back to copy across filesystem volumes), copy-directory, or tar (opt-in — needed when distributing cache entries via the rclone/S3 built-in container hooks). Renamed from localCacheMode, which still works as a deprecated alias — see game-ci/roadmap#11. NOTE: canonical-overlay has been removed — setting it now throws a clear error instead of running.'
   localCacheMode:
     required: false
-    default: 'tar'
-    description: 'Local Library cache mode: tar, copy-directory, or move-directory. move-directory is intended for same-volume Windows self-hosted runners. NOTE: canonical-overlay has been removed (see game-ci/roadmap#11) — setting it now throws a clear error instead of running.'
+    default: ''
+    description: 'Deprecated alias for cacheMode — "local" no longer accurately describes this input now that distributed rclone/S3 caching is a supported mode too. Still works, but prefer cacheMode. Will be removed in a future major version.'
   upmOfflineEnabled:
     required: false
     default: 'false'
@@ -894,6 +898,7 @@ runs:
         INPUT_LOCALCACHELFS: ${{ inputs.localCacheLfs }}
         INPUT_LOCALCACHEFALLBACK: ${{ inputs.localCacheFallback }}
         INPUT_LOCALCACHEFALLBACKKEYS: ${{ inputs.localCacheFallbackKeys }}
+        INPUT_CACHEMODE: ${{ inputs.cacheMode }}
         INPUT_LOCALCACHEMODE: ${{ inputs.localCacheMode }}
         INPUT_UPMOFFLINEENABLED: ${{ inputs.upmOfflineEnabled }}
         INPUT_BACKGROUNDCACHESAVE: ${{ inputs.backgroundCacheSave }}

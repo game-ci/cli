@@ -103,6 +103,21 @@ describe('CLI Plugin Adapter', () => {
       expect(bp.engine).toBe('unity');
     });
 
+    it('defaults the cache mode to move-directory', () => {
+      expect(createBuildParametersFromCliOptions({}).localCacheMode).toBe('move-directory');
+    });
+
+    it('prefers cacheMode, keeping localCacheMode as a deprecated alias', () => {
+      expect(createBuildParametersFromCliOptions({ cacheMode: 'tar' }).localCacheMode).toBe('tar');
+      expect(
+        createBuildParametersFromCliOptions({ localCacheMode: 'copy-directory' }).localCacheMode,
+      ).toBe('copy-directory');
+      expect(
+        createBuildParametersFromCliOptions({ cacheMode: 'tar', localCacheMode: 'copy-directory' })
+          .localCacheMode,
+      ).toBe('tar');
+    });
+
     it('applies defaults for missing options', () => {
       const bp = createBuildParametersFromCliOptions({});
 

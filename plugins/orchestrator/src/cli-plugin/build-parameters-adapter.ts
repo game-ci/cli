@@ -119,7 +119,9 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.localCacheFallback =
     options.localCacheFallback === true || options.localCacheFallback === 'true';
   bp.localCacheFallbackKeys = options.localCacheFallbackKeys || '';
-  bp.localCacheMode = options.localCacheMode || 'tar';
+  // cacheMode replaces localCacheMode, which stays as a deprecated alias. move-directory is an O(1)
+  // rename (falling back to a staged copy across volumes); tar stays opt-in, e.g. for rclone/S3 hooks.
+  bp.localCacheMode = options.cacheMode || options.localCacheMode || 'move-directory';
   bp.localCacheSaveOnFailure =
     options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
   bp.localCacheFloorCorruptionCategories = options.localCacheFloorCorruptionCategories || '';
