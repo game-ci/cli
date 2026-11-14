@@ -161,4 +161,25 @@ describe('createStreamRedactor', () => {
     expect(first.length).toBeGreaterThan(0);
     expect(first + rest).toBe(`${filler} *** end`);
   });
+
+  it('masks each part of a secret split by a bare carriage return', () => {
+    SecretRedaction.register('abcd\refgh');
+    const redactor = createStreamRedactor();
+
+    const out = redactor.push('abcd\r') + redactor.push('efgh\n') + redactor.flush();
+
+    expect(out).not.toContain('abcd');
+    expect(out).not.toContain('efgh');
+  });
+
+  it('keeps a surrogate pair together at the overlong-line boundary', () => {
+    SecretRedaction.register('abcd');
+    const redactor = createStreamRedactor();
+    const text = `${'x'.repeat(64 * 1024)}😀${'y'.repeat(6)}`;
+
+    const pieces = [redactor.push(text), redactor.flush()];
+    const encodedSeparately = Buffer.concat(pieces.map((piece) => Buffer.from(piece, 'utf8'))).toString('utf8');
+
+    expect(encodedSeparately).toBe(text);
+  });
 });

@@ -127,7 +127,7 @@ function streamPatterns(): RegExp[] {
   for (const secret of secrets) {
     values.add(secret);
 
-    for (const line of secret.split(/\r?\n/)) {
+    for (const line of secret.split(/\r\n|[\r\n]/)) {
       const trimmed = line.trim();
       if (trimmed.length >= minimumSecretLength) values.add(trimmed);
     }
@@ -143,6 +143,8 @@ function streamPatterns(): RegExp[] {
  * stderr interleave intact, and nothing is held back beyond the line still
  * being written. flush() emits whatever remains.
  */
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+
 function createStreamRedactor() {
   let pending = '';
 
@@ -170,6 +172,9 @@ function createStreamRedactor() {
         }
       }
     }
+
+    // Never emit half of a surrogate pair: each piece is UTF-8 encoded on its own.
+    if (cut < pending.length && isHighSurrogate(pending.charCodeAt(cut - 1))) cut -= 1;
 
     if (cut <= 0) return '';
 
