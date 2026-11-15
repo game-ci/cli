@@ -31,7 +31,8 @@ export function parseSteamCmdOutput(output: string, exitCode: number): SteamCmdP
 
   const successConfirmed = /Successfully finished/.test(output);
   const disconnected = /disconnected from steam/i.test(output);
-  const errorBuild = /ERROR!.*Build for depot.*failed/.test(output);
+  const errorBuildMatch = /ERROR!.*Build for depot\s+(\d+).*failed/i.exec(output);
+  const errorBuild = /ERROR!.*Build for depot.*failed/i.test(output);
   const errorChunks = /ERROR!.*Failed to get list of missing chunks/.test(output);
   const loginFailed = /Logging in.*FAILED|Login Failure/i.exec(output);
 
@@ -46,7 +47,13 @@ export function parseSteamCmdOutput(output: string, exitCode: number): SteamCmdP
   const reasons: string[] = [];
   if (disconnected) reasons.push("Steam connection dropped (request revoked)");
   if (errorChunks) reasons.push("failed to get list of missing chunks (lost connection)");
-  if (errorBuild) reasons.push("depot build reported failure");
+  if (errorBuild) {
+    reasons.push(
+      errorBuildMatch
+        ? `depot build reported failure for depot ${errorBuildMatch[1]}`
+        : "depot build reported failure",
+    );
+  }
   if (loginFailed) reasons.push("login failed");
   if (reasons.length === 0) {
     // No known failure signature matched - surface the tail of the actual

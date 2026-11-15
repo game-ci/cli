@@ -22,6 +22,8 @@ export interface SteamDeployOptions {
    * sequence starts - matches steam-deploy's own firstDepotIdOverride input.
    */
   firstDepotIdOverride?: string;
+  /** Do not build the primary --depotId depot; useful when only extra depots are configured. */
+  skipPrimaryDepot?: boolean;
   depotPath?: string;
   depotInstallScriptPath?: string;
   /** Each entry "localPath=depotPath" - replaces the primary depot's single depotPath mapping with explicit FileMapping blocks. */
@@ -89,6 +91,11 @@ export class SteamDeployCommand {
           "Depot ID to start numbering extra depots (depot1Path..depot9Path) from. Defaults to depotId+1, depotId+2, ...",
         type: "string",
       })
+      .option("skipPrimaryDepot", {
+        describe: "Do not include the primary --depotId depot in this app build.",
+        type: "boolean",
+        default: false,
+      })
       .option("depotPath", {
         describe: "Path (relative to the build) mapped by the primary --depotId depot. Defaults to the whole build.",
         type: "string",
@@ -112,6 +119,10 @@ export class SteamDeployCommand {
 
     for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
       yargs
+        .option(`depot${index}Id`, {
+          describe: `Explicit Steam depot ID for extra depot #${index}. Defaults to depotId+${index} (or firstDepotIdOverride+${index - 1}).`,
+          type: "string",
+        })
         .option(`depot${index}Path`, {
           describe: `Path (relative to the build) mapped by extra depot #${index}, beyond the primary --depotId depot.`,
           type: "string",
@@ -161,6 +172,16 @@ export class SteamDeployCommand {
     const includeDebugSymbols = options.debugBranch ?? false;
     const fileMappings = this.parseFileMappings(options.fileMapping);
     const fileProperties = this.parseFileProperties(options.fileProperty);
+    const skipPrimaryDepot = options.skipPrimaryDepot ?? false;
+
+    if (
+      skipPrimaryDepot &&
+      (options.depotPath || options.depotInstallScriptPath || fileMappings || fileProperties || extraExclusions)
+    ) {
+      throw new Error(
+        "--skipPrimaryDepot cannot be combined with --depotPath, --depotInstallScriptPath, --fileMapping, --fileProperty, or --extraExclusions.",
+      );
+    }
 
     const absoluteBuildPath = path.resolve(buildPath);
     const contentRoot = resolveUseDocker(mode, options.steamCmdPath) ? "/build" : absoluteBuildPath.replace(/\\/g, "/");
@@ -168,9 +189,26 @@ export class SteamDeployCommand {
     const extraDepots = this.collectExtraDepots(options, depotId);
     const primaryLocalPath = options.depotPath ? `./${options.depotPath.replace(/^\.?\/*/, "")}/*` : undefined;
     const allDepots = [
-      { depotId, localPath: primaryLocalPath, installScript: options.depotInstallScriptPath },
-      ...extraDepots,
+      ...(skipPrimaryDepot
+        ? []
+        : [{ depotId, localPath: primaryLocalPath, installScript: options.depotInstallScriptPath, isPrimary: true }]),
+      ...extraDepots.map((depot) => ({ ...depot, isPrimary: false })),
     ];
+
+    if (allDepots.length === 0) {
+      throw new Error("At least one depot path must be configured when --skipPrimaryDepot is set.");
+    }
+
+    const configuredDepotIds = new Set<string>();
+    for (const depot of allDepots) {
+      if (!/^\d+$/.test(depot.depotId)) {
+        throw new Error(`Invalid Steam depot ID "${depot.depotId}": depot IDs must contain digits only.`);
+      }
+      if (configuredDepotIds.has(depot.depotId)) {
+        throw new Error(`Duplicate Steam depot ID "${depot.depotId}" in this app build.`);
+      }
+      configuredDepotIds.add(depot.depotId);
+    }
 
     const depotEntries = allDepots.map((depot) => ({
       depotId: depot.depotId,
@@ -178,14 +216,13 @@ export class SteamDeployCommand {
     }));
 
     for (const depot of allDepots) {
-      const isPrimaryDepot = depot.depotId === depotId;
       const depotVdf = generateDepotVdf({
         depotId: depot.depotId,
         localPath: depot.localPath,
-        fileMappings: isPrimaryDepot ? fileMappings : undefined,
-        fileProperties: isPrimaryDepot ? fileProperties : undefined,
+        fileMappings: depot.isPrimary ? fileMappings : undefined,
+        fileProperties: depot.isPrimary ? fileProperties : undefined,
         installScript: depot.installScript,
-        extraExclusions: isPrimaryDepot ? extraExclusions : undefined,
+        extraExclusions: depot.isPrimary ? extraExclusions : undefined,
         includeDebugSymbols,
       });
       fs.writeFileSync(path.join(absoluteBuildPath, `depot_build_${depot.depotId}.vdf`), depotVdf, "utf8");
@@ -264,9 +301,8 @@ export class SteamDeployCommand {
 
   /**
    * Reads depot1Path..depot9Path (+ matching depot{n}InstallScriptPath) and
-   * assigns each a sequential depot ID after the primary --depotId, starting
-   * from --firstDepotIdOverride if given - matches steam-deploy's own
-   * up-to-9-extra-depots convention.
+   * assigns each its explicit depotNId when supplied, otherwise deriving its
+   * ID from its slot (so unset slots do not renumber later depots).
    */
   private collectExtraDepots(
     options: SteamDeployOptions,
@@ -279,10 +315,16 @@ export class SteamDeployCommand {
     const extras: Array<{ depotId: string; localPath: string; installScript?: string }> = [];
     for (let index = 1; index <= MAX_EXTRA_DEPOTS; index++) {
       const localPath = options[`depot${index}Path`] as string | undefined;
-      if (!localPath) continue;
+      const explicitDepotId = options[`depot${index}Id`] as string | undefined;
+      if (!localPath) {
+        if (explicitDepotId) {
+          throw new Error(`--depot${index}Id requires --depot${index}Path.`);
+        }
+        continue;
+      }
 
       extras.push({
-        depotId: String(firstExtraId + extras.length),
+        depotId: explicitDepotId ?? String(firstExtraId + index - 1),
         localPath: `./${localPath.replace(/^\.?\/*/, "")}/*`,
         installScript: options[`depot${index}InstallScriptPath`] as string | undefined,
       });
