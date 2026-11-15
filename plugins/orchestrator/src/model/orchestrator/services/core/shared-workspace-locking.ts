@@ -68,7 +68,14 @@ export class SharedWorkspaceLocking {
       if (region && region !== 'us-east-1') {
         createParameters.CreateBucketConfiguration = { LocationConstraint: region };
       }
-      await SharedWorkspaceLocking.s3.send(new CreateBucketCommand(createParameters));
+      try {
+        await SharedWorkspaceLocking.s3.send(new CreateBucketCommand(createParameters));
+      } catch (createError: any) {
+        // Another process (or the test harness) can create the bucket between
+        // HeadBucket and CreateBucket. S3 reports that as
+        // BucketAlreadyOwnedByYou; the bucket is ready for use in this case.
+        if (createError?.name !== 'BucketAlreadyOwnedByYou') throw createError;
+      }
     }
   }
   private static async listObjects(
