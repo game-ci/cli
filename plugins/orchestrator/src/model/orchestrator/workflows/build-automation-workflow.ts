@@ -704,7 +704,12 @@ echo "CACHE_KEY=$CACHE_KEY"`;
       // project is assumed already checked out and hydrated at GITHUB_WORKSPACE
       // (set to process.cwd() above), so there is nothing to clone or hydrate.
       const stepsDir = OrchestratorFolders.ToLinuxFolder(
-        path.join(process.cwd(), 'dist', 'platforms', 'ubuntu', 'steps'),
+        path.join(
+          process.env.GAME_CI_CLI_DIST_PATH || path.join(process.cwd(), 'dist'),
+          'platforms',
+          'ubuntu',
+          'steps',
+        ),
       );
 
       // prettier-ignore

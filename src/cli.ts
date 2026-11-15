@@ -57,6 +57,11 @@ export class Cli {
     this.cliDistPath = isCompiledBinary
       ? EmbeddedAssets.resolve(path.join(__dirname, "dist"))
       : path.join(path.dirname(__dirname), "dist");
+
+    // Workspace plugins such as the orchestrator need the same platform
+    // scripts and builder assets as the CLI. Expose their resolved location
+    // so plugin code does not guess from the caller's working directory.
+    process.env.GAME_CI_CLI_DIST_PATH ??= this.cliDistPath;
   }
 
   public async setup() {
