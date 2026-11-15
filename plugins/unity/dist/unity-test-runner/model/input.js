@@ -111,6 +111,7 @@ class Input {
         let unitySerial = process.env['UNITY_SERIAL'] ?? '';
         const customParameters = (0, core_1.getInput)('customParameters') || '';
         const testMode = ((0, core_1.getInput)('testMode') || 'all').toLowerCase();
+        const rawCoverageEnabled = (0, core_1.getInput)('coverageEnabled') || 'true';
         const coverageOptions = (0, core_1.getInput)('coverageOptions') || '';
         const rawArtifactsPath = (0, core_1.getInput)('artifactsPath') || 'artifacts';
         const rawUseHostNetwork = (0, core_1.getInput)('useHostNetwork') || 'false';
@@ -169,6 +170,9 @@ class Input {
         if (rawPackageMode !== 'true' && rawPackageMode !== 'false') {
             throw new Error(`Invalid packageMode "${rawPackageMode}"`);
         }
+        if (rawCoverageEnabled !== 'true' && rawCoverageEnabled !== 'false') {
+            throw new Error(`Invalid coverageEnabled "${rawCoverageEnabled}"`);
+        }
         if (rawSshPublicKeysDirectoryPath !== '' && sshAgent === '') {
             throw new Error('sshPublicKeysDirectoryPath is set, but sshAgent is not set. sshPublicKeysDirectoryPath is useful only when using sshAgent.');
         }
@@ -211,6 +215,7 @@ class Input {
         const artifactsPath = rawArtifactsPath.replace(/\/$/, '');
         const sshPublicKeysDirectoryPath = rawSshPublicKeysDirectoryPath.replace(/\/$/, '');
         const useHostNetwork = rawUseHostNetwork === 'true';
+        const coverageEnabled = rawCoverageEnabled === 'true';
         const editorVersion = unityVersion === 'auto' ? unity_version_parser_1.default.read(projectPath) : unityVersion;
         // Return sanitised input
         return {
@@ -219,6 +224,7 @@ class Input {
             projectPath,
             customParameters,
             testMode,
+            coverageEnabled,
             coverageOptions,
             artifactsPath,
             useHostNetwork,

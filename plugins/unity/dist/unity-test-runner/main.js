@@ -40,7 +40,7 @@ async function run() {
     try {
         model_1.Action.checkCompatibility();
         const { workspace, actionFolder } = model_1.Action;
-        const { editorVersion, customImage, projectPath, customParameters, testMode, coverageOptions, artifactsPath, useHostNetwork, sshAgent, sshPublicKeysDirectoryPath, gitPrivateToken, githubToken, checkName, packageMode, packageName, scopedRegistryUrl, registryScopes, chownFilesTo, dockerCpuLimit, dockerMemoryLimit, dockerIsolationMode, unityLicensingServer, runAsHostUser, containerRegistryRepository, containerRegistryImageVersion, unitySerial, } = model_1.Input.getFromUser();
+        const { editorVersion, customImage, projectPath, customParameters, testMode, coverageEnabled, coverageOptions, artifactsPath, useHostNetwork, sshAgent, sshPublicKeysDirectoryPath, gitPrivateToken, githubToken, checkName, packageMode, packageName, scopedRegistryUrl, registryScopes, chownFilesTo, dockerCpuLimit, dockerMemoryLimit, dockerIsolationMode, unityLicensingServer, runAsHostUser, containerRegistryRepository, containerRegistryImageVersion, unitySerial, } = model_1.Input.getFromUser();
         const baseImage = new model_1.ImageTag({
             editorVersion,
             customImage,
@@ -56,6 +56,7 @@ async function run() {
                 projectPath,
                 customParameters,
                 testMode,
+                coverageEnabled,
                 coverageOptions,
                 artifactsPath,
                 useHostNetwork,
