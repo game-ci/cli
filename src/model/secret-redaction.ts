@@ -136,6 +136,8 @@ function streamPatterns(): RegExp[] {
   return [...values].sort((a, b) => b.length - a.length).map((value) => secretPattern(value));
 }
 
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+
 /**
  * Redacts text that arrives in pieces (live subprocess output). Text is
  * emitted a whole line at a time, the way the GitHub Actions runner masks its
@@ -143,8 +145,6 @@ function streamPatterns(): RegExp[] {
  * stderr interleave intact, and nothing is held back beyond the line still
  * being written. flush() emits whatever remains.
  */
-const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
-
 function createStreamRedactor() {
   let pending = '';
 
