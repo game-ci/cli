@@ -198,6 +198,31 @@ describe('LocalCacheService', () => {
       expect(mockFs.renameSync).not.toHaveBeenCalled();
     });
 
+    it('should copy, not move, a fallback directory cache when restoreMode is omitted', async () => {
+      const exactPath = path.join('/cache', 'exact', 'Library');
+      const fallbackPath = path.join('/cache', 'fallback', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath !== exactPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'exact', {
+        fallbackKeys: ['fallback'],
+      });
+
+      expect(result).toBe(true);
+      expect(mockFs.cpSync).toHaveBeenCalledWith(fallbackPath, path.join('/project', 'Library'), {
+        recursive: true,
+      });
+      expect(mockFs.renameSync).not.toHaveBeenCalled();
+      expect(mockFs.rmSync).not.toHaveBeenCalledWith(fallbackPath, expect.anything());
+    });
+
     it('should default to move-directory (rename) when no restoreMode is specified', async () => {
       const cachePath = path.join('/cache', 'key1', 'Library');
       const destPath = path.join('/project', 'Library');
@@ -236,7 +261,10 @@ describe('LocalCacheService', () => {
       expect(result).toBe(true);
       expect(mockFs.renameSync).toHaveBeenCalledWith(cachePath, destPath);
       const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
-      expect(mockFs.cpSync).toHaveBeenCalledWith(cachePath, staging, { recursive: true });
+      expect(mockFs.cpSync).toHaveBeenCalledWith(cachePath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
       expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, destPath);
       expect(mockFs.rmSync).toHaveBeenCalledWith(cachePath, { recursive: true, force: true });
     });
@@ -318,7 +346,10 @@ describe('LocalCacheService', () => {
 
       expect(mockFs.renameSync).toHaveBeenCalledWith(folderPath, cachePath);
       const staging = expect.stringContaining(path.join('/cache', 'key1', '.Library.partial-'));
-      expect(mockFs.cpSync).toHaveBeenCalledWith(folderPath, staging, { recursive: true });
+      expect(mockFs.cpSync).toHaveBeenCalledWith(folderPath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
       expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, cachePath);
       expect(mockFs.rmSync).toHaveBeenCalledWith(folderPath, { recursive: true, force: true });
     });

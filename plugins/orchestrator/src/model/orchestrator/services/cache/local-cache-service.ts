@@ -199,6 +199,7 @@ export class LocalCacheService {
     folder: string,
     options: LocalCacheRestoreOptions = {},
   ): Promise<boolean> {
+    const restoreMode: LocalCacheMode = options.restoreMode ?? 'move-directory';
     const candidates = [
       cacheKey,
       ...(options.fallbackKeys || []).filter((key) => key !== cacheKey),
@@ -206,10 +207,12 @@ export class LocalCacheService {
 
     for (const candidateKey of candidates) {
       const isFallback = candidateKey !== cacheKey;
-      const candidateOptions =
-        isFallback && options.restoreMode === 'move-directory'
-          ? { ...options, restoreMode: 'copy-directory' as const }
-          : options;
+      // A fallback entry belongs to another key: copy it rather than move it, so it stays reusable.
+      const candidateOptions: LocalCacheRestoreOptions = {
+        ...options,
+        restoreMode:
+          isFallback && restoreMode === 'move-directory' ? 'copy-directory' : restoreMode,
+      };
 
       if (
         await LocalCacheService.restoreCacheFolderCandidate(

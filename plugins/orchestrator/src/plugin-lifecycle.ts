@@ -45,6 +45,7 @@ import { OutputService } from './model/orchestrator/services/output/output-servi
 import { OutputTypeRegistry } from './model/orchestrator/services/output/output-type-registry';
 import { ArtifactUploadHandler } from './model/orchestrator/services/output/artifact-upload-handler';
 import { IncrementalSyncService } from './model/orchestrator/services/sync';
+import { resolveCacheMode } from './model/orchestrator/services/cache/cache-mode';
 
 // ── Input helpers ────────────────────────────────────────────────────
 
@@ -285,16 +286,7 @@ const config = {
           'prefer cacheMode going forward — see game-ci/roadmap#11.',
       );
     }
-    const mode = explicitCacheMode || legacyLocalCacheMode || 'move-directory';
-    if (mode === 'canonical-overlay') {
-      throw new Error(
-        '[plugin-lifecycle] cacheMode: canonical-overlay has been removed. ' +
-          "Use 'move-directory' (recommended for retained runners/build farms) or 'tar' " +
-          '(recommended for remote/ephemeral caches, or combine with rclone/S3 built-in ' +
-          'container hooks — see the caching docs for details).',
-      );
-    }
-    return mode;
+    return resolveCacheMode(explicitCacheMode, legacyLocalCacheMode);
   },
   /** @deprecated Use `cacheMode` instead — kept only so internal call sites reading the old property name don't need to change too. */
   get localCacheMode() {

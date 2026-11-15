@@ -98,4 +98,14 @@ describe('moveDirectory', () => {
     expect(() => moveDirectory(source, destination)).toThrow('ENOENT');
     expect(fs.existsSync(destination)).toBe(false);
   });
+
+  it('keeps relative symlinks working after a copy fallback removes the source', () => {
+    fs.symlinkSync('a.asset', path.join(source, 'link.asset'));
+    refuseFirstRename('EXDEV');
+
+    moveDirectory(source, destination);
+
+    expect(fs.readlinkSync(path.join(destination, 'link.asset'))).toBe('a.asset');
+    expect(fs.readFileSync(path.join(destination, 'link.asset'), 'utf8')).toBe('a');
+  });
 });

@@ -2,6 +2,7 @@ import BuildParameters from '../model/build-parameters';
 import { customAlphabet } from 'nanoid';
 import OrchestratorConstants from '../model/orchestrator/options/orchestrator-constants';
 import { initEngine } from '../model/engine';
+import { resolveCacheMode } from '../model/orchestrator/services/cache/cache-mode';
 
 /**
  * Maps CLI yargs options (flat key-value pairs) into a BuildParameters object.
@@ -121,7 +122,7 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.localCacheFallbackKeys = options.localCacheFallbackKeys || '';
   // cacheMode replaces localCacheMode, which stays as a deprecated alias. move-directory is an O(1)
   // rename (falling back to a staged copy across volumes); tar stays opt-in, e.g. for rclone/S3 hooks.
-  bp.localCacheMode = options.cacheMode || options.localCacheMode || 'move-directory';
+  bp.localCacheMode = resolveCacheMode(options.cacheMode, options.localCacheMode);
   bp.localCacheSaveOnFailure =
     options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
   bp.localCacheFloorCorruptionCategories = options.localCacheFloorCorruptionCategories || '';

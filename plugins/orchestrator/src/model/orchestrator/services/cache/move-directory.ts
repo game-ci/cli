@@ -53,7 +53,8 @@ function copyIntoPlace(source: string, destination: string): void {
   );
 
   try {
-    fs.cpSync(source, staging, { recursive: true });
+    // verbatimSymlinks keeps relative links relative; resolved, they would point into the removed source.
+    fs.cpSync(source, staging, { recursive: true, verbatimSymlinks: true });
     fs.renameSync(staging, destination);
   } catch (error) {
     fs.rmSync(staging, { recursive: true, force: true });
