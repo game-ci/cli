@@ -163,6 +163,14 @@ export class SteamDeployCommand {
 
     const appId = options.appId!;
     const depotId = options.depotId!;
+    if (!/^\d+$/.test(depotId)) {
+      throw new Error(`Invalid Steam depot ID "${depotId}": depot IDs must contain digits only.`);
+    }
+    if (options.firstDepotIdOverride && !/^\d+$/.test(options.firstDepotIdOverride)) {
+      throw new Error(
+        `Invalid first depot ID override "${options.firstDepotIdOverride}": depot IDs must contain digits only.`,
+      );
+    }
     const branch = options.branch ?? "default";
     const description = options.description ?? `${branch} build ${new Date().toISOString()}`;
     const mode = (options.mode ?? "auto") as "auto" | "local" | "docker";

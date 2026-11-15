@@ -33,7 +33,7 @@ export function parseSteamCmdOutput(output: string, exitCode: number): SteamCmdP
   const disconnected = /disconnected from steam/i.test(output);
   const errorBuildMatch = /ERROR!.*Build for depot\s+(\d+).*failed/i.exec(output);
   const errorBuild = /ERROR!.*Build for depot.*failed/i.test(output);
-  const errorChunks = /ERROR!.*Failed to get list of missing chunks/.test(output);
+  const errorChunks = /ERROR!.*Failed to get list of missing chunks/i.test(output);
   const loginFailed = /Logging in.*FAILED|Login Failure/i.exec(output);
 
   if (successConfirmed) {
