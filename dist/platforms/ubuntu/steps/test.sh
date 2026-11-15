@@ -217,21 +217,21 @@ for platform in ${TEST_PLATFORMS//;/ }; do
     fi
   fi
 
-  # CUSTOM_PARAMETERS is a single string of space-separated Unity CLI args
-  # (e.g. "-profile Foo -someBoolean") - deliberately left unquoted below so
-  # it word-splits into separate argv entries, same as the rest of this
-  # array-based invocation. No eval anywhere here: an earlier version of
-  # this script used eval to get the same word-splitting, which would have
-  # let CUSTOM_PARAMETERS (user-controlled, via the action's own input)
-  # inject arbitrary shell syntax - array expansion gets the same splitting
-  # without that risk.
+  # CUSTOM_PARAMETERS is a single string of Unity CLI args. Split it the way a
+  # shell would (quotes and backslashes honoured, so `-testCategory "a;b"` from
+  # the Unity manual reaches Unity as two args) without ever executing it: xargs
+  # only parses, printf only echoes the tokens back. An earlier version used
+  # eval, which let user-controlled CUSTOM_PARAMETERS inject shell syntax.
+  xargs -r true <<< "$CUSTOM_PARAMETERS" || { echo "Invalid customParameters (unbalanced quote?): $CUSTOM_PARAMETERS" >&2; exit 1; }
+  mapfile -t customParameters < <(xargs -r printf '%s\n' <<< "$CUSTOM_PARAMETERS")
+
   ${ENGINE_LAUNCH_WRAPPER:-} unity-editor \
     -batchmode \
     -logFile "$FULL_ARTIFACTS_PATH/$platform.log" \
     -projectPath "$UNITY_PROJECT_PATH" \
     "${runTests[@]}" \
     "${COVERAGE_FLAGS[@]}" \
-    $CUSTOM_PARAMETERS
+    "${customParameters[@]}"
 
   # Catch exit code
   TEST_EXIT_CODE=$?

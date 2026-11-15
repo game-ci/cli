@@ -17,6 +17,7 @@ declare class Input {
         projectPath: string;
         customParameters: string;
         testMode: string;
+        coverageEnabled: boolean;
         coverageOptions: string;
         artifactsPath: string;
         useHostNetwork: boolean;
