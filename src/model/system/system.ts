@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { SecretRedaction } from '../secret-redaction.ts';
+import { StringDecoder } from 'node:string_decoder';
+import { SecretRedaction, createStreamRedactor } from '../secret-redaction.ts';
 
 export interface RunOptions {
   cwd?: string;
@@ -62,12 +63,31 @@ class System {
 
       const runResult: RunResult = { output: '', error: '' };
 
+      // Only the write-out path is redacted; runResult keeps the true text so
+      // callers can still match on it.
+      const liveWriter = (stream: NodeJS.WriteStream) => {
+        const decoder = new StringDecoder('utf8');
+        const redactor = createStreamRedactor();
+        return {
+          write(chunk: Buffer) {
+            const out = redactor.push(decoder.write(chunk));
+            if (out) stream.write(out);
+          },
+          end() {
+            const out = redactor.push(decoder.end()) + redactor.flush();
+            if (out) stream.write(out);
+          },
+        };
+      };
+      const liveOut = liveWriter(process.stdout);
+      const liveErr = liveWriter(process.stderr);
+
       proc.stdout!.on('data', (chunk: Buffer) => {
         const text = chunk.toString();
         runResult.output += text;
 
         if (!options.silent) {
-          process.stdout.write(chunk);
+          liveOut.write(chunk);
         }
       });
 
@@ -76,11 +96,15 @@ class System {
         runResult.error += text;
 
         if (!options.silent) {
-          process.stderr.write(chunk);
+          liveErr.write(chunk);
         }
       });
 
       proc.on('close', (code: number | null) => {
+        if (!options.silent) {
+          liveOut.end();
+          liveErr.end();
+        }
         const exitCode = code ?? 1;
         runResult.status = { success: exitCode === 0, code: exitCode };
 

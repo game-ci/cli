@@ -5,6 +5,7 @@
 
 import { describe, test, expect } from 'bun:test';
 import { System } from './system.ts';
+import { SecretRedaction } from '../secret-redaction.ts';
 
 describe.skip('System (unit)', () => {
   test('placeholder', () => {
@@ -83,6 +84,26 @@ describe('System.run exit-code-based failure', () => {
       throw new Error('expected System.run to reject');
     } catch (error: any) {
       expect(error.stdout).toContain('the real reason lives here');
+    }
+  });
+});
+
+describe('System.run live output redaction', () => {
+  test('redacts a registered secret that is split across stdout chunks, but keeps runResult.output intact', async () => {
+    SecretRedaction.register('hunter2secret');
+    const written: string[] = [];
+    const original = process.stdout.write;
+    process.stdout.write = ((chunk: any) => (written.push(chunk.toString()), true)) as any;
+    try {
+      const command = `node -e "process.stdout.write('pw=hunt'); setTimeout(() => process.stdout.write('er2secret end'), 100)"`;
+      const result = await System.run(command);
+
+      expect(result.output).toContain('hunter2secret');
+      expect(written.join('')).toContain('pw=*** end');
+      expect(written.join('')).not.toContain('hunter2');
+    } finally {
+      process.stdout.write = original;
+      SecretRedaction.reset();
     }
   });
 });

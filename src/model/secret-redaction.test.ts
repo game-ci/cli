@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { SecretRedaction } from './secret-redaction.ts';
+import { SecretRedaction, createStreamRedactor } from './secret-redaction.ts';
 
 afterEach(() => {
   // Module-level registry shared across the whole test process.
@@ -63,7 +63,8 @@ describe('SecretRedaction', () => {
       projectPath: '/home/runner/work/project',
     } as any);
 
-    const command = 'docker run --env UNITY_PASSWORD="pa55word-value" --env UNITY_EMAIL="ci@example.com" --env UNITY_SERIAL="F4-ABCD-EFGH" /home/runner/work/project';
+    const command =
+      'docker run --env UNITY_PASSWORD="pa55word-value" --env UNITY_EMAIL="ci@example.com" --env UNITY_SERIAL="F4-ABCD-EFGH" /home/runner/work/project';
 
     expect(SecretRedaction.redact(command)).toBe(
       'docker run --env UNITY_PASSWORD="***" --env UNITY_EMAIL="***" --env UNITY_SERIAL="***" /home/runner/work/project',
@@ -74,5 +75,111 @@ describe('SecretRedaction', () => {
     SecretRedaction.registerFromOptions({ projectPath: '/home/runner/work/project' } as any);
 
     expect(SecretRedaction.redact('cd /home/runner/work/project')).toBe('cd /home/runner/work/project');
+  });
+});
+
+describe('createStreamRedactor', () => {
+  const collect = (chunks: string[]) => {
+    const redactor = createStreamRedactor();
+    return chunks.map((chunk) => redactor.push(chunk)).join('') + redactor.flush();
+  };
+
+  it('passes text through untouched when nothing is registered', () => {
+    expect(collect(['hello ', 'world'])).toBe('hello world');
+  });
+
+  it('redacts a secret split across two chunks', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect(['password=hunt', 'er2secret done'])).toBe('password=*** done');
+  });
+
+  it('redacts a secret split one character at a time', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect([...'a hunter2secret b'])).toBe('a *** b');
+  });
+
+  it('never emits a secret prefix before the rest arrives', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('x hunter2')).not.toContain('hunter2');
+  });
+
+  it('flushes held-back text that turned out not to be a secret', () => {
+    SecretRedaction.register('hunter2secret');
+
+    expect(collect(['ends with hunter2'])).toBe('ends with hunter2');
+  });
+
+  it('emits a complete line at once, without holding back its tail', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('latest: Pulling from game-ci/unity-abort-stub\n')).toBe(
+      'latest: Pulling from game-ci/unity-abort-stub\n',
+    );
+  });
+
+  it('holds only the unfinished line', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('first\nsecond hun')).toBe('first\n');
+    expect(redactor.push('ter2secret\n')).toBe('second ***\n');
+  });
+
+  it('masks each line of a multi-line secret that reaches the log across two emissions', () => {
+    SecretRedaction.register('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License>');
+    const redactor = createStreamRedactor();
+
+    const out = redactor.push('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n') + redactor.push('</License>\n');
+
+    expect(out).not.toContain('ABCD-1234-EFGH');
+    expect(out).not.toContain('<License>');
+  });
+
+  it('replaces a whole multi-line secret with a single placeholder', () => {
+    SecretRedaction.register('<License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License>');
+
+    const redactor = createStreamRedactor();
+
+    expect(redactor.push('before <License>\n  <Serial>ABCD-1234-EFGH</Serial>\n</License> after\n')).toBe(
+      'before *** after\n',
+    );
+  });
+
+  it('emits an overlong line in pieces, still catching a secret split between them', () => {
+    SecretRedaction.register('hunter2secret');
+    const redactor = createStreamRedactor();
+    const filler = 'x'.repeat(64 * 1024);
+
+    const first = redactor.push(`${filler} hunter2`);
+    const rest = redactor.push('secret end') + redactor.flush();
+
+    expect(first.length).toBeGreaterThan(0);
+    expect(first + rest).toBe(`${filler} *** end`);
+  });
+
+  it('masks each part of a secret split by a bare carriage return', () => {
+    SecretRedaction.register('abcd\refgh');
+    const redactor = createStreamRedactor();
+
+    const out = redactor.push('abcd\r') + redactor.push('efgh\n') + redactor.flush();
+
+    expect(out).not.toContain('abcd');
+    expect(out).not.toContain('efgh');
+  });
+
+  it('keeps a surrogate pair together at the overlong-line boundary', () => {
+    SecretRedaction.register('abcd');
+    const redactor = createStreamRedactor();
+    const text = `${'x'.repeat(64 * 1024)}😀${'y'.repeat(6)}`;
+
+    const pieces = [redactor.push(text), redactor.flush()];
+    const encodedSeparately = Buffer.concat(pieces.map((piece) => Buffer.from(piece, 'utf8'))).toString('utf8');
+
+    expect(encodedSeparately).toBe(text);
   });
 });
