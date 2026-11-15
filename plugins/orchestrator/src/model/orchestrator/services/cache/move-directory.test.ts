@@ -257,15 +257,35 @@ describe('sweepAbandonedLeftovers', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('reports a leftover it cannot remove and keeps sweeping the others', () => {
+    const stuck = path.join(root, `.Library.removing-${deadPid}-a`);
+    const removable = path.join(root, `.Library.partial-${deadPid}-b`);
+    fs.mkdirSync(stuck);
+    fs.mkdirSync(removable);
+    const realRm = fs.rmSync;
+    vi.spyOn(fs, 'rmSync').mockImplementation((target, options) => {
+      if (target === stuck) throw new Error('EACCES: permission denied');
+      realRm(target, options);
+    });
+
+    expect(sweepAbandonedLeftovers(root)).toEqual({
+      removed: [removable],
+      failed: [{ path: stuck, error: 'EACCES: permission denied' }],
+    });
+    expect(fs.readdirSync(root)).toEqual([path.basename(stuck)]);
   });
 
   it('removes staging and tombstone directories of processes that are gone', () => {
     fs.mkdirSync(path.join(root, `.Library.partial-${deadPid}-abc`, 'nested'), { recursive: true });
     fs.mkdirSync(path.join(root, `.Library.removing-${deadPid}-abc`));
 
-    const removed = sweepAbandonedLeftovers(root);
+    const { removed, failed } = sweepAbandonedLeftovers(root);
 
+    expect(failed).toEqual([]);
     expect(removed.map((leftover) => path.basename(leftover)).sort()).toEqual([
       `.Library.partial-${deadPid}-abc`,
       `.Library.removing-${deadPid}-abc`,
@@ -283,7 +303,7 @@ describe('sweepAbandonedLeftovers', () => {
     for (const name of kept) fs.mkdirSync(path.join(root, name));
     fs.writeFileSync(path.join(root, `.Library.partial-${deadPid}-file`), '');
 
-    expect(sweepAbandonedLeftovers(root)).toEqual([]);
+    expect(sweepAbandonedLeftovers(root)).toEqual({ removed: [], failed: [] });
     expect(fs.readdirSync(root).sort()).toEqual(
       [...kept, `.Library.partial-${deadPid}-file`].sort(),
     );

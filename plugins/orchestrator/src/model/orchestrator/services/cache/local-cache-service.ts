@@ -1104,8 +1104,14 @@ export class LocalCacheService {
    */
   private static sweepAbandonedCopies(cacheKeyPath: string): void {
     try {
-      for (const leftover of sweepAbandonedLeftovers(cacheKeyPath)) {
+      const { removed, failed } = sweepAbandonedLeftovers(cacheKeyPath);
+      for (const leftover of removed) {
         OrchestratorLogger.log(`[LocalCache] Swept abandoned copy: ${leftover}`);
+      }
+      for (const { path: leftover, error } of failed) {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Failed to sweep abandoned copy ${leftover}: ${error}`,
+        );
       }
     } catch (error: unknown) {
       OrchestratorLogger.logWarning(

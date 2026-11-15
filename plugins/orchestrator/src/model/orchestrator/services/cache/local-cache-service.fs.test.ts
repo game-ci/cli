@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalCacheService } from './local-cache-service';
+import OrchestratorLogger from '../core/orchestrator-logger';
 
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }));
 
@@ -37,6 +38,7 @@ describe('LocalCacheService on disk', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fs.rmSync(root, { recursive: true, force: true });
   });
 
@@ -111,5 +113,21 @@ describe('LocalCacheService on disk', () => {
       `.Library.partial-${process.pid}-abc`,
       'Library',
     ]);
+  });
+
+  it('warns about an abandoned copy it cannot remove', () => {
+    const stuck = path.join(cacheRoot, 'key1', `.Library.removing-${deadPid}-abc`);
+    fs.mkdirSync(stuck, { recursive: true });
+    const realRm = fs.rmSync;
+    vi.spyOn(fs, 'rmSync').mockImplementation((target, options) => {
+      if (target === stuck) throw new Error('EACCES: permission denied');
+      realRm(target, options);
+    });
+
+    LocalCacheService.sweepStaleLocks(cacheRoot);
+
+    expect(OrchestratorLogger.logWarning).toHaveBeenCalledWith(
+      `[LocalCache] Failed to sweep abandoned copy ${stuck}: EACCES: permission denied`,
+    );
   });
 });

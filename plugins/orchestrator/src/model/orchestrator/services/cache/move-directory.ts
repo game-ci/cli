@@ -105,25 +105,35 @@ export function removeDirectory(directory: string): DirectoryRemoval {
   }
 }
 
+export type LeftoverSweep = {
+  removed: string[];
+  failed: { path: string; error: string }[];
+};
+
 /**
  * Deletes the staging and tombstone directories under `parent` whose owning
  * process is gone, e.g. after a runner was killed mid-copy. Directories of a
- * process that is still alive, or that cannot be checked, are kept. Returns
- * the paths removed; throws only if `parent` cannot be read.
+ * process that is still alive, or that cannot be checked, are kept. A leftover
+ * that cannot be removed is reported and the sweep moves on to the next one;
+ * this throws only if `parent` cannot be read.
  */
-export function sweepAbandonedLeftovers(parent: string): string[] {
-  const removed: string[] = [];
+export function sweepAbandonedLeftovers(parent: string): LeftoverSweep {
+  const sweep: LeftoverSweep = { removed: [], failed: [] };
 
   for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
     const match = entry.isDirectory() && leftoverPattern.exec(entry.name);
     if (!match || isProcessAlive(Number(match[2]))) continue;
 
     const leftover = path.join(parent, entry.name);
-    fs.rmSync(leftover, { recursive: true, force: true });
-    removed.push(leftover);
+    try {
+      fs.rmSync(leftover, { recursive: true, force: true });
+      sweep.removed.push(leftover);
+    } catch (error: unknown) {
+      sweep.failed.push({ path: leftover, error: describe(error) });
+    }
   }
 
-  return removed;
+  return sweep;
 }
 
 function siblingPath(directory: string, purpose: 'partial' | 'removing'): string {
