@@ -45,7 +45,10 @@ import { OutputService } from './model/orchestrator/services/output/output-servi
 import { OutputTypeRegistry } from './model/orchestrator/services/output/output-type-registry';
 import { ArtifactUploadHandler } from './model/orchestrator/services/output/artifact-upload-handler';
 import { IncrementalSyncService } from './model/orchestrator/services/sync';
-import { resolveCacheMode } from './model/orchestrator/services/cache/cache-mode';
+import {
+  deprecatedCacheModeWarning,
+  resolveCacheMode,
+} from './model/orchestrator/services/cache/cache-mode';
 
 // ── Input helpers ────────────────────────────────────────────────────
 
@@ -277,20 +280,12 @@ const config = {
   get cacheMode() {
     const explicitCacheMode = getInput('cacheMode');
     const legacyLocalCacheMode = getInput('localCacheMode');
-    if (!explicitCacheMode && legacyLocalCacheMode && !hasWarnedDeprecatedCacheMode) {
+    const deprecation = deprecatedCacheModeWarning(explicitCacheMode, legacyLocalCacheMode);
+    if (deprecation && !hasWarnedDeprecatedCacheMode) {
       hasWarnedDeprecatedCacheMode = true;
-      core.warning(
-        "[plugin-lifecycle] Input 'localCacheMode' is deprecated — use 'cacheMode' instead. " +
-          "'local' no longer accurately describes this input now that distributed rclone/S3 " +
-          'caching is a supported mode too. localCacheMode will keep working for now, but ' +
-          'prefer cacheMode going forward — see game-ci/roadmap#11.',
-      );
+      core.warning(`[plugin-lifecycle] Input ${deprecation}`);
     }
     return resolveCacheMode(explicitCacheMode, legacyLocalCacheMode);
-  },
-  /** @deprecated Use `cacheMode` instead — kept only so internal call sites reading the old property name don't need to change too. */
-  get localCacheMode() {
-    return config.cacheMode;
   },
   get maxCacheEntries() {
     return Number(getInput('maxCacheEntries')) || 2;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCacheMode } from './cache-mode';
+import { deprecatedCacheModeWarning, resolveCacheMode } from './cache-mode';
 
 describe('resolveCacheMode', () => {
   it('defaults to move-directory', () => {
@@ -24,5 +24,14 @@ describe('resolveCacheMode', () => {
     expect(() => resolveCacheMode('', 'canonical-overlay')).toThrow(
       'canonical-overlay has been removed',
     );
+  });
+});
+
+describe('deprecatedCacheModeWarning', () => {
+  it('warns only when the deprecated localCacheMode is used without cacheMode', () => {
+    expect(deprecatedCacheModeWarning('', 'tar')).toContain("use 'cacheMode' instead");
+    expect(deprecatedCacheModeWarning('tar', 'copy-directory')).toBeUndefined();
+    expect(deprecatedCacheModeWarning('tar', '')).toBeUndefined();
+    expect(deprecatedCacheModeWarning()).toBeUndefined();
   });
 });

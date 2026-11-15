@@ -32,3 +32,20 @@ export function resolveCacheMode(
 
   return mode as LocalCacheMode;
 }
+
+/**
+ * The warning to show when only the deprecated `localCacheMode` alias is set,
+ * or undefined when `cacheMode` is used (or neither is).
+ */
+export function deprecatedCacheModeWarning(
+  cacheMode?: string,
+  legacyLocalCacheMode?: string,
+): string | undefined {
+  if (cacheMode || !legacyLocalCacheMode) return undefined;
+
+  return (
+    "'localCacheMode' is deprecated: use 'cacheMode' instead. 'local' no longer describes " +
+    'this setting now that distributed rclone/S3 caching is a supported mode too. ' +
+    'localCacheMode keeps working for now; see game-ci/roadmap#11.'
+  );
+}
