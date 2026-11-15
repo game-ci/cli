@@ -12,6 +12,11 @@ describe('resolveCacheMode', () => {
     expect(resolveCacheMode('', 'copy-directory')).toBe('copy-directory');
   });
 
+  it('rejects an unknown mode instead of running it as a directory move', () => {
+    expect(() => resolveCacheMode('move-dir')).toThrow("unknown mode 'move-dir'");
+    expect(() => resolveCacheMode('', 'Tar')).toThrow("unknown mode 'Tar'");
+  });
+
   it('rejects the removed canonical-overlay mode, also through the deprecated alias', () => {
     expect(() => resolveCacheMode('canonical-overlay')).toThrow(
       'canonical-overlay has been removed',

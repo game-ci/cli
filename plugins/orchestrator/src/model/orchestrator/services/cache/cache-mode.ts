@@ -1,10 +1,18 @@
+import type { LocalCacheMode } from './local-cache-service';
+
+const supportedCacheModes: readonly LocalCacheMode[] = ['move-directory', 'copy-directory', 'tar'];
+
 /**
  * Resolves the cache mode both entry points (the GitHub Action and
  * `game-ci orchestrate`) run with: `cacheMode` first, then its deprecated alias
- * `localCacheMode`, then `move-directory`. The removed `canonical-overlay` mode
- * fails loudly rather than silently running as a directory move.
+ * `localCacheMode`, then `move-directory`. Anything else, including the removed
+ * `canonical-overlay` mode or a typo, fails loudly rather than silently running
+ * as a directory move.
  */
-export function resolveCacheMode(cacheMode?: string, legacyLocalCacheMode?: string): string {
+export function resolveCacheMode(
+  cacheMode?: string,
+  legacyLocalCacheMode?: string,
+): LocalCacheMode {
   const mode = cacheMode || legacyLocalCacheMode || 'move-directory';
 
   if (mode === 'canonical-overlay') {
@@ -16,5 +24,11 @@ export function resolveCacheMode(cacheMode?: string, legacyLocalCacheMode?: stri
     );
   }
 
-  return mode;
+  if (!supportedCacheModes.includes(mode as LocalCacheMode)) {
+    throw new Error(
+      `cacheMode: unknown mode '${mode}'. Use one of: ${supportedCacheModes.join(', ')}.`,
+    );
+  }
+
+  return mode as LocalCacheMode;
 }
