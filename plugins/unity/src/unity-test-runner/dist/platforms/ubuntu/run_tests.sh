@@ -211,9 +211,10 @@ for platform in ${TEST_PLATFORMS//;/ }; do
   # cause of coverage-instrumentation crashes/compile errors on some Unity
   # versions (see game-ci/unity-test-runner#301, #302, #306) with no way to
   # opt out.
-  COVERAGE_ARGS=""
+  # An array, so a coverage path containing spaces stays one argument.
+  COVERAGE_ARGS=()
   if [[ "$COVERAGE_ENABLED" != "false" ]]; then
-    COVERAGE_ARGS="-coverageResultsPath $FULL_COVERAGE_RESULTS_PATH -enableCodeCoverage -debugCodeOptimization -coverageOptions $COVERAGE_OPTIONS"
+    COVERAGE_ARGS=(-coverageResultsPath "$FULL_COVERAGE_RESULTS_PATH" -enableCodeCoverage -debugCodeOptimization -coverageOptions "$COVERAGE_OPTIONS")
   fi
 
   unity-editor \
@@ -221,7 +222,7 @@ for platform in ${TEST_PLATFORMS//;/ }; do
     -logFile "$FULL_ARTIFACTS_PATH/$platform.log" \
     -projectPath "$UNITY_PROJECT_PATH" \
     $runTests \
-    $COVERAGE_ARGS \
+    "${COVERAGE_ARGS[@]}" \
     $CUSTOM_PARAMETERS
 
   # Catch exit code
