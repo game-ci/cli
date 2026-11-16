@@ -2,6 +2,13 @@ import BuildParameters from '../model/build-parameters';
 import { customAlphabet } from 'nanoid';
 import OrchestratorConstants from '../model/orchestrator/options/orchestrator-constants';
 import { initEngine } from '../model/engine';
+import {
+  deprecatedCacheModeWarning,
+  resolveCacheMode,
+} from '../model/orchestrator/services/cache/cache-mode';
+import OrchestratorLogger from '../model/orchestrator/services/core/orchestrator-logger';
+
+let hasWarnedDeprecatedCacheMode = false;
 
 /**
  * Maps CLI yargs options (flat key-value pairs) into a BuildParameters object.
@@ -119,7 +126,17 @@ export function createBuildParametersFromCliOptions(options: Record<string, any>
   bp.localCacheFallback =
     options.localCacheFallback === true || options.localCacheFallback === 'true';
   bp.localCacheFallbackKeys = options.localCacheFallbackKeys || '';
-  bp.localCacheMode = options.localCacheMode || 'tar';
+  // cacheMode replaces localCacheMode, which stays as a deprecated alias. move-directory is an O(1)
+  // rename (falling back to a staged copy across volumes); tar stays opt-in, e.g. for rclone/S3 hooks.
+  bp.localCacheMode = resolveCacheMode(options.cacheMode, options.localCacheMode);
+  const cacheModeDeprecation = deprecatedCacheModeWarning(
+    options.cacheMode,
+    options.localCacheMode,
+  );
+  if (cacheModeDeprecation && !hasWarnedDeprecatedCacheMode) {
+    hasWarnedDeprecatedCacheMode = true;
+    OrchestratorLogger.logWarning(`[orchestrate] Option ${cacheModeDeprecation}`);
+  }
   bp.localCacheSaveOnFailure =
     options.localCacheSaveOnFailure === true || options.localCacheSaveOnFailure === 'true';
   bp.localCacheFloorCorruptionCategories = options.localCacheFloorCorruptionCategories || '';

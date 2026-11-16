@@ -3,6 +3,12 @@ import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { OrchestratorSystem } from '../core/orchestrator-system';
 import OrchestratorLogger from '../core/orchestrator-logger';
+import {
+  copyIntoPlace,
+  moveDirectory,
+  removeDirectory,
+  sweepAbandonedLeftovers,
+} from './move-directory';
 import { getEngine } from '../../../engine';
 
 export type LocalCacheMode = 'tar' | 'move-directory' | 'copy-directory';
@@ -198,6 +204,7 @@ export class LocalCacheService {
     folder: string,
     options: LocalCacheRestoreOptions = {},
   ): Promise<boolean> {
+    const restoreMode: LocalCacheMode = options.restoreMode ?? 'move-directory';
     const candidates = [
       cacheKey,
       ...(options.fallbackKeys || []).filter((key) => key !== cacheKey),
@@ -205,10 +212,12 @@ export class LocalCacheService {
 
     for (const candidateKey of candidates) {
       const isFallback = candidateKey !== cacheKey;
-      const candidateOptions =
-        isFallback && options.restoreMode === 'move-directory'
-          ? { ...options, restoreMode: 'copy-directory' as const }
-          : options;
+      // A fallback entry belongs to another key: copy it rather than move it, so it stays reusable.
+      const candidateOptions: LocalCacheRestoreOptions = {
+        ...options,
+        restoreMode:
+          isFallback && restoreMode === 'move-directory' ? 'copy-directory' : restoreMode,
+      };
 
       if (
         await LocalCacheService.restoreCacheFolderCandidate(
@@ -246,8 +255,13 @@ export class LocalCacheService {
         return false;
       }
 
-      if (options.restoreMode && options.restoreMode !== 'tar') {
-        return LocalCacheService.restoreDirectoryCache(projectPath, cachePath, folder, options);
+      // move-directory is the default mode (O(1) rename); tar is opt-in for cases that
+      // need it (e.g. distributing cache entries via the rclone/S3 built-in container hooks).
+      if (options.restoreMode !== 'tar') {
+        return LocalCacheService.restoreDirectoryCache(projectPath, cachePath, folder, {
+          ...options,
+          restoreMode: options.restoreMode ?? 'move-directory',
+        });
       }
 
       const files = fs.readdirSync(cachePath).filter((f) => f.endsWith('.tar'));
@@ -364,11 +378,15 @@ export class LocalCacheService {
       const cachePath = path.join(cacheRoot, cacheKey, folder);
       fs.mkdirSync(cachePath, { recursive: true });
 
-      if (options.saveMode && options.saveMode !== 'tar') {
+      // move-directory is the default mode (O(1) rename); tar is opt-in for cases that
+      // need it (e.g. distributing cache entries via the rclone/S3 built-in container hooks).
+      if (options.saveMode !== 'tar') {
+        const directorySaveMode: 'move-directory' | 'copy-directory' =
+          options.saveMode === 'copy-directory' ? 'copy-directory' : 'move-directory';
         LocalCacheService.saveDirectoryCache(
           folderPath,
           cachePath,
-          options.saveMode,
+          directorySaveMode,
           options.backgroundSave,
         );
 
@@ -414,21 +432,19 @@ export class LocalCacheService {
       const entries = fs.readdirSync(cachePath);
       if (entries.length > 0 && entries.every((entry) => entry.endsWith('.tar'))) {
         OrchestratorLogger.logWarning(
-          `[LocalCache] ${folder} cache at ${cachePath} contains tar archives; use localCacheMode=tar to restore it`,
+          `[LocalCache] ${folder} cache at ${cachePath} contains tar archives; use cacheMode=tar to restore it`,
         );
 
         return false;
       }
 
-      if (fs.existsSync(dest)) {
-        fs.rmSync(dest, { recursive: true, force: true });
-      }
+      if (!LocalCacheService.clearDirectory(dest)) return false;
 
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       if (options.restoreMode === 'copy-directory') {
-        fs.cpSync(cachePath, dest, { recursive: true });
+        copyIntoPlace(cachePath, dest);
       } else {
-        fs.renameSync(cachePath, dest);
+        LocalCacheService.renameOrCopy(cachePath, dest);
       }
 
       if (
@@ -866,15 +882,15 @@ export class LocalCacheService {
       return;
     }
 
-    if (fs.existsSync(cachePath)) {
-      fs.rmSync(cachePath, { recursive: true, force: true });
+    if (!LocalCacheService.clearDirectory(cachePath)) {
+      throw new Error(`could not replace the existing cache entry at ${cachePath}`);
     }
 
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     if (saveMode === 'copy-directory') {
-      fs.cpSync(folderPath, cachePath, { recursive: true });
+      copyIntoPlace(folderPath, cachePath);
     } else {
-      fs.renameSync(folderPath, cachePath);
+      LocalCacheService.renameOrCopy(folderPath, cachePath);
     }
 
     OrchestratorLogger.log(
@@ -883,24 +899,91 @@ export class LocalCacheService {
   }
 
   /**
+   * Moves a directory, degrading to a staged copy when localCacheRoot sits on
+   * another volume than the workspace: slower, but the build keeps working
+   * instead of failing every restore and save.
+   */
+  private static renameOrCopy(source: string, destination: string): void {
+    const move = moveDirectory(source, destination);
+    if (move.method === 'rename') return;
+
+    OrchestratorLogger.logWarning(
+      `[LocalCache] move-directory rename failed (${move.renameError}) from ${source} to ` +
+        `${destination}; copied instead. This is slower - consider configuring ` +
+        `localCacheRoot on the same volume as the workspace.`,
+    );
+    if (move.sourceCleanupError) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] copied ${source} to ${destination} but could not remove the source: ${move.sourceCleanupError}`,
+      );
+    }
+  }
+
+  /**
+   * Removes a directory so it is whole or gone, never half-deleted (see
+   * removeDirectory). Returns false, with a warning, when it is still in place.
+   */
+  private static clearDirectory(directory: string): boolean {
+    if (!fs.existsSync(directory)) return true;
+
+    const removal = removeDirectory(directory);
+    if (removal.outcome === 'kept-whole') {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] could not set ${directory} aside for removal, kept it whole: ${removal.error}`,
+      );
+
+      return false;
+    }
+    if (removal.outcome === 'tombstone-left') {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] removed ${directory} but left ${removal.tombstone} for a later sweep: ${removal.error}`,
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * The Node.js script a detached background save runs. It mirrors
+   * copyIntoPlace and removeDirectory, which it cannot import: the copy is
+   * staged in a sibling `.partial-` directory, the previous entry is set aside
+   * as a `.removing-` tombstone, and only then is the copy renamed into place,
+   * so the entry is never partial. The lock is always released.
+   */
+  static backgroundSaveScript(folderPath: string, cachePath: string, lockPath: string): string {
+    return [
+      `const fs = require('node:fs');`,
+      `const path = require('node:path');`,
+      `const folderPath = ${JSON.stringify(folderPath)};`,
+      `const cachePath = ${JSON.stringify(cachePath)};`,
+      `const lockPath = ${JSON.stringify(lockPath)};`,
+      `const sibling = (purpose) => path.join(path.dirname(cachePath), '.' + path.basename(cachePath) + '.' + purpose + '-' + process.pid + '-' + Date.now().toString(36));`,
+      `const staging = sibling('partial');`,
+      `try {`,
+      `  fs.mkdirSync(path.dirname(cachePath), { recursive: true });`,
+      `  fs.cpSync(folderPath, staging, { recursive: true, verbatimSymlinks: true });`,
+      `  if (fs.existsSync(cachePath)) {`,
+      `    const tombstone = sibling('removing');`,
+      `    fs.renameSync(cachePath, tombstone);`,
+      `    try { fs.rmSync(tombstone, { recursive: true, force: true }); } catch {}`,
+      `  }`,
+      `  fs.renameSync(staging, cachePath);`,
+      `} catch {`,
+      `  try { fs.rmSync(staging, { recursive: true, force: true }); } catch {}`,
+      `  process.exitCode = 1;`,
+      `} finally {`,
+      `  try { fs.unlinkSync(lockPath); } catch {}`,
+      `}`,
+    ].join('\n');
+  }
+
+  /**
    * Spawn a detached background process to copy the cache directory.
    * Writes a lock file with PID before starting; removes it on completion.
    */
   private static spawnBackgroundSave(folderPath: string, cachePath: string): void {
     const lockPath = path.join(path.dirname(cachePath), BACKGROUND_LOCK_FILE);
-
-    // Build a Node.js one-liner that performs the copy
-    const script = [
-      `const fs = require('node:fs');`,
-      `const lockPath = ${JSON.stringify(lockPath)};`,
-      `try {`,
-      `  if (fs.existsSync(${JSON.stringify(cachePath)})) fs.rmSync(${JSON.stringify(cachePath)}, { recursive: true, force: true });`,
-      `  fs.mkdirSync(require('node:path').dirname(${JSON.stringify(cachePath)}), { recursive: true });`,
-      `  fs.cpSync(${JSON.stringify(folderPath)}, ${JSON.stringify(cachePath)}, { recursive: true });`,
-      `} finally {`,
-      `  try { fs.unlinkSync(lockPath); } catch {}`,
-      `}`,
-    ].join(' ');
+    const script = LocalCacheService.backgroundSaveScript(folderPath, cachePath, lockPath);
 
     try {
       // Write lock file before spawning to close the race window
@@ -928,11 +1011,13 @@ export class LocalCacheService {
         fs.unlinkSync(lockPath);
       } catch {}
       // Fall back to synchronous save
-      if (fs.existsSync(cachePath)) {
-        fs.rmSync(cachePath, { recursive: true, force: true });
+      if (!LocalCacheService.clearDirectory(cachePath)) {
+        throw new Error(`could not replace the existing cache entry at ${cachePath}`, {
+          cause: error,
+        });
       }
       fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-      fs.cpSync(folderPath, cachePath, { recursive: true });
+      copyIntoPlace(folderPath, cachePath);
     }
   }
 
@@ -971,6 +1056,8 @@ export class LocalCacheService {
 
     let swept = 0;
     for (const cacheKeyDir of cacheKeyDirs) {
+      LocalCacheService.sweepAbandonedCopies(path.join(cacheRoot, cacheKeyDir));
+
       const lockPath = path.join(cacheRoot, cacheKeyDir, BACKGROUND_LOCK_FILE);
       if (!fs.existsSync(lockPath)) continue;
 
@@ -982,8 +1069,8 @@ export class LocalCacheService {
             process.kill(pid, 0); // Signal 0 = existence check
             // Owning process is still alive -- a save is genuinely in progress.
             continue;
-          } catch (error: any) {
-            if (error?.code !== 'ESRCH') {
+          } catch (error: unknown) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
               // EPERM means the process exists but is owned by another user;
               // unknown errors are likewise not proof that the lock is stale.
               continue;
@@ -1011,6 +1098,29 @@ export class LocalCacheService {
   }
 
   /**
+   * Removes the `.partial-` staging and `.removing-` tombstone directories a
+   * killed copy or removal left in a cache-key directory. They are never read
+   * as cache entries, but they hold disk space until swept.
+   */
+  private static sweepAbandonedCopies(cacheKeyPath: string): void {
+    try {
+      const { removed, failed } = sweepAbandonedLeftovers(cacheKeyPath);
+      for (const leftover of removed) {
+        OrchestratorLogger.log(`[LocalCache] Swept abandoned copy: ${leftover}`);
+      }
+      for (const { path: leftover, error } of failed) {
+        OrchestratorLogger.logWarning(
+          `[LocalCache] Failed to sweep abandoned copy ${leftover}: ${error}`,
+        );
+      }
+    } catch (error: unknown) {
+      OrchestratorLogger.logWarning(
+        `[LocalCache] Failed to sweep abandoned copies in ${cacheKeyPath}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Wait for a background cache save lock to be released.
    * Polls the lock file for up to 5 minutes.
    */
@@ -1031,8 +1141,8 @@ export class LocalCacheService {
         if (pid > 0) {
           try {
             process.kill(pid, 0); // Signal 0 = existence check
-          } catch (error: any) {
-            if (error?.code !== 'ESRCH') {
+          } catch (error: unknown) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
               // Lack of permission is evidence that the process exists, not
               // that the lock is stale. Keep waiting in that case.
               continue;

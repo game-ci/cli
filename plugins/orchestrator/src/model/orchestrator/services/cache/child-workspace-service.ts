@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import OrchestratorLogger from '../core/orchestrator-logger';
+import { moveDirectory } from './move-directory';
 import { getEngine } from '../../../engine';
 
 export interface ChildWorkspaceConfig {
@@ -83,7 +84,7 @@ export class ChildWorkspaceService {
       OrchestratorLogger.log(
         `[ChildWorkspace] Restoring workspace: ${cachedWorkspacePath} -> ${projectPath}`,
       );
-      fs.renameSync(cachedWorkspacePath, projectPath);
+      ChildWorkspaceService.renameOrCopy(cachedWorkspacePath, projectPath);
       OrchestratorLogger.log(`[ChildWorkspace] Workspace restored via atomic move`);
 
       // Restore Library cache separately if configured
@@ -151,7 +152,7 @@ export class ChildWorkspaceService {
       OrchestratorLogger.log(
         `[ChildWorkspace] Saving workspace: ${projectPath} -> ${cachedWorkspacePath}`,
       );
-      fs.renameSync(projectPath, cachedWorkspacePath);
+      ChildWorkspaceService.renameOrCopy(projectPath, cachedWorkspacePath);
       OrchestratorLogger.log(`[ChildWorkspace] Workspace saved via atomic move`);
     } catch (error: any) {
       OrchestratorLogger.logWarning(`[ChildWorkspace] Workspace save failed: ${error.message}`);
@@ -194,7 +195,7 @@ export class ChildWorkspaceService {
         OrchestratorLogger.log(
           `[ChildWorkspace] Restoring ${folder} cache: ${backupPath} -> ${destination}`,
         );
-        fs.renameSync(backupPath, destination);
+        ChildWorkspaceService.renameOrCopy(backupPath, destination);
         OrchestratorLogger.log(`[ChildWorkspace] ${folder} cache restored`);
         restored = true;
       } catch (error: any) {
@@ -246,7 +247,7 @@ export class ChildWorkspaceService {
         OrchestratorLogger.log(
           `[ChildWorkspace] Caching ${folder}: ${folderPath} -> ${backupPath}`,
         );
-        fs.renameSync(folderPath, backupPath);
+        ChildWorkspaceService.renameOrCopy(folderPath, backupPath);
         OrchestratorLogger.log(`[ChildWorkspace] ${folder} cached separately`);
       } catch (error: any) {
         OrchestratorLogger.logWarning(
@@ -408,5 +409,26 @@ export class ChildWorkspaceService {
     const value = bytes / Math.pow(k, index);
 
     return `${value.toFixed(2)} ${units[index]}`;
+  }
+
+  /**
+   * Moves a directory, degrading to a staged copy when parentCacheRoot sits on
+   * another volume than the workspace: slower, but the cache survives instead
+   * of falling through to "start fresh".
+   */
+  private static renameOrCopy(source: string, destination: string): void {
+    const move = moveDirectory(source, destination);
+    if (move.method === 'rename') return;
+
+    OrchestratorLogger.logWarning(
+      `[ChildWorkspace] rename failed (${move.renameError}) from ${source} to ${destination}; ` +
+        `copied instead. This is slower - consider configuring parentCacheRoot on ` +
+        `the same volume as the workspace.`,
+    );
+    if (move.sourceCleanupError) {
+      OrchestratorLogger.logWarning(
+        `[ChildWorkspace] copied ${source} to ${destination} but could not remove the source: ${move.sourceCleanupError}`,
+      );
+    }
   }
 }

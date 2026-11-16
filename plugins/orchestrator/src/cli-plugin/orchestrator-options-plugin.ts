@@ -513,10 +513,18 @@ export function configureOrchestratorOptions(yargs: any): void {
     default: '',
   });
 
-  yargs.option('localCacheMode', {
-    description: 'Local cache save/restore mode: tar, move-directory, or copy-directory',
+  yargs.option('cacheMode', {
+    description:
+      'Cache save/restore mode: move-directory (default; falls back to a copy across volumes), copy-directory, or tar',
     type: 'string',
-    default: 'tar',
+    default: '',
+  });
+
+  yargs.option('localCacheMode', {
+    description: 'Deprecated alias for --cacheMode',
+    type: 'string',
+    default: '',
+    deprecated: 'use --cacheMode',
   });
 
   yargs.option('gcTimeoutMinutes', {

@@ -142,7 +142,9 @@ describe('LocalCacheService', () => {
       expect(result).toBe(false);
     });
 
-    it('should restore from the latest tar file on cache hit', async () => {
+    it('should restore from the latest tar file on cache hit (explicit tar mode)', async () => {
+      // move-directory is the default since #40; tar remains available as an explicit opt-in
+      // (e.g. for distributing cache entries via the rclone/S3 built-in container hooks).
       (mockFs.existsSync as vi.Mock).mockReturnValue(true);
       (mockFs.readdirSync as vi.Mock).mockReturnValue(['lib-1000.tar', 'lib-2000.tar']);
       (mockFs.statSync as vi.Mock).mockImplementation((filePath: string) => ({
@@ -150,7 +152,9 @@ describe('LocalCacheService', () => {
       }));
       (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
 
-      const result = await LocalCacheService.restoreLibraryCache('/project', '/cache', 'key1');
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1', {
+        restoreMode: 'tar',
+      });
 
       expect(result).toBe(true);
       expect(OrchestratorSystem.Run).toHaveBeenCalledWith(
@@ -188,10 +192,115 @@ describe('LocalCacheService', () => {
       });
 
       expect(result).toBe(true);
-      expect(mockFs.cpSync).toHaveBeenCalledWith(fallbackPath, path.join('/project', 'Library'), {
+      const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(fallbackPath, staging, {
         recursive: true,
+        verbatimSymlinks: true,
       });
-      expect(mockFs.renameSync).not.toHaveBeenCalled();
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, path.join('/project', 'Library'));
+      expect(mockFs.renameSync).not.toHaveBeenCalledWith(fallbackPath, expect.anything());
+    });
+
+    it('should copy, not move, a fallback directory cache when restoreMode is omitted', async () => {
+      const exactPath = path.join('/cache', 'exact', 'Library');
+      const fallbackPath = path.join('/cache', 'fallback', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath !== exactPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'exact', {
+        fallbackKeys: ['fallback'],
+      });
+
+      expect(result).toBe(true);
+      const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(fallbackPath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, path.join('/project', 'Library'));
+      expect(mockFs.renameSync).not.toHaveBeenCalledWith(fallbackPath, expect.anything());
+      expect(mockFs.rmSync).not.toHaveBeenCalledWith(fallbackPath, expect.anything());
+    });
+
+    it('should leave no partial Library when a copy-directory restore fails mid-copy', async () => {
+      const cachePath = path.join('/cache', 'key1', 'Library');
+      const destPath = path.join('/project', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === cachePath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.cpSync as vi.Mock).mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device');
+      });
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1', {
+        restoreMode: 'copy-directory',
+      });
+
+      expect(result).toBe(false);
+      const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(cachePath, staging, expect.anything());
+      expect(mockFs.rmSync).toHaveBeenCalledWith(staging, { recursive: true, force: true });
+      expect(mockFs.renameSync).not.toHaveBeenCalledWith(staging, destPath);
+    });
+
+    it('should default to move-directory (rename) when no restoreMode is specified', async () => {
+      const cachePath = path.join('/cache', 'key1', 'Library');
+      const destPath = path.join('/project', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1');
+
+      expect(result).toBe(true);
+      expect(mockFs.renameSync).toHaveBeenCalledWith(cachePath, destPath);
+      expect(mockFs.cpSync).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to copy when rename fails with EXDEV (cross-volume)', async () => {
+      const cachePath = path.join('/cache', 'key1', 'Library');
+      const destPath = path.join('/project', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockImplementation((from: string, to: string) => {
+        if (from === cachePath && to === destPath) {
+          throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' });
+        }
+      });
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      const result = await LocalCacheService.restoreEngineCache('/project', '/cache', 'key1');
+
+      expect(result).toBe(true);
+      expect(mockFs.renameSync).toHaveBeenCalledWith(cachePath, destPath);
+      const staging = expect.stringContaining(path.join('/project', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(cachePath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+      expect(mockFs.renameSync).toHaveBeenCalledWith(staging, destPath);
+      // The cache entry is set aside as a tombstone before deletion, never deleted in place.
+      const tombstone = expect.stringContaining(path.join('/cache', 'key1', '.Library.removing-'));
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(cachePath, tombstone);
+      expect(mockFs.rmSync).toHaveBeenCalledWith(tombstone, { recursive: true, force: true });
+      expect(mockFs.rmSync).not.toHaveBeenCalledWith(cachePath, expect.anything());
     });
   });
 
@@ -209,7 +318,8 @@ describe('LocalCacheService', () => {
       expect(mockFs.mkdirSync).not.toHaveBeenCalled();
     });
 
-    it('should create cache directory and save tar', async () => {
+    it('should create cache directory and save tar (explicit tar mode)', async () => {
+      // move-directory is the default since #40; tar remains available as an explicit opt-in.
       (mockFs.existsSync as vi.Mock).mockReturnValue(true);
       (mockFs.readdirSync as vi.Mock).mockImplementation((dirPath: string) => {
         if (String(dirPath).includes('Library') && !String(dirPath).includes('cache')) {
@@ -222,11 +332,128 @@ describe('LocalCacheService', () => {
 
       OrchestratorSystem.Run.mockResolvedValue('');
 
-      await LocalCacheService.saveLibraryCache('/project', '/cache', 'key1');
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', { saveMode: 'tar' });
       expect(mockFs.mkdirSync).toHaveBeenCalledWith(path.join('/cache', 'key1', 'Library'), {
         recursive: true,
       });
       expect(OrchestratorSystem.Run).toHaveBeenCalledWith(expect.stringContaining('tar -cf'), true);
+    });
+
+    it('should default to move-directory (rename) when no saveMode is specified', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockReturnValue(undefined);
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1');
+
+      expect(mockFs.renameSync).toHaveBeenCalledWith(folderPath, cachePath);
+      expect(mockFs.cpSync).not.toHaveBeenCalled();
+      expect(OrchestratorSystem.Run).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to copy when save rename fails with EXDEV (cross-volume)', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.mkdirSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.renameSync as vi.Mock).mockImplementationOnce(() => {
+        const error: any = new Error('cross-device link');
+        error.code = 'EXDEV';
+        throw error;
+      });
+      (mockFs.cpSync as vi.Mock).mockReturnValue(undefined);
+      (mockFs.rmSync as vi.Mock).mockReturnValue(undefined);
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1');
+
+      expect(mockFs.renameSync).toHaveBeenCalledWith(folderPath, cachePath);
+      const staging = expect.stringContaining(path.join('/cache', 'key1', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(folderPath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+      expect(mockFs.renameSync).toHaveBeenCalledWith(staging, cachePath);
+      const tombstone = expect.stringContaining(path.join('/project', '.Library.removing-'));
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(folderPath, tombstone);
+      expect(mockFs.rmSync).toHaveBeenCalledWith(tombstone, { recursive: true, force: true });
+      expect(mockFs.rmSync).not.toHaveBeenCalledWith(folderPath, expect.anything());
+    });
+
+    it('should stage an explicit copy-directory save and rename it into place', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'copy-directory',
+      });
+
+      const staging = expect.stringContaining(path.join('/cache', 'key1', '.Library.partial-'));
+      expect(mockFs.cpSync).toHaveBeenCalledWith(folderPath, staging, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+      expect(mockFs.cpSync).not.toHaveBeenCalledWith(folderPath, cachePath, expect.anything());
+      expect(mockFs.renameSync).toHaveBeenLastCalledWith(staging, cachePath);
+    });
+
+    it('should leave no partial cache entry when a copy-directory save fails mid-copy', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockImplementation(
+        (filePath: string) => filePath === folderPath,
+      );
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.cpSync as vi.Mock).mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device');
+      });
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'copy-directory',
+      });
+
+      const staging = expect.stringContaining(path.join('/cache', 'key1', '.Library.partial-'));
+      expect(mockFs.rmSync).toHaveBeenCalledWith(staging, { recursive: true, force: true });
+      expect(mockFs.renameSync).not.toHaveBeenCalledWith(staging, cachePath);
+    });
+
+    it('should keep the previous cache entry whole when it cannot be set aside', async () => {
+      const folderPath = path.join('/project', 'Library');
+      const cachePath = path.join('/cache', 'key1', 'Library');
+
+      (mockFs.existsSync as vi.Mock).mockReturnValue(true);
+      (mockFs.readdirSync as vi.Mock).mockReturnValue(['ArtifactDB']);
+      (mockFs.statSync as vi.Mock).mockReturnValue({ size: 1 });
+      (mockFs.renameSync as vi.Mock).mockImplementation(() => {
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' });
+      });
+
+      await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'copy-directory',
+      });
+
+      expect(mockFs.rmSync).not.toHaveBeenCalledWith(cachePath, expect.anything());
+      expect(mockFs.cpSync).not.toHaveBeenCalled();
+      expect(mockFs.renameSync).not.toHaveBeenCalledWith(folderPath, expect.anything());
     });
   });
 
@@ -271,6 +498,7 @@ describe('LocalCacheService', () => {
       OrchestratorSystem.Run.mockResolvedValue('');
 
       await LocalCacheService.saveEngineCache('/project', '/cache', 'key1', {
+        saveMode: 'tar',
         skipOnCrashEvidence: true,
         diagnostics: { importCompleted: true, crashEvidenceFound: true },
       });
