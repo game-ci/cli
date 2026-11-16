@@ -91,23 +91,30 @@ else
   binary_name="game-ci"
 fi
 
+# --- GitHub access -------------------------------------------------------------
+
+# Authenticated when possible - Actions runners share IPs across many
+# concurrent jobs from unrelated repos/orgs, so the unauthenticated rate limit
+# (60 req/hour per IP) is easy to exhaust with traffic this job never
+# generated.
+auth_header=()
+token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+if [ -n "$token" ]; then
+  auth_header=(-H "Authorization: Bearer $token")
+fi
+
+# Retries timeouts, 408, 429 and 5xx.
+curl_retry=(--retry 4 --retry-delay 3 --connect-timeout 20)
+
 # --- Version resolution -------------------------------------------------------
 
 # GitHub's own /releases/latest redirect can't be used here (it redirects to
 # an HTML tag page, not something a plain download can follow to an asset),
 # so "latest" is resolved via the API, same as unity-builder's own
-# resolveLatestTag used to. Authenticated when possible - Actions runners
-# share IPs across many concurrent jobs from unrelated repos/orgs, so the
-# unauthenticated rate limit (60 req/hour per IP) is easy to exhaust with
-# traffic this job never generated.
+# resolveLatestTag used to.
 resolved_version="$VERSION"
+release_json=""
 if [ "$VERSION" = "latest" ]; then
-  auth_header=()
-  token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
-  if [ -n "$token" ]; then
-    auth_header=(-H "Authorization: Bearer $token")
-  fi
-
   # Buffered into a variable rather than piped straight into grep/sed: a
   # piped `grep -m1` closes its read end as soon as it matches, which sends
   # curl a SIGPIPE and (under `set -o pipefail`) fails the whole pipeline
@@ -120,7 +127,8 @@ if [ "$VERSION" = "latest" ]; then
   # the installing machine has. The ${arr[@]+...} form only expands its word
   # when the array is set at all, so an empty auth_header (no token) expands
   # to nothing instead of erroring. Reported live: #272.
-  api_response="$(curl -fsSL "${auth_header[@]+"${auth_header[@]}"}" -H "Accept: application/vnd.github+json" \
+  api_response="$(curl -fsSL "${curl_retry[@]}" "${auth_header[@]+"${auth_header[@]}"}" \
+    -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/${CLI_REPO}/releases/latest")"
   resolved_version="$(grep -m1 '"tag_name"' <<< "$api_response" | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
 
@@ -128,6 +136,15 @@ if [ "$VERSION" = "latest" ]; then
     log "Failed to resolve the latest game-ci CLI release."
     exit 1
   fi
+
+  # Lists the release's assets too, for the authenticated download below.
+  if [ -n "$token" ]; then
+    release_json="$api_response"
+  fi
+elif [ -n "$token" ]; then
+  release_json="$(curl -fsSL "${curl_retry[@]}" "${auth_header[@]}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${CLI_REPO}/releases/tags/${resolved_version}" 2>/dev/null)" || release_json=""
 fi
 
 # --- Download and extract -----------------------------------------------------
@@ -138,11 +155,48 @@ else
   mkdir -p "$DEST_DIR"
 fi
 
-url="https://github.com/${CLI_REPO}/releases/download/${resolved_version}/${asset}"
-archive_path="$DEST_DIR/$asset"
+# Prints the API URL of the named asset in $release_json, or nothing. Relies
+# on the pretty-printed JSON listing each asset's own "url" before its "name".
+asset_api_url() {
+  [ -n "$release_json" ] || return 0
+  awk -v want="$1" '
+    /"url": *"[^"]*\/releases\/assets\/[0-9]+"/ {
+      url = $0
+      sub(/^[^"]*"url": *"/, "", url)
+      sub(/".*$/, "", url)
+    }
+    /"name": *"/ {
+      name = $0
+      sub(/^[^"]*"name": *"/, "", name)
+      sub(/".*$/, "", name)
+      if (name == want && url != "") { print url; exit }
+    }
+  ' <<< "$release_json"
+}
 
-log "Downloading game-ci CLI ${resolved_version} from ${url}"
-curl -fsSL "$url" -o "$archive_path"
+# Downloads release asset $1 to $2, through the authenticated API when a token
+# is set - the public release URL is anonymous, and GitHub sheds anonymous
+# traffic first under load. Any failure there falls back to the public URL.
+download_asset() {
+  local name="$1" output="$2" api_url
+  api_url="$(asset_api_url "$name")"
+
+  if [ -n "$api_url" ]; then
+    log "Downloading ${name} (${resolved_version}) via the GitHub API"
+    if curl -fsSL "${curl_retry[@]}" "${auth_header[@]}" -H "Accept: application/octet-stream" \
+      "$api_url" -o "$output"; then
+      return 0
+    fi
+    log "Warning: authenticated download of ${name} failed - falling back to the public release URL."
+  fi
+
+  local url="https://github.com/${CLI_REPO}/releases/download/${resolved_version}/${name}"
+  log "Downloading ${name} (${resolved_version}) from ${url}"
+  curl -fsSL "${curl_retry[@]}" "$url" -o "$output"
+}
+
+archive_path="$DEST_DIR/$asset"
+download_asset "$asset" "$archive_path"
 
 # --- Checksum verification ----------------------------------------------------
 
@@ -166,12 +220,16 @@ verify_checksum() {
     return 0
   fi
 
-  local checksums_url="https://github.com/${CLI_REPO}/releases/download/${resolved_version}/checksums.txt"
+  local checksums_path
+  checksums_path="$(mktemp)"
   local checksums=""
-  checksums="$(curl -fsSL "$checksums_url" 2>/dev/null)" || checksums=""
+  if download_asset checksums.txt "$checksums_path" 2>/dev/null; then
+    checksums="$(cat "$checksums_path")"
+  fi
+  rm -f "$checksums_path"
 
   if [ -z "$checksums" ]; then
-    log "Warning: could not fetch ${checksums_url} - skipping checksum verification."
+    log "Warning: could not fetch checksums.txt for ${resolved_version} - skipping checksum verification."
     return 0
   fi
 
