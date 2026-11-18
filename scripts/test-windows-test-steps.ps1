@@ -132,4 +132,6 @@ Remove-Item -Recurse -Force $work
 
 Write-Host ''
 Write-Host "$script:pass passed, $script:fail failed"
-if ($script:fail -gt 0) { exit 1 }
+# Explicit, because GitHub's pwsh shell otherwise exits with $LASTEXITCODE,
+# which the stub left non-zero on purpose.
+exit [int]($script:fail -gt 0)
