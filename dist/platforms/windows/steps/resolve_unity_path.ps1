@@ -45,13 +45,33 @@ function Get-UnityEditorExePath {
   return $exePath
 }
 
+# Splits a space-separated argument string (CUSTOM_PARAMETERS,
+# ENGINE_LAUNCH_WRAPPER) into words, the way bash word-splits an unquoted
+# $VAR, without Invoke-Expression's shell injection.
+#
+# Always an array, also for a single word. A pipeline that yields one item
+# returns that item itself, and splatting a [string] passes its characters
+# one by one: "-nographics" reached Unity as "-", "n", "o", ... (cli#317).
+# The leading comma keeps PowerShell from unrolling the returned array.
+function Split-ArgumentString {
+  param([string]$Value)
+
+  return , [string[]]@($Value -split '\s+' | Where-Object { $_ -ne '' })
+}
+
 # Invokes the Unity Editor executable, transparently prefixing the
 # invocation with $Env:ENGINE_LAUNCH_WRAPPER when it is set (e.g. a
-# self-hosted runner's own launch-serialization lock). When unset, this is
-# byte-identical to calling `& $ExePath @Arguments` directly - no wrapper
-# process is introduced. $Arguments is passed through unmodified via
-# splatting so each call site's exact existing argument list (flags, quit
-# args, custom-parameter arrays, etc.) is preserved unchanged.
+# self-hosted runner's own launch-serialization lock). $Arguments is passed
+# through unmodified via splatting so each call site's exact existing
+# argument list (flags, quit args, custom-parameter arrays, etc.) is
+# preserved unchanged.
+#
+# Waits for Unity to exit and leaves its exit code in $LASTEXITCODE. Unity.exe
+# is a GUI-subsystem executable, and PowerShell neither waits for one nor
+# records its exit code when it is the last command of its pipeline - which a
+# launch inside this function always is, whatever the caller pipes it into.
+# Piping its output to Out-Host here makes PowerShell block until it exits
+# (cli#318: the test step reported success while the editor was starting).
 #
 # ENGINE_LAUNCH_WRAPPER may itself be a multi-word command (e.g.
 # "flock /tmp/unity.lock --"), matching the Linux side's unquoted
@@ -70,12 +90,12 @@ function Invoke-UnityLaunch {
   )
 
   if ($Env:ENGINE_LAUNCH_WRAPPER) {
-    $WrapperParts = @($Env:ENGINE_LAUNCH_WRAPPER -split '\s+' | Where-Object { $_ -ne '' })
+    $WrapperParts = Split-ArgumentString $Env:ENGINE_LAUNCH_WRAPPER
     $WrapperExe = $WrapperParts[0]
-    $WrapperArgs = if ($WrapperParts.Length -gt 1) { $WrapperParts[1..($WrapperParts.Length - 1)] } else { @() }
-    & $WrapperExe @WrapperArgs $ExePath @Arguments
+    $WrapperArgs = @($WrapperParts | Select-Object -Skip 1)
+    & $WrapperExe @WrapperArgs $ExePath @Arguments | Out-Host
   } else {
-    & $ExePath @Arguments
+    & $ExePath @Arguments | Out-Host
   }
 }
 

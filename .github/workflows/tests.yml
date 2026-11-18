@@ -149,6 +149,13 @@ jobs:
       - name: Licensing step behaviour tests (dist/platforms/windows)
         shell: pwsh
         run: ./scripts/test-licensing-steps.ps1
+      # Which argv Unity receives on Windows, and whether the step waits for
+      # Unity to exit: a single customParameters value reached Unity one
+      # character at a time (#317), and the test step reported success while
+      # the editor was still starting (#318).
+      - name: Unity launch tests (dist/platforms/windows)
+        shell: pwsh
+        run: ./scripts/test-windows-unity-launch.ps1
       # How a licensing run's outcome is GRADED, tested against captured real
       # Unity logs. Every licensing incident in this repository was a grading
       # error rather than an activation error - "Activation complete." printed

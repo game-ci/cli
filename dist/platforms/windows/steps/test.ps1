@@ -151,10 +151,7 @@ if (-not $Env:COVERAGE_ENABLED -or $Env:COVERAGE_ENABLED -eq 'true') {
   Write-Host 'Code coverage disabled (coverageEnabled=false).'
 }
 
-$CustomParametersArray = @()
-if ($Env:CUSTOM_PARAMETERS) {
-  $CustomParametersArray = $Env:CUSTOM_PARAMETERS -split '\s+' | Where-Object { $_ -ne '' }
-}
+$CustomParametersArray = Split-ArgumentString $Env:CUSTOM_PARAMETERS
 
 $TestRunnerExitCode = 0
 
