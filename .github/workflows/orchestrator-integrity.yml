@@ -38,6 +38,12 @@ env:
   PROJECT_PATH: test-project
   USE_IL2CPP: false
   ORCHESTRATOR_AWS_STACK_WAIT_TIME: 900
+  # The orchestrator's default region (Input.region). MiniStack enforces bucket
+  # regions like S3 does: a bucket `aws s3 mb` creates in its default us-east-1
+  # answers eu-west-2 requests with PermanentRedirect. Build containers inherit
+  # these too.
+  AWS_REGION: eu-west-2
+  AWS_DEFAULT_REGION: eu-west-2
 
 # Port of plugins/orchestrator/.github/workflows/orchestrator-integrity.yml,
 # inert as a nested workflow. `run:` steps execute inside plugins/orchestrator
