@@ -44,7 +44,15 @@ export class CommandFactory {
     // table file, not an engine project structure.
     // sign doesn't either: it signs an already-built player executable/
     // app bundle, same reasoning as test-runtime.
-    if (command === "deploy" || command === "test-runtime" || command === "pseudo-localize" || command === "sign") {
+    // The orchestrator's remote-cli commands run inside remote build containers,
+    // which hold no project at all.
+    if (
+      command === "deploy" ||
+      command === "test-runtime" ||
+      command === "pseudo-localize" ||
+      command === "sign" ||
+      command.startsWith("remote-cli-")
+    ) {
       const pluginCommand = PluginRegistry.createCommand("*", command, subCommands);
       if (pluginCommand) {
         return pluginCommand;

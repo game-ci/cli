@@ -68,6 +68,44 @@ describe("Cli plugin loading", () => {
     expect(command.name).toBe("Test runtime");
   });
 
+  // Remote build containers run these through this CLI (orchestrator's
+  // BuildAutomationWorkflow), from a directory with no project in it.
+  it("resolves the orchestrator's remote-cli commands without engine detection", async () => {
+    const cli = new Cli([], process.cwd());
+
+    await cli.setup();
+
+    for (const name of ["remote-cli-pre-build", "remote-cli-post-build", "remote-cli-log-stream"]) {
+      expect(new CommandFactory().createCommand([name]).name).toBe(name);
+    }
+  });
+
+  it("runs remote-cli-log-stream as a remote build container does", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-log-stream-"));
+    const logFile = path.join(tempDir, "job-log.txt");
+
+    try {
+      const { code, stderr } = await new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
+        const child = spawn(
+          process.execPath,
+          ["run", path.join(process.cwd(), "src", "index.ts"), "remote-cli-log-stream", "--logFile", logFile],
+          { cwd: tempDir },
+        );
+        let stderr = "";
+        child.stderr.on("data", (chunk) => (stderr += chunk));
+        child.on("error", reject);
+        child.on("exit", (code) => resolve({ code, stderr }));
+        child.stdin.end("build output line\n");
+      });
+
+      expect(stderr).not.toContain("Unknown argument");
+      expect(code).toBe(0);
+      expect(await fs.readFile(logFile, "utf8")).toContain("build output line");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  }, 30000);
+
   it("loads executable plugins from config during setup", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-"));
     try {
