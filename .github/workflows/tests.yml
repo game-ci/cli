@@ -245,6 +245,27 @@ jobs:
           # still broken at runtime.
           [ -d "$(dirname "$binary_path")/dist" ] || { echo "FAIL: dist/ was not extracted next to $binary_path"; exit 1; }
           "$binary_path" --help
+      # The steps above have a token, so they never reach the public release
+      # URL. Pinned, so this run makes no anonymous API call. Retried like the
+      # step above: a release published since then can still be uploading.
+      - name: Smoke-test scripts/install.sh without a token
+        env:
+          GH_TOKEN: ${{ secrets.GIT_PRIVATE_TOKEN || github.token }}
+        run: |
+          version="$(gh release view --repo game-ci/cli --json tagName --jq .tagName)"
+          for attempt in 1 2 3 4 5; do
+            if binary_path="$(env -u GH_TOKEN -u GITHUB_TOKEN bash scripts/install.sh "$version" /tmp/install-sh-anonymous-smoke-test)"; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "FAIL: scripts/install.sh without a token still failing after 5 attempts"
+              exit 1
+            fi
+            echo "install.sh failed (attempt $attempt/5) - see the error above; retrying in 30s..."
+            sleep 30
+          done
+          [ -x "$binary_path" ] || { echo "FAIL: $binary_path is not executable"; exit 1; }
+          "$binary_path" --help
       # The root install.sh (the `curl | sh` installer, and what action.yml
       # runs on Linux/macOS) had no CI coverage at all, which is how it got
       # to spend releases 404ing on every platform (#242) unnoticed. It now
