@@ -130,6 +130,10 @@ jobs:
       # and a PID left by a previous container can be the new editor itself.
       - name: Stale Unity PID file tests (dist/platforms/ubuntu)
         run: bash scripts/test-stale-pid-files.sh
+      # Unity can exit 0 without having run any tests (#317, #318): a test run
+      # only passes when its results file exists too.
+      - name: Test step grading tests (dist/platforms/ubuntu)
+        run: bash scripts/test-test-steps.sh
       # Parsing those scripts isn't enough for the licensing steps: what
       # matters is which Unity.Licensing.Client invocation each credential
       # combination produces, and whether the seat is handed back on every
@@ -156,6 +160,9 @@ jobs:
       - name: Unity launch tests (dist/platforms/windows)
         shell: pwsh
         run: ./scripts/test-windows-unity-launch.ps1
+      - name: Test step grading tests (dist/platforms/windows)
+        shell: pwsh
+        run: ./scripts/test-windows-test-steps.ps1
       # How a licensing run's outcome is GRADED, tested against captured real
       # Unity logs. Every licensing incident in this repository was a grading
       # error rather than an activation error - "Activation complete." printed

@@ -258,7 +258,18 @@ foreach ($Platform in $Platforms) {
     if (Test-Path $PlayerLogPath) { Get-Content $PlayerLogPath | Out-Host }
   }
 
-  if ($TestExitCode -eq 0) {
+  # Unity can exit 0 without having run any tests: an editor that crashes at
+  # startup or is cut short writes no results file (cli#317, cli#318).
+  $ResultsPath = Join-Path $FullArtifactsPath "$Platform-results.xml"
+  $ResultsMissing = $TestExitCode -eq 0 -and $Platform -ne 'COMBINE_RESULTS' -and -not (Test-Path $ResultsPath)
+  if ($ResultsMissing) {
+    Write-Host "::error::Unity exited with code 0 but wrote no test results to $ResultsPath, so the $Platform tests did not run. See the Unity log above for where it stopped."
+    $TestExitCode = 1
+  }
+
+  if ($ResultsMissing) {
+    Write-Host 'Run failure (no test results)'
+  } elseif ($TestExitCode -eq 0) {
     Write-Host 'Run succeeded, no failures occurred'
   } elseif ($TestExitCode -eq 2) {
     Write-Host 'Run succeeded, some tests failed'
@@ -279,7 +290,6 @@ foreach ($Platform in $Platforms) {
   Write-Host ''
 
   if ($Platform -ne 'COMBINE_RESULTS') {
-    $ResultsPath = Join-Path $FullArtifactsPath "$Platform-results.xml"
     if (Test-Path $ResultsPath) {
       Get-Content $ResultsPath | Out-Host
       Get-Content $ResultsPath | Select-String 'test-run' | Select-String 'Passed'

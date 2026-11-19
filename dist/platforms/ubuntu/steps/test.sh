@@ -262,8 +262,20 @@ for platform in ${TEST_PLATFORMS//;/ }; do
     cat "$FULL_ARTIFACTS_PATH/$platform-player.log"
   fi
 
+  # Unity can exit 0 without having run any tests: an editor that crashes at
+  # startup or is cut short writes no results file (cli#317, cli#318).
+  RESULTS_PATH="$FULL_ARTIFACTS_PATH/$platform-results.xml"
+  RESULTS_MISSING=false
+  if [[ $TEST_EXIT_CODE -eq 0 && "$platform" != "COMBINE_RESULTS" && ! -f "$RESULTS_PATH" ]]; then
+    RESULTS_MISSING=true
+    echo "::error::Unity exited with code 0 but wrote no test results to $RESULTS_PATH, so the $platform tests did not run. See the Unity log above for where it stopped."
+    TEST_EXIT_CODE=1
+  fi
+
   # Display results
-  if [ $TEST_EXIT_CODE -eq 0 ]; then
+  if [ "$RESULTS_MISSING" = "true" ]; then
+    echo "Run failure (no test results)";
+  elif [ $TEST_EXIT_CODE -eq 0 ]; then
     echo "Run succeeded, no failures occurred";
   elif [ $TEST_EXIT_CODE -eq 2 ]; then
     echo "Run succeeded, some tests failed";
@@ -283,9 +295,9 @@ for platform in ${TEST_PLATFORMS//;/ }; do
   echo "###########################"
   echo ""
 
-  if [[ "$platform" != "COMBINE_RESULTS" ]]; then
-    cat "$FULL_ARTIFACTS_PATH/$platform-results.xml"
-    cat "$FULL_ARTIFACTS_PATH/$platform-results.xml" | grep test-run | grep Passed
+  if [[ "$platform" != "COMBINE_RESULTS" && -f "$RESULTS_PATH" ]]; then
+    cat "$RESULTS_PATH"
+    grep test-run "$RESULTS_PATH" | grep Passed
   fi
 done
 
