@@ -26,6 +26,7 @@ import AnsibleProvider from '../model/orchestrator/providers/ansible';
 import CliProvider from '../model/orchestrator/providers/cli';
 import { configureOrchestratorOptions } from './orchestrator-options-plugin';
 import { createProviderAdapter, createCliProviderAdapter } from './provider-adapter';
+import { createRemoteCliCommand } from './remote-cli-commands';
 
 /**
  * GameCIPlugin-compatible export.
@@ -38,6 +39,18 @@ import { createProviderAdapter, createCliProviderAdapter } from './provider-adap
 const orchestratorPlugin = {
   name: 'orchestrator',
   version: '1.0.0',
+
+  /**
+   * The remote-cli commands that remote build containers run through the
+   * game-ci CLI. engine: '*' because a build container has no project to
+   * detect an engine from.
+   */
+  commands: [
+    {
+      engine: '*' as const,
+      createCommand: (command: string) => createRemoteCliCommand(command),
+    },
+  ],
 
   /**
    * Options plugins — register orchestrator-specific yargs options.

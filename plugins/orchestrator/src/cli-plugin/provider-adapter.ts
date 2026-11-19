@@ -10,9 +10,7 @@ import { createBuildParametersFromCliOptions } from './build-parameters-adapter'
  * the real provider.
  */
 export function createProviderAdapter(
-  // eslint-disable-next-line no-unused-vars
   ProviderClass: new (buildParameters: any) => ProviderInterface,
-  // eslint-disable-next-line no-unused-vars
 ): new (options: any) => any {
   return class ProviderAdapter {
     private provider: ProviderInterface;
@@ -95,9 +93,7 @@ export function createProviderAdapter(
  * instead of just (buildParameters).
  */
 export function createCliProviderAdapter(
-  // eslint-disable-next-line no-unused-vars
   ProviderClass: new (executablePath: string, buildParameters: any) => ProviderInterface,
-  // eslint-disable-next-line no-unused-vars
 ): new (options: any) => any {
   return class CliProviderAdapter {
     private provider: ProviderInterface;

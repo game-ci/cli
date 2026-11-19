@@ -28,6 +28,7 @@ export class CliCommands {
     await this.buildImageCommand();
     await this.orchestrateCommand();
     await this.remoteCommands();
+    await this.remoteCliCommands();
     await this.deployCommand();
     await this.testRuntimeCommand();
     await this.pseudoLocalizeCommand();
@@ -100,6 +101,18 @@ export class CliCommands {
         this.register(yargs);
       },
     );
+  }
+
+  private async remoteCliCommands() {
+    // Run inside remote build containers (see the orchestrator plugin's
+    // BuildAutomationWorkflow), which have no project to detect an engine from.
+    // Hidden from --help; the orchestrator plugin implements them via the '*'
+    // engine wildcard, like deploy below.
+    for (const name of ["remote-cli-pre-build", "remote-cli-post-build", "remote-cli-log-stream"]) {
+      await this.yargs.command(name, false, async (yargs: YargsInstance) => {
+        this.register(yargs);
+      });
+    }
   }
 
   private async deployCommand() {
