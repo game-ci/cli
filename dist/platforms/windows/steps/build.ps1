@@ -136,10 +136,7 @@ if ($Env:BUILD_PROFILE) {
 # unquoted $CUSTOM_PARAMETERS does, without going through Invoke-Expression
 # (which would risk shell-injecting CUSTOM_PARAMETERS, a user-controlled
 # input - same reasoning as the bash version's own comment on this).
-$CustomParametersArray = @()
-if ($Env:CUSTOM_PARAMETERS) {
-  $CustomParametersArray = $Env:CUSTOM_PARAMETERS -split '\s+' | Where-Object { $_ -ne '' }
-}
+$CustomParametersArray = Split-ArgumentString $Env:CUSTOM_PARAMETERS
 
 try {
   $UnityExePath = Get-UnityEditorExePath
