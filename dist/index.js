@@ -51967,6 +51967,71 @@ var init_engine = __esm(() => {
   currentEngine = UnityPlugin;
 });
 
+// node_modules/.bun/nanoid@3.3.18/node_modules/nanoid/index.js
+import crypto2 from "crypto";
+var POOL_SIZE_MULTIPLIER = 128, pool, poolOffset, fillPool = (bytes) => {
+  if (bytes < 0)
+    throw new RangeError("Wrong ID size");
+  try {
+    if (!pool || pool.length < bytes) {
+      pool = Buffer.allocUnsafe(bytes * POOL_SIZE_MULTIPLIER);
+      crypto2.randomFillSync(pool);
+      poolOffset = 0;
+    } else if (poolOffset + bytes > pool.length) {
+      crypto2.randomFillSync(pool);
+      poolOffset = 0;
+    }
+  } catch (e) {
+    pool = undefined;
+    throw e;
+  }
+  poolOffset += bytes;
+}, random = (bytes) => {
+  fillPool(bytes |= 0);
+  return pool.subarray(poolOffset - bytes, poolOffset);
+}, customRandom = (alphabet, defaultSize, getRandom) => {
+  let mask = (2 << 31 - Math.clz32(alphabet.length - 1 | 1)) - 1;
+  let step = Math.ceil(1.6 * mask * defaultSize / alphabet.length);
+  return (size = defaultSize) => {
+    if (size <= 0)
+      return "";
+    let id = "";
+    while (true) {
+      let bytes = getRandom(step);
+      let i = step;
+      while (i--) {
+        id += alphabet[bytes[i] & mask] || "";
+        if (id.length === size)
+          return id;
+      }
+    }
+  };
+}, customAlphabet = (alphabet, size = 21) => customRandom(alphabet, size, random);
+var init_nanoid = () => {};
+
+// plugins/orchestrator/src/model/orchestrator/options/orchestrator-constants.ts
+class OrchestratorConstants {
+  static alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+}
+var orchestrator_constants_default;
+var init_orchestrator_constants = __esm(() => {
+  orchestrator_constants_default = OrchestratorConstants;
+});
+
+// plugins/orchestrator/src/model/orchestrator/options/orchestrator-guid.ts
+class OrchestratorNamespace {
+  static generateGuid(runNumber, platform) {
+    const nanoid = customAlphabet(orchestrator_constants_default.alphabet, 4);
+    return `${runNumber}-${platform.toLowerCase().replace("standalone", "")}-${nanoid()}`;
+  }
+}
+var orchestrator_guid_default;
+var init_orchestrator_guid = __esm(() => {
+  init_nanoid();
+  init_orchestrator_constants();
+  orchestrator_guid_default = OrchestratorNamespace;
+});
+
 // plugins/orchestrator/src/model/build-parameters.ts
 class BuildParameters {
   engine;
@@ -52173,7 +52238,7 @@ class BuildParameters {
     p.orchestratorBranch = input_default.getInput("orchestratorBranch") || "main";
     p.githubRepo = input_default.getInput("githubRepo") || process.env.GITHUB_REPOSITORY || "";
     p.gitAuthMode = input_default.getInput("gitAuthMode") || "header";
-    p.buildGuid = "";
+    p.buildGuid = orchestrator_guid_default.generateGuid(input_default.runNumber, p.targetPlatform);
     p.branch = "";
     p.gitSha = "";
     p.customJob = "";
@@ -52204,6 +52269,7 @@ var init_build_parameters = __esm(() => {
   init_cli();
   init_input();
   init_engine();
+  init_orchestrator_guid();
   build_parameters_default = BuildParameters;
 });
 
@@ -111512,7 +111578,7 @@ var init_base_stack_formation = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/providers/aws/aws-base-stack.ts
-import crypto2 from "node:crypto";
+import crypto3 from "node:crypto";
 function getStackWaitTime2() {
   const overrideValue = Number(process.env.ORCHESTRATOR_AWS_STACK_WAIT_TIME ?? "");
   if (!Number.isNaN(overrideValue) && overrideValue > 0) {
@@ -111536,7 +111602,7 @@ class AWSBaseStack {
     const parametersWithoutHash = [
       { ParameterKey: "EnvironmentName", ParameterValue: baseStackName }
     ];
-    const parametersHash = crypto2.createHash("md5").update(baseStack + JSON.stringify(parametersWithoutHash)).digest("hex");
+    const parametersHash = crypto3.createHash("md5").update(baseStack + JSON.stringify(parametersWithoutHash)).digest("hex");
     const parameters = [
       ...parametersWithoutHash,
       ...[{ ParameterKey: "Version", ParameterValue: parametersHash }]
@@ -259422,57 +259488,6 @@ function configureOrchestratorOptions(yargs) {
   });
 }
 
-// node_modules/.bun/nanoid@3.3.18/node_modules/nanoid/index.js
-import crypto3 from "crypto";
-var POOL_SIZE_MULTIPLIER = 128, pool, poolOffset, fillPool = (bytes) => {
-  if (bytes < 0)
-    throw new RangeError("Wrong ID size");
-  try {
-    if (!pool || pool.length < bytes) {
-      pool = Buffer.allocUnsafe(bytes * POOL_SIZE_MULTIPLIER);
-      crypto3.randomFillSync(pool);
-      poolOffset = 0;
-    } else if (poolOffset + bytes > pool.length) {
-      crypto3.randomFillSync(pool);
-      poolOffset = 0;
-    }
-  } catch (e) {
-    pool = undefined;
-    throw e;
-  }
-  poolOffset += bytes;
-}, random = (bytes) => {
-  fillPool(bytes |= 0);
-  return pool.subarray(poolOffset - bytes, poolOffset);
-}, customRandom = (alphabet, defaultSize, getRandom) => {
-  let mask = (2 << 31 - Math.clz32(alphabet.length - 1 | 1)) - 1;
-  let step = Math.ceil(1.6 * mask * defaultSize / alphabet.length);
-  return (size = defaultSize) => {
-    if (size <= 0)
-      return "";
-    let id = "";
-    while (true) {
-      let bytes = getRandom(step);
-      let i = step;
-      while (i--) {
-        id += alphabet[bytes[i] & mask] || "";
-        if (id.length === size)
-          return id;
-      }
-    }
-  };
-}, customAlphabet = (alphabet, size = 21) => customRandom(alphabet, size, random);
-var init_nanoid = () => {};
-
-// plugins/orchestrator/src/model/orchestrator/options/orchestrator-constants.ts
-class OrchestratorConstants {
-  static alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
-}
-var orchestrator_constants_default;
-var init_orchestrator_constants = __esm(() => {
-  orchestrator_constants_default = OrchestratorConstants;
-});
-
 // plugins/orchestrator/src/model/orchestrator/services/cache/cache-mode.ts
 function resolveCacheMode(cacheMode, legacyLocalCacheMode) {
   const mode = cacheMode || legacyLocalCacheMode || "move-directory";
@@ -260666,6 +260681,10 @@ var init_remote_client = __esm(() => {
     static async runCustomHookFiles(hookLifecycle) {
       RemoteClientLogger.log(`RunCustomHookFiles: ${hookLifecycle}`);
       const gameCiCustomHooksPath = path25.join(OrchestratorFolders.repoPathAbsolute, `game-ci`, `hooks`);
+      if (!fs25.existsSync(gameCiCustomHooksPath)) {
+        RemoteClientLogger.log(`No custom hook files at ${gameCiCustomHooksPath}`);
+        return;
+      }
       try {
         const files = fs25.readdirSync(gameCiCustomHooksPath);
         for (const file of files) {
