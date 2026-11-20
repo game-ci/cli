@@ -258619,7 +258619,12 @@ class Orchestrator {
   static buildParameters;
   static defaultSecrets;
   static orchestratorEnvironmentVariables;
-  static lockedWorkspace = ``;
+  static get lockedWorkspace() {
+    return Orchestrator.buildParameters?.lockedWorkspace ?? ``;
+  }
+  static set lockedWorkspace(workspace) {
+    Orchestrator.buildParameters.lockedWorkspace = workspace;
+  }
   static retainedWorkspacePrefix = `retained-workspace`;
   static validateAwsTemplates = false;
   static get isOrchestratorEnvironment() {
