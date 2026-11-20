@@ -51644,14 +51644,18 @@ var require_core = __commonJS(function(exports) {
 // plugins/orchestrator/src/model/input.ts
 class Input {
   static getInput(query) {
-    if (Cli.isCliMode) {
-      return Cli.query(query, Input.ToEnvVarFormat(query));
-    }
-    const cliResult = Cli.query(query, Input.ToEnvVarFormat(query));
+    const environmentName = Input.ToEnvVarFormat(query);
+    const cliResult = Cli.query(query, environmentName);
     if (cliResult !== undefined) {
       return cliResult;
     }
-    return core2.getInput(query) || undefined;
+    if (!Cli.isCliMode) {
+      const actionInput = core2.getInput(query);
+      if (actionInput) {
+        return actionInput;
+      }
+    }
+    return process.env[query] ?? process.env[environmentName] ?? undefined;
   }
   static ToEnvVarFormat(input) {
     if (!input)
@@ -52031,391 +52035,6 @@ var init_orchestrator_guid = __esm(() => {
   init_orchestrator_constants();
   orchestrator_guid_default = OrchestratorNamespace;
 });
-
-// plugins/orchestrator/src/model/build-parameters.ts
-class BuildParameters {
-  engine;
-  enginePlugin;
-  editorVersion;
-  customImage;
-  runnerTempPath;
-  targetPlatform;
-  projectPath;
-  buildProfile;
-  buildName;
-  buildPath;
-  buildFile;
-  buildMethod;
-  buildVersion;
-  androidVersionCode;
-  manualExit;
-  enableGpu;
-  isCliMode;
-  allowDirtyBuild;
-  cacheUnityInstallationOnMac;
-  providerStrategy;
-  maxRetainedWorkspaces;
-  maxCacheEntries;
-  minCacheEntries;
-  gcTimeoutMinutes;
-  useLargePackages;
-  useCompressionStrategy;
-  garbageMaxAge;
-  configFiles;
-  githubChecks;
-  asyncWorkflow;
-  githubCheckId;
-  finalHooks;
-  skipLfs;
-  skipCache;
-  skipActivation;
-  engineLaunchWrapper;
-  skipInContainerClone;
-  repoPathOverride;
-  lockedWorkspace;
-  cacheSaveOnFailure;
-  cacheSaveOnFailureFilter;
-  cacheRetentionDays;
-  dockerWorkspacePath;
-  dockerCpuLimit;
-  dockerMemoryLimit;
-  dockerIsolationMode;
-  gitPrivateToken;
-  sshAgent;
-  sshPublicKeysDirectoryPath;
-  chownFilesTo;
-  kubeConfig;
-  kubeVolumeSize;
-  kubeVolume;
-  kubeStorageClass;
-  containerMemory;
-  containerCpu;
-  readTimeout;
-  awsStackName;
-  awsBaseStackName;
-  awsUseSpot;
-  awsSpotFallback;
-  awsUseEphemeralStorage;
-  awsEphemeralStorageSize;
-  cloudRunnerCluster;
-  cloudRunnerCpu;
-  cloudRunnerMemory;
-  storageProvider;
-  rcloneRemote;
-  localCacheEnabled;
-  localCacheLibrary;
-  localCacheLfs;
-  localCacheRoot;
-  localCacheFallback;
-  localCacheFallbackKeys;
-  localCacheMode;
-  localCacheSaveOnFailure;
-  localCacheFloorCorruptionCategories;
-  childWorkspacesEnabled;
-  childWorkspaceName;
-  childWorkspaceCacheRoot;
-  childWorkspacePreserveGit;
-  childWorkspaceSeparateLibrary;
-  gitHooksEnabled;
-  gitHooksSkipList;
-  hotRunnerEnabled;
-  hotRunnerTransport;
-  hotRunnerHost;
-  hotRunnerPort;
-  hotRunnerHealthInterval;
-  hotRunnerMaxIdle;
-  hotRunnerFallbackToCold;
-  syncStrategy;
-  syncStatePath;
-  syncInputRef;
-  syncStorageRemote;
-  syncRevertAfter;
-  gitIntegrityCheck;
-  gitAutoRecover;
-  enableBuildRetry;
-  cleanReservedFilenames;
-  buildArchiveEnabled;
-  buildArchivePath;
-  buildArchiveRetention;
-  buildGuid;
-  branch;
-  gitSha;
-  submoduleProfilePath;
-  submoduleVariantPath;
-  submoduleToken;
-  lfsTransferAgent;
-  lfsTransferAgentArgs;
-  lfsStoragePaths;
-  testSuitePath;
-  testFilterRefs;
-  testFilterInjection;
-  testFilterInjectionPath;
-  preflightSuite;
-  artifactCustomTypes;
-  artifactOutputTypes;
-  artifactUploadTarget;
-  artifactUploadPath;
-  artifactCompression;
-  artifactRetentionDays;
-  middlewarePipeline;
-  remotePowershellHost;
-  remotePowershellTransport;
-  remotePowershellCredential;
-  githubActionsRepo;
-  githubActionsWorkflow;
-  githubActionsToken;
-  githubActionsRef;
-  gitlabProjectId;
-  gitlabTriggerToken;
-  gitlabApiUrl;
-  gitlabRef;
-  ansibleInventory;
-  ansiblePlaybook;
-  ansibleExtraVars;
-  ansibleVaultPassword;
-  static async create() {
-    const p = new BuildParameters;
-    p.editorVersion = input_default.editorVersion || "2021.3.0f1";
-    p.targetPlatform = input_default.targetPlatform || "StandaloneLinux64";
-    p.projectPath = input_default.projectPath || ".";
-    p.buildName = input_default.buildName || p.targetPlatform;
-    p.buildPath = input_default.buildsPath || "./build";
-    p.buildFile = "";
-    p.buildMethod = "";
-    p.buildVersion = "1.0.0";
-    p.androidVersionCode = "";
-    p.customImage = input_default.customImage || input_default.getInput("image") || "";
-    p.runnerTempPath = process.env.RUNNER_TEMP || "";
-    p.manualExit = input_default.manualExit;
-    p.enableGpu = input_default.enableGpu;
-    p.isCliMode = Cli.isCliMode;
-    p.allowDirtyBuild = input_default.allowDirtyBuild;
-    p.providerStrategy = input_default.providerStrategy || "local";
-    p.maxRetainedWorkspaces = Number(input_default.getInput("maxRetainedWorkspaces")) || 0;
-    p.maxCacheEntries = Number(input_default.getInput("maxCacheEntries")) || 2;
-    p.minCacheEntries = Number(input_default.getInput("minCacheEntries")) || 0;
-    p.gcTimeoutMinutes = Number(input_default.getInput("gcTimeoutMinutes")) || 0;
-    try {
-      p.configFiles = JSON.parse(input_default.getInput("configFiles") || "{}");
-    } catch {
-      p.configFiles = {};
-    }
-    p.githubChecks = false;
-    p.asyncWorkflow = false;
-    p.githubCheckId = "";
-    p.finalHooks = [];
-    p.skipLfs = false;
-    p.skipCache = false;
-    p.skipActivation = Cli.options?.skipActivation ?? input_default.getInput("skipActivation") === "true";
-    p.engineLaunchWrapper = Cli.options?.engineLaunchWrapper ?? input_default.getInput("engineLaunchWrapper") ?? process.env.ENGINE_LAUNCH_WRAPPER ?? "";
-    p.skipInContainerClone = Cli.options?.skipInContainerClone ?? input_default.getInput("skipInContainerClone") === "true";
-    p.repoPathOverride = Cli.options?.repoPathOverride ?? input_default.getInput("repoPathOverride") ?? "";
-    p.lockedWorkspace = "";
-    p.cacheSaveOnFailure = false;
-    p.cacheSaveOnFailureFilter = "all";
-    p.cacheRetentionDays = 0;
-    p.awsStackName = input_default.getInput("awsStackName") || process.env.AWS_STACK_NAME || "game-ci";
-    p.storageProvider = input_default.getInput("storageProvider") || process.env.STORAGE_PROVIDER || "s3";
-    p.rcloneRemote = input_default.getInput("rcloneRemote") || process.env.RCLONE_REMOTE || "";
-    p.awsUseSpot = input_default.getInput("awsUseSpot") === "true";
-    p.awsSpotFallback = input_default.getInput("awsSpotFallback") !== "false";
-    p.awsUseEphemeralStorage = input_default.getInput("awsUseEphemeralStorage") === "true";
-    p.awsEphemeralStorageSize = Number(input_default.getInput("awsEphemeralStorageSize")) || 25;
-    p.dockerWorkspacePath = input_default.dockerWorkspacePath || "/github/workspace";
-    p.dockerCpuLimit = "";
-    p.dockerMemoryLimit = "";
-    p.dockerIsolationMode = "";
-    p.gitPrivateToken = input_default.getInput("gitPrivateToken") || process.env.GIT_PRIVATE_TOKEN || "";
-    p.engine = input_default.getInput("engine") || "unity";
-    p.enginePlugin = input_default.getInput("enginePlugin") || "";
-    p.preflightSuite = input_default.getInput("preflightSuite") || "";
-    p.testSuitePath = input_default.getInput("testSuitePath") || "";
-    p.testFilterRefs = input_default.getInput("testFilterRefs") || "";
-    p.testFilterInjection = input_default.getInput("testFilterInjection") || "";
-    p.testFilterInjectionPath = input_default.getInput("testFilterInjectionPath") || "";
-    initEngine(p.engine, p.enginePlugin || undefined);
-    p.orchestratorRepoName = input_default.getInput("orchestratorRepoName") || process.env.GITHUB_REPOSITORY || "game-ci/unity-builder";
-    p.orchestratorBranch = input_default.getInput("orchestratorBranch") || "main";
-    p.githubRepo = input_default.getInput("githubRepo") || process.env.GITHUB_REPOSITORY || "";
-    p.gitAuthMode = input_default.getInput("gitAuthMode") || "header";
-    p.buildGuid = orchestrator_guid_default.generateGuid(input_default.runNumber, p.targetPlatform);
-    p.branch = "";
-    p.gitSha = "";
-    p.customJob = "";
-    p.preBuildContainerHooks = "";
-    p.postBuildContainerHooks = "";
-    p.commandHooks = "";
-    if (Cli.options) {
-      for (const [key, value] of Object.entries(Cli.options)) {
-        if (value !== undefined && !((key in p) && p[key] !== undefined)) {
-          p[key] = value;
-        }
-      }
-    }
-    return p;
-  }
-  static shouldUseRetainedWorkspaceMode(buildParameters) {
-    return buildParameters.maxRetainedWorkspaces > 0 && buildParameters.lockedWorkspace !== "";
-  }
-  static parseBuildFile(filename, _platform, _androidExportType) {
-    return filename;
-  }
-  static getSerialFromLicenseFile(_license) {
-    return "";
-  }
-}
-var build_parameters_default;
-var init_build_parameters = __esm(() => {
-  init_cli();
-  init_input();
-  init_engine();
-  init_orchestrator_guid();
-  build_parameters_default = BuildParameters;
-});
-
-// plugins/orchestrator/src/model/docker.ts
-import { spawn as spawn2 } from "node:child_process";
-
-class Docker2 {
-  static async run(image, parameters, silent = false, overrideCommands = "", additionalVariables = [], options, entrypointBash = false) {
-    const workspace = parameters.workspace || process.env.GITHUB_WORKSPACE || process.cwd();
-    const args = ["run", "--rm"];
-    args.push("-v", `${workspace}:/github/workspace`);
-    args.push("-v", `${workspace}:/data`);
-    args.push("-w", "/github/workspace");
-    for (const envVar of additionalVariables) {
-      if (envVar && envVar.name && envVar.value !== undefined) {
-        args.push("-e", `${envVar.name}=${envVar.value}`);
-      }
-    }
-    if (overrideCommands && entrypointBash) {
-      args.push("--entrypoint", "/bin/sh");
-    }
-    args.push(image);
-    if (overrideCommands) {
-      if (entrypointBash) {
-        args.push("-c", overrideCommands);
-      } else {
-        args.push(overrideCommands);
-      }
-    }
-    if (!silent) {
-      core4.info(`[Docker] run: image=${image}, overrideCommands=${overrideCommands}`);
-    }
-    return new Promise((resolve, reject) => {
-      const child = spawn2("docker", args, {
-        stdio: ["pipe", "pipe", "pipe"]
-      });
-      child.stdout.on("data", (data) => {
-        if (!silent) {
-          process.stdout.write(data);
-        }
-        if (options?.listeners?.stdout) {
-          options.listeners.stdout(data);
-        }
-      });
-      child.stderr.on("data", (data) => {
-        if (!silent) {
-          process.stderr.write(data);
-        }
-        if (options?.listeners?.stderr) {
-          options.listeners.stderr(data);
-        }
-      });
-      child.on("error", (error) => {
-        reject(new Error(`Docker process failed to start: ${error.message}`));
-      });
-      child.on("close", (code) => {
-        resolve(code ?? 1);
-      });
-    });
-  }
-}
-var core4, docker_default;
-var init_docker2 = __esm(() => {
-  core4 = __toESM(require_core());
-  docker_default = Docker2;
-});
-
-// plugins/orchestrator/src/model/image-tag.ts
-class ImageTag {
-  repository;
-  editorVersion;
-  targetPlatform;
-  builderPlatform;
-  customImage;
-  imageRollingVersion;
-  imagePlatformPrefix;
-  constructor(imageProperties) {
-    const {
-      editorVersion = "",
-      targetPlatform = "",
-      builderPlatform = "",
-      customImage = ""
-    } = imageProperties;
-    if (editorVersion !== "" && typeof editorVersion?.then === "function") {
-      throw new TypeError("ImageTag received a Promise for editorVersion instead of a resolved string - " + "a caller almost certainly forgot to `await` an async Unity-version lookup " + "(e.g. UnityVersioning.determineUnityVersion) before building these parameters.");
-    }
-    this.repository = "unityci";
-    this.editorVersion = editorVersion;
-    this.targetPlatform = targetPlatform;
-    this.builderPlatform = builderPlatform;
-    this.customImage = customImage;
-    this.imageRollingVersion = 3;
-    this.imagePlatformPrefix = ImageTag.getImagePlatformPrefixes(builderPlatform);
-  }
-  static get versionPattern() {
-    return /^\d+\.\d+\.\d+[a-z]\d+$/;
-  }
-  static get targetPlatformSuffixes() {
-    return {
-      StandaloneOSX: "mac-mono",
-      StandaloneWindows: "windows-mono",
-      StandaloneWindows64: "windows-mono",
-      StandaloneLinux64: "linux-il2cpp",
-      iOS: "ios",
-      Android: "android",
-      WebGL: "webgl"
-    };
-  }
-  static getImagePlatformPrefixes(platform) {
-    switch (platform) {
-      case "linux":
-        return "";
-      case "win32":
-        return "windows-";
-      case "darwin":
-        return "mac-";
-      default:
-        return "";
-    }
-  }
-  static getTargetPlatformToTargetPlatformSuffixMap(platform, _version, _providerStrategy) {
-    return ImageTag.targetPlatformSuffixes[platform] || platform.toLowerCase();
-  }
-  get tag() {
-    const platformSuffix = ImageTag.targetPlatformSuffixes[this.targetPlatform] || this.targetPlatform.toLowerCase();
-    return `${this.editorVersion}-${platformSuffix}-${this.imageRollingVersion}`;
-  }
-  get image() {
-    return `${this.repository}/${this.imagePlatformPrefix}editor`;
-  }
-  toString() {
-    if (this.customImage)
-      return this.customImage;
-    return `${this.image}:${this.tag}`;
-  }
-}
-var image_tag_default;
-var init_image_tag = __esm(() => {
-  image_tag_default = ImageTag;
-});
-
-// plugins/orchestrator/src/model/platform.ts
-var init_platform = () => {};
-
-// plugins/orchestrator/src/model/unity-versioning.ts
-var init_unity_versioning = () => {};
 
 // node_modules/.bun/@smithy+types@4.17.0/node_modules/@smithy/types/dist-cjs/index.js
 var require_dist_cjs = __commonJS(function(exports) {
@@ -91093,797 +90712,9 @@ var require_dist_cjs48 = __commonJS(function(exports, module) {
   }, "waitUntilStreamNotExists");
 });
 
-// plugins/orchestrator/src/model/orchestrator/services/core/orchestrator-system.ts
-import { exec as exec2 } from "child_process";
-
-class OrchestratorSystem {
-  static async RunAndReadLines(command) {
-    const result = await OrchestratorSystem.Run(command, false, true);
-    return result.split(`
-`).map((x) => x.replace(`\r`, ``)).filter((x) => x !== ``).map((x) => {
-      const lineValues = x.split(` `);
-      return lineValues[lineValues.length - 1];
-    });
-  }
-  static async Run(command, suppressError = false, suppressLogs = false, outputCallback, onExitCode) {
-    for (const element of command.split(`
-`)) {
-      if (!suppressLogs) {
-        RemoteClientLogger.log(element);
-      }
-    }
-    return await new Promise((promise, throwError) => {
-      let output = "";
-      const child = exec2(command, { maxBuffer: 1024 * 1e4 }, (error, stdout, stderr) => {
-        if (!suppressError && error) {
-          RemoteClientLogger.log(error.toString());
-          throwError(error);
-        }
-        if (stderr) {
-          const diagnosticOutput = `${stderr.toString()}`;
-          if (!suppressLogs) {
-            RemoteClientLogger.logCliDiagnostic(diagnosticOutput);
-          }
-          output += diagnosticOutput;
-        }
-        const outputChunk = `${stdout}`;
-        if (outputCallback) {
-          outputCallback(outputChunk);
-        }
-        output += outputChunk;
-      });
-      child.on("close", (code) => {
-        if (!suppressLogs) {
-          RemoteClientLogger.log(`[${code}]`);
-        }
-        onExitCode?.(code ?? -1);
-        if (code !== 0 && !suppressError) {
-          throwError(output);
-        }
-        const outputLines = output.split(`
-`);
-        for (const element of outputLines) {
-          if (!suppressLogs) {
-            RemoteClientLogger.log(element);
-          }
-        }
-        promise(output);
-      });
-    });
-  }
-}
-var init_orchestrator_system = __esm(() => {
-  init_remote_client_logger();
-});
-
-// plugins/orchestrator/src/model/input-readers/generic-input-reader.ts
-class GenericInputReader {
-  static async Run(command) {
-    if (orchestrator_options_default.providerStrategy === "local")
-      return "";
-    return await OrchestratorSystem.Run(command, false, true);
-  }
-}
-var init_generic_input_reader = __esm(() => {
-  init_orchestrator_system();
-  init_orchestrator_options();
-});
-
-// plugins/orchestrator/src/model/orchestrator/services/secrets/secret-source-service.ts
-import fs2 from "node:fs";
-function validateSecretKey(key) {
-  if (!/^[a-zA-Z0-9\-_./]+$/.test(key)) {
-    throw new Error(`Invalid secret key name: "${key}". Keys may only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes.`);
-  }
-  return key;
-}
-function maskSecretValue(value) {
-  if (value.trim().length > 0) {
-    core5.setSecret(value);
-  }
-}
-var core5, SecretSourceService;
-var init_secret_source_service = __esm(() => {
-  init_orchestrator_logger();
-  init_orchestrator_system();
-  core5 = __toESM(require_core());
-  SecretSourceService = class SecretSourceService {
-    static premadeSources = {
-      "aws-secrets-manager": {
-        name: "aws-secrets-manager",
-        command: "aws secretsmanager get-secret-value --secret-id {0} --query SecretString --output text",
-        parseOutput: "raw"
-      },
-      "aws-secret-manager": {
-        name: "aws-secret-manager",
-        command: "aws secretsmanager get-secret-value --secret-id {0} --query SecretString --output text",
-        parseOutput: "raw"
-      },
-      "aws-parameter-store": {
-        name: "aws-parameter-store",
-        command: "aws ssm get-parameter --name {0} --with-decryption --query Parameter.Value --output text",
-        parseOutput: "raw"
-      },
-      "gcp-secret-manager": {
-        name: "gcp-secret-manager",
-        command: 'gcloud secrets versions access latest --secret="{0}"',
-        parseOutput: "raw"
-      },
-      "azure-key-vault": {
-        name: "azure-key-vault",
-        command: 'az keyvault secret show --vault-name "$AZURE_VAULT_NAME" --name {0} --query value --output tsv',
-        parseOutput: "raw"
-      },
-      "hashicorp-vault": {
-        name: "hashicorp-vault",
-        command: 'vault kv get -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
-        parseOutput: "raw"
-      },
-      "hashicorp-vault-kv1": {
-        name: "hashicorp-vault-kv1",
-        command: 'vault read -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
-        parseOutput: "raw"
-      },
-      vault: {
-        name: "vault",
-        command: 'vault kv get -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
-        parseOutput: "raw"
-      }
-    };
-    static isPremadeSource(sourceName) {
-      return sourceName in SecretSourceService.premadeSources;
-    }
-    static getAvailableSources() {
-      return Object.keys(SecretSourceService.premadeSources);
-    }
-    static resolveSource(sourceName) {
-      if (SecretSourceService.isPremadeSource(sourceName)) {
-        return SecretSourceService.premadeSources[sourceName];
-      }
-      if (sourceName.includes("{0}") || sourceName.includes(" ")) {
-        return {
-          name: "custom-command",
-          command: sourceName,
-          parseOutput: "raw"
-        };
-      }
-      return;
-    }
-    static loadFromYaml(filePath) {
-      if (!fs2.existsSync(filePath)) {
-        orchestrator_logger_default.logWarning(`Secret source YAML not found: ${filePath}`);
-        return [];
-      }
-      try {
-        const content = fs2.readFileSync(filePath, "utf8");
-        const parsed = SecretSourceService.parseSimpleYaml(content);
-        return parsed;
-      } catch (error) {
-        orchestrator_logger_default.logWarning(`Failed to parse secret source YAML: ${error.message}`);
-        return [];
-      }
-    }
-    static async fetchSecret(source, key) {
-      validateSecretKey(key);
-      const command = source.command.replace(/\{0\}/g, key);
-      try {
-        const output = await OrchestratorSystem.Run(command, false, true);
-        let value;
-        if (source.parseOutput === "json-field" && source.jsonField) {
-          try {
-            const parsed = JSON.parse(output);
-            value = parsed[source.jsonField] || "";
-          } catch {
-            orchestrator_logger_default.logWarning(`Failed to parse JSON output from ${source.name} for key ${key}`);
-            value = output.trim();
-          }
-        } else {
-          value = output.trim();
-        }
-        maskSecretValue(value);
-        return value;
-      } catch (error) {
-        orchestrator_logger_default.logWarning(`Failed to fetch secret '${key}' from ${source.name}: ${error.message}`);
-        return "";
-      }
-    }
-    static fetchFromEnv(key) {
-      const value = process.env[key] || "";
-      maskSecretValue(value);
-      return value;
-    }
-    static async fetchAll(sourceName, keys) {
-      const results = {};
-      if (sourceName === "env") {
-        for (const key of keys) {
-          results[key] = SecretSourceService.fetchFromEnv(key);
-        }
-        return results;
-      }
-      const source = SecretSourceService.resolveSource(sourceName);
-      if (!source) {
-        orchestrator_logger_default.logWarning(`Unknown secret source '${sourceName}'. Available sources: ${SecretSourceService.getAvailableSources().join(", ")}`);
-        return results;
-      }
-      orchestrator_logger_default.log(`Fetching ${keys.length} secret(s) from ${source.name}`);
-      for (const key of keys) {
-        results[key] = await SecretSourceService.fetchSecret(source, key);
-      }
-      return results;
-    }
-    static parseSimpleYaml(content) {
-      const definitions = [];
-      const lines = content.split(`
-`);
-      let current = null;
-      for (const rawLine of lines) {
-        const line = rawLine.replace(/\r$/, "");
-        const trimmed = line.trim();
-        if (trimmed === "" || trimmed.startsWith("#"))
-          continue;
-        if (trimmed === "- name:" || trimmed.startsWith("- name:")) {
-          if (current?.name && current?.command) {
-            definitions.push(current);
-          }
-          current = {
-            name: trimmed.replace("- name:", "").trim().replace(/^['"]|['"]$/g, ""),
-            parseOutput: "raw"
-          };
-          continue;
-        }
-        if (current && trimmed.startsWith("command:")) {
-          current.command = trimmed.replace("command:", "").trim().replace(/^['"]|['"]$/g, "");
-        } else if (current && trimmed.startsWith("parseOutput:")) {
-          const value = trimmed.replace("parseOutput:", "").trim().replace(/^['"]|['"]$/g, "");
-          current.parseOutput = value;
-        } else if (current && trimmed.startsWith("jsonField:")) {
-          current.jsonField = trimmed.replace("jsonField:", "").trim().replace(/^['"]|['"]$/g, "");
-        }
-      }
-      if (current?.name && current?.command) {
-        definitions.push(current);
-      }
-      return definitions;
-    }
-  };
-});
-
-// plugins/orchestrator/src/model/orchestrator/options/orchestrator-query-override.ts
-class OrchestratorQueryOverride {
-  static queryOverrides;
-  static query(key, alternativeKey) {
-    if (OrchestratorQueryOverride.queryOverrides && OrchestratorQueryOverride.queryOverrides[key] !== undefined) {
-      return OrchestratorQueryOverride.queryOverrides[key];
-    }
-    if (OrchestratorQueryOverride.queryOverrides && alternativeKey && OrchestratorQueryOverride.queryOverrides[alternativeKey] !== undefined) {
-      return OrchestratorQueryOverride.queryOverrides[alternativeKey];
-    }
-    return;
-  }
-  static shouldUseOverride(query) {
-    if (orchestrator_options_default.inputPullCommand !== "") {
-      if (orchestrator_options_default.pullInputList.length > 0) {
-        const doesInclude = orchestrator_options_default.pullInputList.includes(query) || orchestrator_options_default.pullInputList.includes(input_default.ToEnvVarFormat(query));
-        return doesInclude;
-      } else {
-        return true;
-      }
-    }
-  }
-  static async queryOverride(query) {
-    if (!this.shouldUseOverride(query)) {
-      throw new Error(`Should not be trying to run override query on ${query}`);
-    }
-    validateSecretKey(query);
-    const result = await GenericInputReader.Run(formatFunction(orchestrator_options_default.inputPullCommand, [{ key: 0, value: query }]));
-    if (result && result.trim().length > 0) {
-      core6.setSecret(result);
-    }
-    return result;
-  }
-  static async PopulateQueryOverrideInput() {
-    const queries = orchestrator_options_default.pullInputList;
-    OrchestratorQueryOverride.queryOverrides = {};
-    const secretSource = orchestrator_options_default.secretSource;
-    if (secretSource) {
-      orchestrator_logger_default.log(`Using secret source: ${secretSource}`);
-      if (secretSource.endsWith(".yml") || secretSource.endsWith(".yaml")) {
-        const definitions = SecretSourceService.loadFromYaml(secretSource);
-        if (definitions.length > 0) {
-          orchestrator_logger_default.log(`Loaded ${definitions.length} secret source(s) from ${secretSource}`);
-          for (const key of queries) {
-            OrchestratorQueryOverride.queryOverrides[key] = await SecretSourceService.fetchSecret(definitions[0], key);
-          }
-        }
-        return;
-      }
-      const results = await SecretSourceService.fetchAll(secretSource, queries);
-      Object.assign(OrchestratorQueryOverride.queryOverrides, results);
-      return;
-    }
-    for (const element of queries) {
-      if (OrchestratorQueryOverride.shouldUseOverride(element)) {
-        OrchestratorQueryOverride.queryOverrides[element] = await OrchestratorQueryOverride.queryOverride(element);
-      }
-    }
-  }
-}
-var core6, formatFunction = (value, arguments_) => {
-  for (const element of arguments_) {
-    value = value.replace(`{${element.key}}`, element.value);
-  }
-  return value;
-}, orchestrator_query_override_default;
-var init_orchestrator_query_override = __esm(() => {
-  init_input();
-  init_generic_input_reader();
-  init_orchestrator_options();
-  init_secret_source_service();
-  init_orchestrator_logger();
-  core6 = __toESM(require_core());
-  orchestrator_query_override_default = OrchestratorQueryOverride;
-});
-
-// plugins/orchestrator/src/model/github.ts
-class GitHub {
-  static githubInputEnabled = true;
-  static result = "";
-  static forceAsyncTest = false;
-  static async createGitHubCheck(summary) {
-    if (!GitHub.githubInputEnabled) {
-      core7.info("[GitHub] GitHub input disabled, skipping check creation");
-      return "";
-    }
-    core7.info(`[GitHub] createGitHubCheck: ${summary}`);
-    return "";
-  }
-  static async updateGitHubCheck(longDescription, summary, result = "neutral", status = "in_progress") {
-    if (!GitHub.githubInputEnabled)
-      return;
-    core7.info(`[GitHub] updateGitHubCheck: status=${status}, result=${result}, summary=${summary}`);
-  }
-  static async triggerWorkflowOnComplete(triggerWorkflowOnComplete) {
-    if (!triggerWorkflowOnComplete || triggerWorkflowOnComplete.length === 0)
-      return;
-    core7.info(`[GitHub] triggerWorkflowOnComplete: ${triggerWorkflowOnComplete.join(", ")}`);
-  }
-  static async createGitHubCheckRequest(_data) {
-    return {};
-  }
-  static async updateGitHubCheckRequest(_data) {
-    return {};
-  }
-  static async getCheckStatus() {
-    return {};
-  }
-  static async runUpdateAsyncChecksWorkflow(_data, _mode) {}
-}
-var core7, github_default;
-var init_github = __esm(() => {
-  core7 = __toESM(require_core());
-  github_default = GitHub;
-});
-
-// plugins/orchestrator/src/model/orchestrator/options/orchestrator-options.ts
-class OrchestratorOptions {
-  static getInput(query) {
-    if (github_default.githubInputEnabled) {
-      const coreInput = core8.getInput(query);
-      if (coreInput && coreInput !== "") {
-        return coreInput;
-      }
-    }
-    const alternativeQuery = OrchestratorOptions.ToEnvVarFormat(query);
-    if (Cli.query(query, alternativeQuery)) {
-      return Cli.query(query, alternativeQuery);
-    }
-    if (orchestrator_query_override_default.query(query, alternativeQuery)) {
-      return orchestrator_query_override_default.query(query, alternativeQuery);
-    }
-    if (process.env[query] !== undefined) {
-      return process.env[query];
-    }
-    if (alternativeQuery !== query && process.env[alternativeQuery] !== undefined) {
-      return process.env[alternativeQuery];
-    }
-  }
-  static ToEnvVarFormat(input) {
-    if (input.toUpperCase() === input) {
-      return input;
-    }
-    return input.replace(/([A-Z])/g, " $1").trim().toUpperCase().replace(/ /g, "_");
-  }
-  static get region() {
-    return OrchestratorOptions.getInput("region") || "eu-west-2";
-  }
-  static get githubChecks() {
-    const value = OrchestratorOptions.getInput("githubChecks");
-    return value === `true` || false;
-  }
-  static get githubCheckId() {
-    return OrchestratorOptions.getInput("githubCheckId") || ``;
-  }
-  static get githubOwner() {
-    return OrchestratorOptions.getInput("githubOwner") || OrchestratorOptions.githubRepo?.split(`/`)[0] || "";
-  }
-  static get githubRepoName() {
-    return OrchestratorOptions.getInput("githubRepoName") || OrchestratorOptions.githubRepo?.split(`/`)[1] || "";
-  }
-  static get orchestratorRepoName() {
-    return OrchestratorOptions.getInput("orchestratorRepoName") || "game-ci/orchestrator";
-  }
-  static get cloneDepth() {
-    return OrchestratorOptions.getInput("cloneDepth") || "50";
-  }
-  static get finalHooks() {
-    return OrchestratorOptions.getInput("finalHooks")?.split(",") || [];
-  }
-  static get githubRepo() {
-    return OrchestratorOptions.getInput("GITHUB_REPOSITORY") || OrchestratorOptions.getInput("GITHUB_REPO") || undefined;
-  }
-  static get branch() {
-    if (OrchestratorOptions.getInput(`GITHUB_REF`)) {
-      return OrchestratorOptions.getInput(`GITHUB_REF`)?.replace("refs/", "").replace(`head/`, "").replace(`heads/`, "") || ``;
-    } else if (OrchestratorOptions.getInput("branch")) {
-      return OrchestratorOptions.getInput("branch") || ``;
-    } else {
-      return "";
-    }
-  }
-  static get buildPlatform() {
-    const input = OrchestratorOptions.getInput("buildPlatform");
-    if (input && input !== "") {
-      return input;
-    }
-    if (OrchestratorOptions.providerStrategy !== "local") {
-      return "linux";
-    }
-    return process.platform;
-  }
-  static get orchestratorBranch() {
-    return OrchestratorOptions.getInput("orchestratorBranch") || "main";
-  }
-  static get providerStrategy() {
-    const provider = OrchestratorOptions.getInput("orchestratorCluster") || OrchestratorOptions.getInput("providerStrategy");
-    if (Cli.isCliMode) {
-      return provider || "aws";
-    }
-    return provider || "local";
-  }
-  static get fallbackProviderStrategy() {
-    return OrchestratorOptions.getInput("fallbackProviderStrategy") || "";
-  }
-  static get runnerCheckEnabled() {
-    return OrchestratorOptions.getInput("runnerCheckEnabled") === "true";
-  }
-  static get runnerCheckLabels() {
-    const labels = OrchestratorOptions.getInput("runnerCheckLabels");
-    return labels ? labels.split(",").map((l) => l.trim()) : [];
-  }
-  static get runnerCheckMinAvailable() {
-    return Number(OrchestratorOptions.getInput("runnerCheckMinAvailable")) || 1;
-  }
-  static get retryOnFallback() {
-    return OrchestratorOptions.getInput("retryOnFallback") === "true";
-  }
-  static get providerInitTimeout() {
-    return Number(OrchestratorOptions.getInput("providerInitTimeout")) || 0;
-  }
-  static get gitAuthMode() {
-    return OrchestratorOptions.getInput("gitAuthMode") || "header";
-  }
-  static get containerCpu() {
-    return OrchestratorOptions.getInput("containerCpu") || `1024`;
-  }
-  static get containerMemory() {
-    return OrchestratorOptions.getInput("containerMemory") || `3072`;
-  }
-  static get containerNamespace() {
-    return OrchestratorOptions.getInput("containerNamespace") || `default`;
-  }
-  static get customJob() {
-    return OrchestratorOptions.getInput("customJob") || "";
-  }
-  static get containerHookFiles() {
-    return OrchestratorOptions.getInput("containerHookFiles")?.split(`,`) || [];
-  }
-  static get commandHookFiles() {
-    return OrchestratorOptions.getInput("commandHookFiles")?.split(`,`) || [];
-  }
-  static get middlewareFiles() {
-    return OrchestratorOptions.getInput("middlewareFiles")?.split(`,`) || [];
-  }
-  static get commandHooks() {
-    return OrchestratorOptions.getInput("commandHooks") || "";
-  }
-  static get postBuildContainerHooks() {
-    return OrchestratorOptions.getInput("postBuildContainerHooks") || "";
-  }
-  static get preBuildContainerHooks() {
-    return OrchestratorOptions.getInput("preBuildContainerHooks") || "";
-  }
-  static get pullInputList() {
-    return OrchestratorOptions.getInput("pullInputList")?.split(`,`) || [];
-  }
-  static get secretSource() {
-    return OrchestratorOptions.getInput("secretSource") || "";
-  }
-  static get inputPullCommand() {
-    const value = OrchestratorOptions.getInput("inputPullCommand");
-    if (value === "gcp-secret-manager") {
-      return 'gcloud secrets versions access 1 --secret="{0}"';
-    } else if (value === "aws-secret-manager") {
-      return "aws secretsmanager get-secret-value --secret-id {0}";
-    }
-    return value || "";
-  }
-  static get awsStackName() {
-    return OrchestratorOptions.getInput("awsStackName") || "game-ci";
-  }
-  static get awsEndpoint() {
-    return OrchestratorOptions.getInput("awsEndpoint");
-  }
-  static get awsCloudFormationEndpoint() {
-    return OrchestratorOptions.getInput("awsCloudFormationEndpoint") || OrchestratorOptions.awsEndpoint;
-  }
-  static get awsEcsEndpoint() {
-    return OrchestratorOptions.getInput("awsEcsEndpoint") || OrchestratorOptions.awsEndpoint;
-  }
-  static get awsKinesisEndpoint() {
-    return OrchestratorOptions.getInput("awsKinesisEndpoint") || OrchestratorOptions.awsEndpoint;
-  }
-  static get awsCloudWatchLogsEndpoint() {
-    return OrchestratorOptions.getInput("awsCloudWatchLogsEndpoint") || OrchestratorOptions.awsEndpoint;
-  }
-  static get awsS3Endpoint() {
-    return OrchestratorOptions.getInput("awsS3Endpoint") || OrchestratorOptions.awsEndpoint;
-  }
-  static get storageProvider() {
-    return OrchestratorOptions.getInput("storageProvider") || "s3";
-  }
-  static get rcloneRemote() {
-    return OrchestratorOptions.getInput("rcloneRemote") || "";
-  }
-  static get kubeConfig() {
-    return OrchestratorOptions.getInput("kubeConfig") || "";
-  }
-  static get kubeVolume() {
-    return OrchestratorOptions.getInput("kubeVolume") || "";
-  }
-  static get kubeVolumeSize() {
-    return OrchestratorOptions.getInput("kubeVolumeSize") || "25Gi";
-  }
-  static get kubeStorageClass() {
-    return OrchestratorOptions.getInput("kubeStorageClass") || "";
-  }
-  static get cacheKey() {
-    return OrchestratorOptions.getInput("cacheKey") || OrchestratorOptions.branch;
-  }
-  static get cacheSaveOnFailure() {
-    return OrchestratorOptions.getInput("cacheSaveOnFailure") === "true";
-  }
-  static get cacheSaveOnFailureFilter() {
-    return OrchestratorOptions.getInput("cacheSaveOnFailureFilter") || "all";
-  }
-  static get cacheRetentionDays() {
-    return Number(OrchestratorOptions.getInput("cacheRetentionDays")) || 0;
-  }
-  static get orchestratorDebug() {
-    return OrchestratorOptions.getInput(`orchestratorTests`) === `true` || OrchestratorOptions.getInput(`orchestratorDebug`) === `true` || OrchestratorOptions.getInput(`orchestratorDebugTree`) === `true` || OrchestratorOptions.getInput(`orchestratorDebugEnv`) === `true` || false;
-  }
-  static get skipLfs() {
-    return OrchestratorOptions.getInput(`skipLfs`) === `true`;
-  }
-  static get skipInContainerClone() {
-    return OrchestratorOptions.getInput(`skipInContainerClone`) === `true`;
-  }
-  static get repoPathOverride() {
-    return OrchestratorOptions.getInput(`repoPathOverride`) || ``;
-  }
-  static get skipCache() {
-    return OrchestratorOptions.getInput(`skipCache`) === `true`;
-  }
-  static get asyncOrchestrator() {
-    return OrchestratorOptions.getInput("asyncOrchestrator") === "true";
-  }
-  static get resourceTracking() {
-    return OrchestratorOptions.getInput("resourceTracking") === "true";
-  }
-  static get useLargePackages() {
-    return OrchestratorOptions.getInput(`useLargePackages`) === `true`;
-  }
-  static get useSharedBuilder() {
-    return OrchestratorOptions.getInput(`useSharedBuilder`) === `true`;
-  }
-  static get useCompressionStrategy() {
-    return OrchestratorOptions.getInput(`useCompressionStrategy`) === `true`;
-  }
-  static get useCleanupCron() {
-    return (OrchestratorOptions.getInput(`useCleanupCron`) || "true") === "true";
-  }
-  static get maxRetainedWorkspaces() {
-    return OrchestratorOptions.getInput(`maxRetainedWorkspaces`) || `0`;
-  }
-  static get garbageMaxAge() {
-    return Number(OrchestratorOptions.getInput(`garbageMaxAge`)) || 24;
-  }
-  static get dryRun() {
-    return OrchestratorOptions.getInput("dryRun") === "true";
-  }
-  static get engine() {
-    return OrchestratorOptions.getInput("engine") || "unity";
-  }
-  static get enginePlugin() {
-    return OrchestratorOptions.getInput("enginePlugin") || "";
-  }
-  static get awsBaseStackName() {
-    return OrchestratorOptions.getInput("awsBaseStackName") || "";
-  }
-  static get gcpCloudRunRegion() {
-    return OrchestratorOptions.getInput("gcpCloudRunRegion") || "";
-  }
-  static get gcpCloudRunProject() {
-    return OrchestratorOptions.getInput("gcpCloudRunProject") || "";
-  }
-  static get azureResourceGroup() {
-    return OrchestratorOptions.getInput("azureResourceGroup") || "";
-  }
-  static get azureSubscriptionId() {
-    return OrchestratorOptions.getInput("azureSubscriptionId") || "";
-  }
-  static get githubActionsRepo() {
-    return OrchestratorOptions.getInput("githubActionsRepo") || "";
-  }
-  static get githubActionsWorkflow() {
-    return OrchestratorOptions.getInput("githubActionsWorkflow") || "";
-  }
-  static get githubActionsToken() {
-    return OrchestratorOptions.getInput("githubActionsToken") || "";
-  }
-  static get gitlabProjectId() {
-    return OrchestratorOptions.getInput("gitlabProjectId") || "";
-  }
-  static get gitlabTriggerToken() {
-    return OrchestratorOptions.getInput("gitlabTriggerToken") || "";
-  }
-  static get gitlabApiUrl() {
-    return OrchestratorOptions.getInput("gitlabApiUrl") || "";
-  }
-  static get remotePowershellHost() {
-    return OrchestratorOptions.getInput("remotePowershellHost") || "";
-  }
-  static get ansibleInventory() {
-    return OrchestratorOptions.getInput("ansibleInventory") || "";
-  }
-  static get ansiblePlaybook() {
-    return OrchestratorOptions.getInput("ansiblePlaybook") || "";
-  }
-  static get hotRunnerEnabled() {
-    return OrchestratorOptions.getInput("hotRunnerEnabled") === "true";
-  }
-  static get hotRunnerTransport() {
-    return OrchestratorOptions.getInput("hotRunnerTransport") || "tcp";
-  }
-  static get syncStrategy() {
-    return OrchestratorOptions.getInput("syncStrategy") || "full";
-  }
-}
-var core8, orchestrator_options_default;
-var init_orchestrator_options = __esm(() => {
-  init_cli();
-  init_orchestrator_query_override();
-  init_github();
-  core8 = __toESM(require_core());
-  orchestrator_options_default = OrchestratorOptions;
-});
-
-// plugins/orchestrator/src/model/orchestrator/remote-client/remote-client-logger.ts
-import fs3 from "node:fs";
-import os3 from "node:os";
-import path3 from "node:path";
-
-class RemoteClientLogger {
-  static get LogFilePath() {
-    if (process.env.ORCHESTRATOR_LOG_FILE) {
-      return process.env.ORCHESTRATOR_LOG_FILE;
-    }
-    if (process.platform === "win32") {
-      return path3.join(process.cwd(), "temp", "job-log.txt");
-    }
-    const containerLogPath = path3.join("/home", "job-log.txt");
-    try {
-      fs3.accessSync("/home", fs3.constants.W_OK);
-      return containerLogPath;
-    } catch {
-      return path3.join(os3.tmpdir(), "orchestrator-job-log.txt");
-    }
-  }
-  static log(message) {
-    const finalMessage = `[Client] ${message}`;
-    this.appendToFile(finalMessage);
-    orchestrator_logger_default.log(finalMessage);
-  }
-  static logCliError(message) {
-    orchestrator_logger_default.log(`[Client][Error] ${message}`);
-  }
-  static logCliDiagnostic(message) {
-    orchestrator_logger_default.log(`[Client][Diagnostic] ${message}`);
-  }
-  static logWarning(message) {
-    orchestrator_logger_default.logWarning(message);
-  }
-  static appendToFile(message) {
-    if (orchestrator_default.isOrchestratorEnvironment) {
-      const logDirectory = path3.dirname(RemoteClientLogger.LogFilePath);
-      if (!fs3.existsSync(logDirectory)) {
-        fs3.mkdirSync(logDirectory, { recursive: true });
-      }
-      fs3.appendFileSync(RemoteClientLogger.LogFilePath, `${message}
-`);
-    }
-  }
-  static async handleLogManagementPostJob() {
-    if (orchestrator_options_default.providerStrategy !== "k8s") {
-      return;
-    }
-    const collectedLogsMessage = `Collected Logs`;
-    RemoteClientLogger.appendToFile(collectedLogsMessage);
-    if (orchestrator_options_default.providerStrategy === "k8s") {
-      for (let index = 0;index < 3; index++) {
-        process.stdout.write(`${collectedLogsMessage}
-`, "utf8");
-        process.stderr.write(`${collectedLogsMessage}
-`, "utf8");
-      }
-      if (!process.stdout.isTTY) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-    }
-    orchestrator_logger_default.log(collectedLogsMessage);
-    if (!fs3.existsSync(RemoteClientLogger.LogFilePath)) {
-      const logFileMissingMessage = `Log file does not exist`;
-      if (orchestrator_options_default.providerStrategy === "k8s") {
-        process.stdout.write(`${logFileMissingMessage}
-`, "utf8");
-      }
-      orchestrator_logger_default.log(logFileMissingMessage);
-      if (!orchestrator_default.isOrchestratorEnvironment) {
-        const notCloudEnvironmentMessage = `Orchestrator is not running in a cloud environment, not collecting logs`;
-        if (orchestrator_options_default.providerStrategy === "k8s") {
-          process.stdout.write(`${notCloudEnvironmentMessage}
-`, "utf8");
-        }
-        orchestrator_logger_default.log(notCloudEnvironmentMessage);
-      }
-      return;
-    }
-    const logFileExistsMessage = `Log file exist`;
-    if (orchestrator_options_default.providerStrategy === "k8s") {
-      process.stdout.write(`${logFileExistsMessage}
-`, "utf8");
-    }
-    orchestrator_logger_default.log(logFileExistsMessage);
-    await new Promise((resolve) => setTimeout(resolve, 1));
-  }
-  static HandleLog(message) {
-    if (RemoteClientLogger.value !== "") {
-      RemoteClientLogger.value += `
-`;
-    }
-    RemoteClientLogger.value += message;
-    return false;
-  }
-  static value = "";
-}
-var init_remote_client_logger = __esm(() => {
-  init_orchestrator_logger();
-  init_orchestrator();
-  init_orchestrator_options();
-});
-
 // plugins/orchestrator/src/model/orchestrator/services/hooks/command-hook-service.ts
-import path4 from "node:path";
-import * as fs4 from "node:fs";
+import path3 from "node:path";
+import * as fs2 from "node:fs";
 
 class CommandHookService {
   static ApplyHooksToCommands(commands, buildParameters) {
@@ -91917,17 +90748,17 @@ echo "---${buildParameters.logId}"`;
   }
   static GetCustomHooksFromFiles(hookLifecycle) {
     const results = [];
-    const gameCiCustomHooksPath = path4.join(process.cwd(), `game-ci`, `command-hooks`);
-    if (!fs4.existsSync(gameCiCustomHooksPath)) {
+    const gameCiCustomHooksPath = path3.join(process.cwd(), `game-ci`, `command-hooks`);
+    if (!fs2.existsSync(gameCiCustomHooksPath)) {
       return results;
     }
     try {
-      const files = fs4.readdirSync(gameCiCustomHooksPath);
+      const files = fs2.readdirSync(gameCiCustomHooksPath);
       for (const file of files) {
         if (!orchestrator_options_default.commandHookFiles.includes(file.replace(`.yaml`, ``))) {
           continue;
         }
-        const fileContents = fs4.readFileSync(path4.join(gameCiCustomHooksPath, file), `utf8`);
+        const fileContents = fs2.readFileSync(path3.join(gameCiCustomHooksPath, file), `utf8`);
         const fileContentsObject = CommandHookService.ParseHooks(fileContents)[0];
         if (fileContentsObject.hook.includes(hookLifecycle)) {
           results.push(fileContentsObject);
@@ -91982,6 +90813,46 @@ var init_command_hook_service = __esm(() => {
   init_orchestrator_logger();
 });
 
+// plugins/orchestrator/src/model/github.ts
+class GitHub {
+  static githubInputEnabled = true;
+  static result = "";
+  static forceAsyncTest = false;
+  static async createGitHubCheck(summary) {
+    if (!GitHub.githubInputEnabled) {
+      core4.info("[GitHub] GitHub input disabled, skipping check creation");
+      return "";
+    }
+    core4.info(`[GitHub] createGitHubCheck: ${summary}`);
+    return "";
+  }
+  static async updateGitHubCheck(longDescription, summary, result = "neutral", status = "in_progress") {
+    if (!GitHub.githubInputEnabled)
+      return;
+    core4.info(`[GitHub] updateGitHubCheck: status=${status}, result=${result}, summary=${summary}`);
+  }
+  static async triggerWorkflowOnComplete(triggerWorkflowOnComplete) {
+    if (!triggerWorkflowOnComplete || triggerWorkflowOnComplete.length === 0)
+      return;
+    core4.info(`[GitHub] triggerWorkflowOnComplete: ${triggerWorkflowOnComplete.join(", ")}`);
+  }
+  static async createGitHubCheckRequest(_data) {
+    return {};
+  }
+  static async updateGitHubCheckRequest(_data) {
+    return {};
+  }
+  static async getCheckStatus() {
+    return {};
+  }
+  static async runUpdateAsyncChecksWorkflow(_data, _mode) {}
+}
+var core4, github_default;
+var init_github = __esm(() => {
+  core4 = __toESM(require_core());
+  github_default = GitHub;
+});
+
 // plugins/orchestrator/src/model/orchestrator/options/orchestrator-statics.ts
 class OrchestratorStatics {
   static logPrefix = `Orchestrator`;
@@ -92001,23 +90872,23 @@ class FollowLogStreamService {
       shouldReadLogs = false;
     } else if (message.includes("Rebuilding Library because the asset database could not be found!")) {
       github_default.updateGitHubCheck(`Library was not found, importing new Library`, ``);
-      core9.warning("LIBRARY NOT FOUND!");
-      core9.setOutput("library-found", "false");
+      core5.warning("LIBRARY NOT FOUND!");
+      core5.setOutput("library-found", "false");
     } else if (message.includes("Build succeeded")) {
       github_default.updateGitHubCheck(`Build succeeded`, `Build succeeded`);
-      core9.setOutput("build-result", "success");
+      core5.setOutput("build-result", "success");
     } else if (message.includes("Build fail")) {
       github_default.updateGitHubCheck(`Build failed
 ${FollowLogStreamService.errors}`, `Build failed`, `failure`, `completed`);
-      core9.setOutput("build-result", "failed");
-      core9.setFailed("unity build failed");
-      core9.error("BUILD FAILED!");
+      core5.setOutput("build-result", "failed");
+      core5.setFailed("unity build failed");
+      core5.error("BUILD FAILED!");
     } else if (message.toLowerCase().includes("error ")) {
-      core9.error(message);
+      core5.error(message);
       FollowLogStreamService.errors += `
 ${message}`;
     } else if (message.toLowerCase().includes("error: ")) {
-      core9.error(message);
+      core5.error(message);
       FollowLogStreamService.errors += `
 ${message}`;
     } else if (message.toLowerCase().includes("command failed: ")) {
@@ -92039,12 +90910,12 @@ ${message}`;
     return { shouldReadLogs, shouldCleanup, output };
   }
 }
-var core9;
+var core5;
 var init_follow_log_stream_service = __esm(() => {
   init_github();
   init_orchestrator();
   init_orchestrator_logger();
-  core9 = __toESM(require_core());
+  core5 = __toESM(require_core());
 });
 
 // node_modules/.bun/@aws-sdk+client-cloudwatch-logs@3.777.0/node_modules/@aws-sdk/client-cloudwatch-logs/dist-cjs/auth/httpAuthSchemeProvider.js
@@ -110427,7 +109298,7 @@ class AWSTaskRunner {
       const taskAfterError = await AWSTaskRunner.describeTasks(cluster, taskArn);
       const lastStatus = taskAfterError?.containers?.[0]?.lastStatus;
       orchestrator_logger_default.log(`ECS task waiter timed out after ${taskWaitTime}s — task status: ${lastStatus}. ` + `This often means image pull is slow (large Unity images). Continuing to stream logs...`);
-      core10.warning(`ECS task did not reach RUNNING within ${taskWaitTime}s (status: ${lastStatus}). ` + `Set ORCHESTRATOR_AWS_TASK_WAIT_TIME to increase (current: ${taskWaitTime}s).`);
+      core6.warning(`ECS task did not reach RUNNING within ${taskWaitTime}s (status: ${lastStatus}). ` + `Set ORCHESTRATOR_AWS_TASK_WAIT_TIME to increase (current: ${taskWaitTime}s).`);
     }
   }
   static async describeTasks(clusterName, taskArn) {
@@ -110538,7 +109409,7 @@ class AWSTaskRunner {
     }))).ShardIterator || "";
   }
 }
-var import_client_ecs2, import_client_kinesis2, core10, DEFAULT_TASK_WAIT_TIME_SECONDS = 900, aws_task_runner_default;
+var import_client_ecs2, import_client_kinesis2, core6, DEFAULT_TASK_WAIT_TIME_SECONDS = 900, aws_task_runner_default;
 var init_aws_task_runner = __esm(() => {
   init_orchestrator_logger();
   init_model2();
@@ -110550,7 +109421,7 @@ var init_aws_task_runner = __esm(() => {
   init_aws_client_factory();
   import_client_ecs2 = __toESM(require_dist_cjs45());
   import_client_kinesis2 = __toESM(require_dist_cjs48());
-  core10 = __toESM(require_core());
+  core6 = __toESM(require_core());
   aws_task_runner_default = AWSTaskRunner;
 });
 
@@ -110806,7 +109677,7 @@ var init_aws_cloud_formation_templates = __esm(() => {
 class AWSError {
   static async handleStackCreationFailure(error, CF, taskDefStackName) {
     orchestrator_logger_default.log("aws error: ");
-    core11.error(orchestrator_logger_default.stringifyError(error));
+    core7.error(orchestrator_logger_default.stringifyError(error));
     if (orchestrator_default.buildParameters.orchestratorDebug) {
       orchestrator_logger_default.log("Getting events and resources for task stack");
       const events = (await CF.send(new import_client_cloudformation2.DescribeStackEventsCommand({ StackName: taskDefStackName }))).StackEvents;
@@ -110814,12 +109685,12 @@ class AWSError {
     }
   }
 }
-var import_client_cloudformation2, core11;
+var import_client_cloudformation2, core7;
 var init_aws_error = __esm(() => {
   init_orchestrator_logger();
   init_orchestrator();
   import_client_cloudformation2 = __toESM(require_dist_cjs44());
-  core11 = __toESM(require_core());
+  core7 = __toESM(require_core());
 });
 
 // plugins/orchestrator/src/model/orchestrator/providers/aws/cloud-formations/cleanup-cron-formation.ts
@@ -111697,16 +110568,16 @@ class AWSBaseStack {
       }
       orchestrator_logger_default.log("base stack is now ready");
     } catch (error) {
-      core12.error(JSON.stringify(await describeStack(), undefined, 4));
+      core8.error(JSON.stringify(await describeStack(), undefined, 4));
       throw error;
     }
   }
 }
-var core12, import_client_cloudformation4, DEFAULT_STACK_WAIT_TIME_SECONDS2 = 600;
+var core8, import_client_cloudformation4, DEFAULT_STACK_WAIT_TIME_SECONDS2 = 600;
 var init_aws_base_stack = __esm(() => {
   init_orchestrator_logger();
   init_base_stack_formation();
-  core12 = __toESM(require_core());
+  core8 = __toESM(require_core());
   import_client_cloudformation4 = __toESM(require_dist_cjs44());
 });
 
@@ -111726,7 +110597,7 @@ class SharedWorkspaceLocking {
     return orchestrator_default.buildParameters.storageProvider === "rclone";
   }
   static async rclone(command) {
-    const { stdout } = await exec3(`rclone ${command}`);
+    const { stdout } = await exec2(`rclone ${command}`);
     return stdout.toString();
   }
   static get bucket() {
@@ -111986,14 +110857,14 @@ class SharedWorkspaceLocking {
     return SharedWorkspaceLocking.listObjects(prefix, bucket);
   }
 }
-var import_client_s32, exec3, shared_workspace_locking_default;
+var import_client_s32, exec2, shared_workspace_locking_default;
 var init_shared_workspace_locking = __esm(() => {
   init_orchestrator_logger();
   init_orchestrator();
   init_input();
   init_aws_client_factory();
   import_client_s32 = __toESM(require_dist_cjs65());
-  exec3 = promisify(execCallback);
+  exec2 = promisify(execCallback);
   shared_workspace_locking_default = SharedWorkspaceLocking;
 });
 
@@ -249176,7 +248047,7 @@ class KubernetesStorage {
     if (pvcList.includes(pvcName)) {
       orchestrator_logger_default.log(`pvc ${pvcName} already exists`);
       if (github_default.githubInputEnabled) {
-        core13.setOutput("volume", pvcName);
+        core9.setOutput("volume", pvcName);
       }
       return;
     }
@@ -249188,8 +248059,8 @@ class KubernetesStorage {
     try {
       return (await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace)).body.status?.phase;
     } catch (error) {
-      core13.error("Failed to get PVC phase");
-      core13.error(orchestrator_logger_default.stringifyError(error));
+      core9.error("Failed to get PVC phase");
+      core9.error(orchestrator_logger_default.stringifyError(error));
       throw error;
     }
   }
@@ -249259,8 +248130,8 @@ class KubernetesStorage {
         throw new Error(`PVC ${name} is still Pending after timeout`);
       }
     } catch (error) {
-      core13.error("Failed to watch PVC");
-      core13.error(error.toString());
+      core9.error("Failed to watch PVC");
+      core9.error(error.toString());
       try {
         const pvcBody = (await kubeClient.readNamespacedPersistentVolumeClaim(name, namespace)).body;
         let pvcEvents = [];
@@ -249290,7 +248161,7 @@ class KubernetesStorage {
         } catch (scCheckError) {
           storageClassInfo = `Could not check storage class: ${scCheckError}`;
         }
-        core13.error(`PVC Body: ${JSON.stringify({
+        core9.error(`PVC Body: ${JSON.stringify({
           phase: pvcBody.status?.phase,
           conditions: pvcBody.status?.conditions,
           accessModes: pvcBody.spec?.accessModes,
@@ -249298,12 +248169,12 @@ class KubernetesStorage {
           storageRequest: pvcBody.spec?.resources?.requests?.storage
         }, undefined, 4)}`);
         if (storageClassInfo) {
-          core13.error(storageClassInfo);
+          core9.error(storageClassInfo);
         }
         if (pvcEvents.length > 0) {
-          core13.error(`PVC Events: ${JSON.stringify(pvcEvents, undefined, 2)}`);
+          core9.error(`PVC Events: ${JSON.stringify(pvcEvents, undefined, 2)}`);
         } else {
-          core13.error("No PVC events found - this may indicate the storage provisioner is not responding");
+          core9.error("No PVC events found - this may indicate the storage provisioner is not responding");
         }
       } catch {}
       throw error;
@@ -249333,15 +248204,15 @@ class KubernetesStorage {
     orchestrator_logger_default.log(`PVC ${name} created`);
     await this.watchUntilPVCNotPending(kubeClient, name, namespace);
     orchestrator_logger_default.log(`PVC ${name} is ready and not pending`);
-    core13.setOutput("volume", pvcName);
+    core9.setOutput("volume", pvcName);
   }
 }
-var core13, k8s, kubernetes_storage_default;
+var core9, k8s, kubernetes_storage_default;
 var init_kubernetes_storage = __esm(() => {
   init_index_esm();
   init_orchestrator_logger();
   init_github();
-  core13 = __toESM(require_core());
+  core9 = __toESM(require_core());
   k8s = __toESM(require_dist2());
   kubernetes_storage_default = KubernetesStorage;
 });
@@ -250590,7 +249461,7 @@ class Kubernetes {
       return output;
     } catch (error) {
       orchestrator_logger_default.log("Running job failed");
-      core14.error(orchestrator_logger_default.stringifyError(error));
+      core10.error(orchestrator_logger_default.stringifyError(error));
       throw error;
     }
   }
@@ -250677,7 +249548,7 @@ class Kubernetes {
     return pod;
   }
 }
-var k8s4, core14, k8s_default;
+var k8s4, core10, k8s_default;
 var init_k8s = __esm(() => {
   init_model2();
   init_kubernetes_storage();
@@ -250692,7 +249563,7 @@ var init_k8s = __esm(() => {
   init_orchestrator_system();
   init_resource_tracking();
   k8s4 = __toESM(require_dist2());
-  core14 = __toESM(require_core());
+  core10 = __toESM(require_core());
   k8s_default = Kubernetes;
 });
 
@@ -250709,7 +249580,7 @@ class OrchestratorStepParameters {
 }
 
 // plugins/orchestrator/src/model/orchestrator/options/orchestrator-folders.ts
-import path5 from "node:path";
+import path4 from "node:path";
 
 class OrchestratorFolders {
   static repositoryFolder = "repo";
@@ -250717,47 +249588,47 @@ class OrchestratorFolders {
     return folder.replace(/\\/g, `/`);
   }
   static get uniqueOrchestratorJobFolderAbsolute() {
-    return orchestrator_default.buildParameters && build_parameters_default.shouldUseRetainedWorkspaceMode(orchestrator_default.buildParameters) ? path5.join(`/`, OrchestratorFolders.buildVolumeFolder, orchestrator_default.lockedWorkspace) : path5.join(`/`, OrchestratorFolders.buildVolumeFolder, orchestrator_default.buildParameters.buildGuid);
+    return orchestrator_default.buildParameters && build_parameters_default.shouldUseRetainedWorkspaceMode(orchestrator_default.buildParameters) ? path4.join(`/`, OrchestratorFolders.buildVolumeFolder, orchestrator_default.lockedWorkspace) : path4.join(`/`, OrchestratorFolders.buildVolumeFolder, orchestrator_default.buildParameters.buildGuid);
   }
   static get cacheFolderForAllFull() {
-    return path5.join("/", OrchestratorFolders.buildVolumeFolder, OrchestratorFolders.cacheFolder);
+    return path4.join("/", OrchestratorFolders.buildVolumeFolder, OrchestratorFolders.cacheFolder);
   }
   static get cacheFolderForCacheKeyFull() {
-    return path5.join("/", OrchestratorFolders.buildVolumeFolder, OrchestratorFolders.cacheFolder, orchestrator_default.buildParameters.cacheKey);
+    return path4.join("/", OrchestratorFolders.buildVolumeFolder, OrchestratorFolders.cacheFolder, orchestrator_default.buildParameters.cacheKey);
   }
   static get builderPathAbsolute() {
-    return path5.join(orchestrator_options_default.useSharedBuilder ? `/${OrchestratorFolders.buildVolumeFolder}` : OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute, `builder`);
+    return path4.join(orchestrator_options_default.useSharedBuilder ? `/${OrchestratorFolders.buildVolumeFolder}` : OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute, `builder`);
   }
   static get repoPathAbsolute() {
     const override = orchestrator_default.buildParameters?.repoPathOverride;
     if (override) {
       return override;
     }
-    return path5.join(OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute, OrchestratorFolders.repositoryFolder);
+    return path4.join(OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute, OrchestratorFolders.repositoryFolder);
   }
   static get projectPathAbsolute() {
-    return path5.join(OrchestratorFolders.repoPathAbsolute, orchestrator_default.buildParameters.projectPath);
+    return path4.join(OrchestratorFolders.repoPathAbsolute, orchestrator_default.buildParameters.projectPath);
   }
   static engineCacheFolderAbsolute(folder) {
-    return path5.join(OrchestratorFolders.projectPathAbsolute, folder);
+    return path4.join(OrchestratorFolders.projectPathAbsolute, folder);
   }
   static get libraryFolderAbsolute() {
     return OrchestratorFolders.engineCacheFolderAbsolute(getEngine().cacheFolders[0] || "Library");
   }
   static get projectBuildFolderAbsolute() {
-    return path5.join(OrchestratorFolders.repoPathAbsolute, orchestrator_default.buildParameters.buildPath);
+    return path4.join(OrchestratorFolders.repoPathAbsolute, orchestrator_default.buildParameters.buildPath);
   }
   static get lfsFolderAbsolute() {
-    return path5.join(OrchestratorFolders.repoPathAbsolute, `.git`, `lfs`);
+    return path4.join(OrchestratorFolders.repoPathAbsolute, `.git`, `lfs`);
   }
   static get purgeRemoteCaching() {
     return process.env.PURGE_REMOTE_BUILDER_CACHE !== undefined;
   }
   static get lfsCacheFolderFull() {
-    return path5.join(OrchestratorFolders.cacheFolderForCacheKeyFull, `lfs`);
+    return path4.join(OrchestratorFolders.cacheFolderForCacheKeyFull, `lfs`);
   }
   static engineCacheFolderFull(folder) {
-    return path5.join(OrchestratorFolders.cacheFolderForCacheKeyFull, folder);
+    return path4.join(OrchestratorFolders.cacheFolderForCacheKeyFull, folder);
   }
   static get libraryCacheFolderFull() {
     return OrchestratorFolders.engineCacheFolderFull(getEngine().cacheFolders[0] || "Library");
@@ -250986,8 +249857,8 @@ class CommandHook {
 }
 
 // plugins/orchestrator/src/model/orchestrator/services/hooks/middleware-service.ts
-import fs5 from "node:fs";
-import path6 from "node:path";
+import fs3 from "node:fs";
+import path5 from "node:path";
 
 class MiddlewareService {
   static getMiddleware(inlineYaml) {
@@ -251170,18 +250041,18 @@ class MiddlewareService {
       return results;
     }
     try {
-      const middlewarePath = path6.join(process.cwd(), "game-ci", "middleware");
-      if (!fs5.existsSync(middlewarePath)) {
+      const middlewarePath = path5.join(process.cwd(), "game-ci", "middleware");
+      if (!fs3.existsSync(middlewarePath)) {
         return results;
       }
-      const files = fs5.readdirSync(middlewarePath);
+      const files = fs3.readdirSync(middlewarePath);
       for (const file of files) {
         const baseName = file.replace(/\.ya?ml$/, "");
         if (!allowedFiles.includes(baseName)) {
           continue;
         }
         try {
-          const contents = fs5.readFileSync(path6.join(middlewarePath, file), "utf8");
+          const contents = fs3.readFileSync(path5.join(middlewarePath, file), "utf8");
           results.push(...MiddlewareService.parseMiddleware(contents));
         } catch (error) {
           orchestrator_logger_default.logWarning(`Middleware: failed to parse file ${file} — ${error.message}`);
@@ -251207,23 +250078,23 @@ var init_middleware_service = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/hooks/container-hook-service.ts
-import path7 from "node:path";
-import fs6 from "node:fs";
+import path6 from "node:path";
+import fs4 from "node:fs";
 
 class ContainerHookService {
   static GetContainerHooksFromFiles(hookLifecycle) {
     const results = [];
-    const gameCiCustomStepsPath = path7.join(process.cwd(), `game-ci`, `container-hooks`);
-    if (!fs6.existsSync(gameCiCustomStepsPath)) {
+    const gameCiCustomStepsPath = path6.join(process.cwd(), `game-ci`, `container-hooks`);
+    if (!fs4.existsSync(gameCiCustomStepsPath)) {
       return results;
     }
     try {
-      const files = fs6.readdirSync(gameCiCustomStepsPath);
+      const files = fs4.readdirSync(gameCiCustomStepsPath);
       for (const file of files) {
         if (!orchestrator_options_default.containerHookFiles.includes(file.replace(`.yaml`, ``))) {
           continue;
         }
-        const fileContents = fs6.readFileSync(path7.join(gameCiCustomStepsPath, file), `utf8`);
+        const fileContents = fs4.readFileSync(path6.join(gameCiCustomStepsPath, file), `utf8`);
         const fileContentsObject = ContainerHookService.ParseContainerHooks(fileContents)[0];
         if (fileContentsObject.hook === hookLifecycle) {
           results.push(fileContentsObject);
@@ -251732,15 +250603,15 @@ var init_built_in_checks = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/preflight/preflight-service.ts
-import { exec as exec4 } from "node:child_process";
+import { exec as exec3 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
-import fs7 from "node:fs";
+import fs5 from "node:fs";
 
 class PreflightService {
   static loadSuite(suitePath) {
     const candidate = suitePath ?? DEFAULT_SUITE_PATH;
-    if (fs7.existsSync(candidate)) {
-      const content = fs7.readFileSync(candidate, "utf8");
+    if (fs5.existsSync(candidate)) {
+      const content = fs5.readFileSync(candidate, "utf8");
       const parsed = exports_dist.parse(content);
       if (!parsed || typeof parsed !== "object") {
         throw new Error(`Invalid YAML in preflight suite file: ${candidate}`);
@@ -251792,7 +250663,7 @@ class PreflightService {
   }
   static async executeCheck(check) {
     if (check.platforms && check.platforms.length > 0 && !check.platforms.includes(process.platform)) {
-      core15.info(`[Preflight] Skipping '${check.id}' -- platform ${process.platform} not in [${check.platforms.join(", ")}]`);
+      core11.info(`[Preflight] Skipping '${check.id}' -- platform ${process.platform} not in [${check.platforms.join(", ")}]`);
       return {
         checkId: check.id,
         name: check.name,
@@ -251804,8 +250675,8 @@ class PreflightService {
     }
     const timeoutSeconds = check.timeout ?? DEFAULT_CHECK_TIMEOUT_SECONDS;
     const timeoutMs = timeoutSeconds * 1000;
-    core15.info(`[Preflight] Starting check: '${check.id}' (${check.name})`);
-    core15.info(`[Preflight] Command: ${check.command}`);
+    core11.info(`[Preflight] Starting check: '${check.id}' (${check.name})`);
+    core11.info(`[Preflight] Command: ${check.command}`);
     const startTime = Date.now();
     try {
       const { stdout, stderr } = await execAsync(check.command, {
@@ -251814,7 +250685,7 @@ class PreflightService {
         cwd: process.cwd()
       });
       const duration = (Date.now() - startTime) / 1000;
-      core15.info(`[Preflight] Check '${check.id}' passed in ${duration.toFixed(2)}s`);
+      core11.info(`[Preflight] Check '${check.id}' passed in ${duration.toFixed(2)}s`);
       return {
         checkId: check.id,
         name: check.name,
@@ -251826,7 +250697,7 @@ class PreflightService {
       const duration = (Date.now() - startTime) / 1000;
       const isTimeout = error.killed === true || error.signal === "SIGTERM";
       const message = isTimeout ? `Check timed out after ${timeoutSeconds}s` : error.message ?? "Unknown execution error";
-      core15.error(`[Preflight] Check '${check.id}' failed in ${duration.toFixed(2)}s: ${message}`);
+      core11.error(`[Preflight] Check '${check.id}' failed in ${duration.toFixed(2)}s: ${message}`);
       return {
         checkId: check.id,
         name: check.name,
@@ -251839,12 +250710,12 @@ ${error.stderr}` : message
     }
   }
   static async executeSuite(suite) {
-    core15.info(`[Preflight] Executing suite '${suite.name}'`);
+    core11.info(`[Preflight] Executing suite '${suite.name}'`);
     if (suite.description) {
-      core15.info(`[Preflight] ${suite.description}`);
+      core11.info(`[Preflight] ${suite.description}`);
     }
     const checks = PreflightService.resolveChecks(suite);
-    core15.info(`[Preflight] Resolved ${checks.length} check(s)`);
+    core11.info(`[Preflight] Resolved ${checks.length} check(s)`);
     const results = [];
     const suiteStart = Date.now();
     for (let index = 0;index < checks.length; index++) {
@@ -251853,7 +250724,7 @@ ${error.stderr}` : message
       results.push(result);
       if (!result.passed) {
         const totalDuration = (Date.now() - suiteStart) / 1000;
-        core15.error(`[Preflight] Suite '${suite.name}' aborted at check '${check.id}' (${index + 1}/${checks.length})`);
+        core11.error(`[Preflight] Suite '${suite.name}' aborted at check '${check.id}' (${index + 1}/${checks.length})`);
         return {
           passed: false,
           results,
@@ -251863,7 +250734,7 @@ ${error.stderr}` : message
       }
     }
     const totalDuration = (Date.now() - suiteStart) / 1000;
-    core15.info(`[Preflight] Suite '${suite.name}' passed in ${totalDuration.toFixed(2)}s`);
+    core11.info(`[Preflight] Suite '${suite.name}' passed in ${totalDuration.toFixed(2)}s`);
     return {
       passed: true,
       results,
@@ -251872,22 +250743,22 @@ ${error.stderr}` : message
   }
   static reportResults(results) {
     const summary = PreflightService.generateSummaryMarkdown(results);
-    core15.info(summary);
+    core11.info(summary);
     for (const result of results.results) {
       if (result.skipped) {
         continue;
       }
       if (!result.passed) {
-        core15.error(`Preflight check '${result.checkId}' failed: ${result.error ?? "no error message"}`);
+        core11.error(`Preflight check '${result.checkId}' failed: ${result.error ?? "no error message"}`);
       }
     }
     const summaryFile = process.env.GITHUB_STEP_SUMMARY;
     if (summaryFile) {
       try {
-        fs7.appendFileSync(summaryFile, `${summary}
+        fs5.appendFileSync(summaryFile, `${summary}
 `, "utf8");
       } catch (error) {
-        core15.warning(`[Preflight] Failed to write GITHUB_STEP_SUMMARY: ${error.message}`);
+        core11.warning(`[Preflight] Failed to write GITHUB_STEP_SUMMARY: ${error.message}`);
       }
     }
   }
@@ -251945,12 +250816,12 @@ ${error.stderr}` : message
     return DEFAULT_SUITE_PATH;
   }
 }
-var core15, execAsync, DEFAULT_SUITE_PATH = ".game-ci/preflight-suite.yml", DEFAULT_CHECK_TIMEOUT_SECONDS = 60;
+var core11, execAsync, DEFAULT_SUITE_PATH = ".game-ci/preflight-suite.yml", DEFAULT_CHECK_TIMEOUT_SECONDS = 60;
 var init_preflight_service = __esm(() => {
   init_dist();
   init_built_in_checks();
-  core15 = __toESM(require_core());
-  execAsync = promisify2(exec4);
+  core11 = __toESM(require_core());
+  execAsync = promisify2(exec3);
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/preflight/index.ts
@@ -251960,11 +250831,11 @@ var init_preflight = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/reliability/unity-build-diagnostics-service.ts
-import fs8 from "node:fs";
-import path8 from "node:path";
-var core16, UnityBuildDiagnosticsService;
+import fs6 from "node:fs";
+import path7 from "node:path";
+var core12, UnityBuildDiagnosticsService;
 var init_unity_build_diagnostics_service = __esm(() => {
-  core16 = __toESM(require_core());
+  core12 = __toESM(require_core());
   UnityBuildDiagnosticsService = class UnityBuildDiagnosticsService {
     static CRASH_EVIDENCE_PATTERNS = [
       /ErrorInvalidPPtrCast/i,
@@ -252067,16 +250938,16 @@ var init_unity_build_diagnostics_service = __esm(() => {
     }
     static scanForLfsPointerDlls(projectPath, maxBytes = 200) {
       const matches = [];
-      const roots = ["Assets", "Packages"].map((root) => path8.join(projectPath, root)).filter((root) => fs8.existsSync(root));
+      const roots = ["Assets", "Packages"].map((root) => path7.join(projectPath, root)).filter((root) => fs6.existsSync(root));
       const scan = (directory) => {
         let entries;
         try {
-          entries = fs8.readdirSync(directory, { withFileTypes: true });
+          entries = fs6.readdirSync(directory, { withFileTypes: true });
         } catch {
           return;
         }
         for (const entry of entries) {
-          const fullPath = path8.join(directory, entry.name);
+          const fullPath = path7.join(directory, entry.name);
           if (entry.isDirectory()) {
             scan(fullPath);
             continue;
@@ -252085,10 +250956,10 @@ var init_unity_build_diagnostics_service = __esm(() => {
             continue;
           }
           try {
-            const stat = fs8.statSync(fullPath);
+            const stat = fs6.statSync(fullPath);
             if (stat.size > maxBytes)
               continue;
-            const content = fs8.readFileSync(fullPath, "utf8");
+            const content = fs6.readFileSync(fullPath, "utf8");
             if (content.startsWith(UnityBuildDiagnosticsService.LFS_POINTER_HEADER)) {
               matches.push(fullPath);
             }
@@ -252186,21 +251057,21 @@ var init_unity_build_diagnostics_service = __esm(() => {
       }
       const markdown = lines.join(`
 `);
-      core16.info(`[BuildDiagnostics] Category: ${summary.category}`);
-      core16.info(`[BuildDiagnostics] Exit code: ${summary.exitCode}, Runtime: ${summary.runtimeSeconds}s`);
-      core16.info(`[BuildDiagnostics] Signals: ${summary.detectedSignals.join(", ") || "none"}`);
+      core12.info(`[BuildDiagnostics] Category: ${summary.category}`);
+      core12.info(`[BuildDiagnostics] Exit code: ${summary.exitCode}, Runtime: ${summary.runtimeSeconds}s`);
+      core12.info(`[BuildDiagnostics] Signals: ${summary.detectedSignals.join(", ") || "none"}`);
       if (summary.compileErrorCount > 0) {
-        core16.info(`[BuildDiagnostics] Compile errors: ${summary.compileErrorCount}`);
+        core12.info(`[BuildDiagnostics] Compile errors: ${summary.compileErrorCount}`);
       }
-      core16.info(`[BuildDiagnostics] Action: ${diagnostics.recommendedAction}`);
-      core16.info(`[BuildDiagnostics] Hint: ${summary.remediationHint}`);
+      core12.info(`[BuildDiagnostics] Action: ${diagnostics.recommendedAction}`);
+      core12.info(`[BuildDiagnostics] Hint: ${summary.remediationHint}`);
       const summaryFile = process.env.GITHUB_STEP_SUMMARY;
       if (summaryFile) {
         try {
-          fs8.appendFileSync(summaryFile, markdown + `
+          fs6.appendFileSync(summaryFile, markdown + `
 `);
         } catch {
-          core16.warning("[BuildDiagnostics] Failed to write GitHub Step Summary");
+          core12.warning("[BuildDiagnostics] Failed to write GitHub Step Summary");
         }
       }
     }
@@ -252217,15 +251088,15 @@ var init_unity_build_diagnostics_service = __esm(() => {
       if (!projectPath) {
         return false;
       }
-      const artifactDb = path8.join(projectPath, "Library", "ArtifactDB");
+      const artifactDb = path7.join(projectPath, "Library", "ArtifactDB");
       try {
-        if (!fs8.existsSync(artifactDb)) {
+        if (!fs6.existsSync(artifactDb)) {
           return false;
         }
         if (artifactDbMtimeBeforeMs === undefined) {
-          return fs8.statSync(artifactDb).size > 0;
+          return fs6.statSync(artifactDb).size > 0;
         }
-        return fs8.statSync(artifactDb).mtimeMs > artifactDbMtimeBeforeMs;
+        return fs6.statSync(artifactDb).mtimeMs > artifactDbMtimeBeforeMs;
       } catch {
         return false;
       }
@@ -252234,11 +251105,11 @@ var init_unity_build_diagnostics_service = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/cache/move-directory.ts
-import fs9 from "node:fs";
-import path9 from "node:path";
+import fs7 from "node:fs";
+import path8 from "node:path";
 function moveDirectory(source, destination) {
   try {
-    fs9.renameSync(source, destination);
+    fs7.renameSync(source, destination);
     return { method: "rename" };
   } catch (error) {
     const renameError = errorCode(error);
@@ -252267,22 +251138,22 @@ function moveDirectory(source, destination) {
 function copyIntoPlace(source, destination) {
   const staging = siblingPath(destination, "partial");
   try {
-    fs9.cpSync(source, staging, { recursive: true, verbatimSymlinks: true });
-    fs9.renameSync(staging, destination);
+    fs7.cpSync(source, staging, { recursive: true, verbatimSymlinks: true });
+    fs7.renameSync(staging, destination);
   } catch (error) {
-    fs9.rmSync(staging, { recursive: true, force: true });
+    fs7.rmSync(staging, { recursive: true, force: true });
     throw error;
   }
 }
 function removeDirectory(directory) {
   const tombstone = siblingPath(directory, "removing");
   try {
-    fs9.renameSync(directory, tombstone);
+    fs7.renameSync(directory, tombstone);
   } catch (error) {
     return { outcome: "kept-whole", error: describe(error) };
   }
   try {
-    fs9.rmSync(tombstone, { recursive: true, force: true });
+    fs7.rmSync(tombstone, { recursive: true, force: true });
     return { outcome: "removed" };
   } catch (error) {
     return { outcome: "tombstone-left", tombstone, error: describe(error) };
@@ -252290,13 +251161,13 @@ function removeDirectory(directory) {
 }
 function sweepAbandonedLeftovers(parent) {
   const sweep = { removed: [], failed: [] };
-  for (const entry of fs9.readdirSync(parent, { withFileTypes: true })) {
+  for (const entry of fs7.readdirSync(parent, { withFileTypes: true })) {
     const match = entry.isDirectory() && leftoverPattern.exec(entry.name);
     if (!match || isProcessAlive(Number(match[2])))
       continue;
-    const leftover = path9.join(parent, entry.name);
+    const leftover = path8.join(parent, entry.name);
     try {
-      fs9.rmSync(leftover, { recursive: true, force: true });
+      fs7.rmSync(leftover, { recursive: true, force: true });
       sweep.removed.push(leftover);
     } catch (error) {
       sweep.failed.push({ path: leftover, error: describe(error) });
@@ -252305,7 +251176,7 @@ function sweepAbandonedLeftovers(parent) {
   return sweep;
 }
 function siblingPath(directory, purpose) {
-  return path9.join(path9.dirname(directory), `.${path9.basename(directory)}.${purpose}-${process.pid}-${Date.now().toString(36)}`);
+  return path8.join(path8.dirname(directory), `.${path8.basename(directory)}.${purpose}-${process.pid}-${Date.now().toString(36)}`);
 }
 function isProcessAlive(pid) {
   if (pid === process.pid)
@@ -252330,9 +251201,9 @@ var init_move_directory = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/cache/local-cache-service.ts
-import fs10 from "node:fs";
-import path10 from "node:path";
-import { execSync, spawn as spawn3 } from "node:child_process";
+import fs8 from "node:fs";
+import path9 from "node:path";
+import { execSync, spawn as spawn2 } from "node:child_process";
 
 class LocalCacheService {
   static resolveCacheRoot(buildParameters) {
@@ -252340,9 +251211,9 @@ class LocalCacheService {
       return buildParameters.localCacheRoot;
     }
     if (process.env.RUNNER_TEMP) {
-      return path10.join(process.env.RUNNER_TEMP, "game-ci-cache");
+      return path9.join(process.env.RUNNER_TEMP, "game-ci-cache");
     }
-    return path10.join(process.cwd(), ".game-ci", "cache");
+    return path9.join(process.cwd(), ".game-ci", "cache");
   }
   static generateCacheKey(targetPlatform, unityVersion, branch) {
     const raw = `${targetPlatform}-${unityVersion}-${branch}`;
@@ -252355,13 +251226,13 @@ class LocalCacheService {
       if (key)
         candidates.add(key);
     }
-    if (!fs10.existsSync(cacheRoot)) {
+    if (!fs8.existsSync(cacheRoot)) {
       return Array.from(candidates);
     }
     try {
       const platformPrefix = targetPlatform.replace(/[^a-zA-Z0-9-]/g, "_");
       const versionPart = unityVersion.replace(/[^a-zA-Z0-9-]/g, "_");
-      const entries = fs10.readdirSync(cacheRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).filter((key) => key !== exactKey);
+      const entries = fs8.readdirSync(cacheRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).filter((key) => key !== exactKey);
       const scored = entries.map((key) => {
         let score = 0;
         if (key.startsWith(`${platformPrefix}-${versionPart}-`))
@@ -252422,9 +251293,9 @@ class LocalCacheService {
     return false;
   }
   static async restoreCacheFolderCandidate(projectPath, cacheRoot, cacheKey, folder, options = {}) {
-    const cachePath = path10.join(cacheRoot, cacheKey, folder);
+    const cachePath = path9.join(cacheRoot, cacheKey, folder);
     try {
-      if (!fs10.existsSync(cachePath)) {
+      if (!fs8.existsSync(cachePath)) {
         orchestrator_logger_default.log(`[LocalCache] ${folder} cache miss: ${cachePath}`);
         return false;
       }
@@ -252434,28 +251305,28 @@ class LocalCacheService {
           restoreMode: options.restoreMode ?? "move-directory"
         });
       }
-      const files = fs10.readdirSync(cachePath).filter((f) => f.endsWith(".tar"));
+      const files = fs8.readdirSync(cachePath).filter((f) => f.endsWith(".tar"));
       if (files.length === 0) {
         orchestrator_logger_default.log(`[LocalCache] ${folder} cache miss (no tar files): ${cachePath}`);
         return false;
       }
       let latestFile = files[0];
-      let latestMtime = fs10.statSync(path10.join(cachePath, files[0])).mtimeMs;
+      let latestMtime = fs8.statSync(path9.join(cachePath, files[0])).mtimeMs;
       for (let i = 1;i < files.length; i++) {
-        const mtime = fs10.statSync(path10.join(cachePath, files[i])).mtimeMs;
+        const mtime = fs8.statSync(path9.join(cachePath, files[i])).mtimeMs;
         if (mtime > latestMtime) {
           latestMtime = mtime;
           latestFile = files[i];
         }
       }
-      const tarPath = path10.join(cachePath, latestFile);
-      const dest = path10.join(projectPath, folder);
-      fs10.mkdirSync(dest, { recursive: true });
+      const tarPath = path9.join(cachePath, latestFile);
+      const dest = path9.join(projectPath, folder);
+      fs8.mkdirSync(dest, { recursive: true });
       orchestrator_logger_default.log(`[LocalCache] ${folder} cache hit: restoring from ${tarPath}`);
       await OrchestratorSystem.Run(`tar -xf "${tarPath}" -C "${projectPath}"`, true);
       if (options.validateRestored !== false && !LocalCacheService.isCacheFolderComplete(dest, folder)) {
         orchestrator_logger_default.logWarning(`[LocalCache] ${folder} restored from ${tarPath} is incomplete; discarding`);
-        fs10.rmSync(dest, { recursive: true, force: true });
+        fs8.rmSync(dest, { recursive: true, force: true });
         return false;
       }
       orchestrator_logger_default.log(`[LocalCache] ${folder} cache restored successfully`);
@@ -252466,7 +251337,7 @@ class LocalCacheService {
     }
   }
   static async saveCacheFolder(projectPath, cacheRoot, cacheKey, folder, options = {}) {
-    const folderPath = path10.join(projectPath, folder);
+    const folderPath = path9.join(projectPath, folder);
     try {
       if (options.skipOnCorruptionEvidence) {
         orchestrator_logger_default.logWarning(`[LocalCache] ${folder} save skipped: corruption-specific failure evidence found ` + `(unconditional block, regardless of import completion)`);
@@ -252476,11 +251347,11 @@ class LocalCacheService {
         orchestrator_logger_default.logWarning(`[LocalCache] ${folder} save skipped: build/test failed before asset import completed` + `${options.diagnostics?.crashEvidenceFound ? " (crash evidence found)" : ""}`);
         return;
       }
-      if (!fs10.existsSync(folderPath)) {
+      if (!fs8.existsSync(folderPath)) {
         orchestrator_logger_default.log(`[LocalCache] ${folder} folder does not exist, skipping save`);
         return;
       }
-      const entries = fs10.readdirSync(folderPath);
+      const entries = fs8.readdirSync(folderPath);
       if (entries.length === 0) {
         orchestrator_logger_default.log(`[LocalCache] ${folder} folder is empty, skipping save`);
         return;
@@ -252496,8 +251367,8 @@ class LocalCacheService {
           return;
         }
       }
-      const cachePath = path10.join(cacheRoot, cacheKey, folder);
-      fs10.mkdirSync(cachePath, { recursive: true });
+      const cachePath = path9.join(cacheRoot, cacheKey, folder);
+      fs8.mkdirSync(cachePath, { recursive: true });
       if (options.saveMode !== "tar") {
         const directorySaveMode = options.saveMode === "copy-directory" ? "copy-directory" : "move-directory";
         LocalCacheService.saveDirectoryCache(folderPath, cachePath, directorySaveMode, options.backgroundSave);
@@ -252506,7 +251377,7 @@ class LocalCacheService {
       const timestamp = Date.now();
       const prefix = folder.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
       const tarName = `${prefix}-${timestamp}.tar`;
-      const tarPath = path10.join(cachePath, tarName);
+      const tarPath = path9.join(cachePath, tarName);
       orchestrator_logger_default.log(`[LocalCache] Saving ${folder} cache to ${tarPath}`);
       await OrchestratorSystem.Run(`tar -cf "${tarPath}" -C "${projectPath}" "${folder}"`, true);
       orchestrator_logger_default.log(`[LocalCache] ${folder} cache saved successfully`);
@@ -252516,21 +251387,21 @@ class LocalCacheService {
     }
   }
   static restoreDirectoryCache(projectPath, cachePath, folder, options) {
-    const dest = path10.join(projectPath, folder);
+    const dest = path9.join(projectPath, folder);
     LocalCacheService.waitForBackgroundLock(cachePath);
     try {
       if (!LocalCacheService.isCacheFolderComplete(cachePath, folder)) {
         orchestrator_logger_default.log(`[LocalCache] ${folder} directory cache miss or incomplete: ${cachePath}`);
         return false;
       }
-      const entries = fs10.readdirSync(cachePath);
+      const entries = fs8.readdirSync(cachePath);
       if (entries.length > 0 && entries.every((entry) => entry.endsWith(".tar"))) {
         orchestrator_logger_default.logWarning(`[LocalCache] ${folder} cache at ${cachePath} contains tar archives; use cacheMode=tar to restore it`);
         return false;
       }
       if (!LocalCacheService.clearDirectory(dest))
         return false;
-      fs10.mkdirSync(path10.dirname(dest), { recursive: true });
+      fs8.mkdirSync(path9.dirname(dest), { recursive: true });
       if (options.restoreMode === "copy-directory") {
         copyIntoPlace(cachePath, dest);
       } else {
@@ -252538,7 +251409,7 @@ class LocalCacheService {
       }
       if (options.validateRestored !== false && !LocalCacheService.isCacheFolderComplete(dest, folder)) {
         orchestrator_logger_default.logWarning(`[LocalCache] ${folder} directory cache restored incomplete; discarding`);
-        fs10.rmSync(dest, { recursive: true, force: true });
+        fs8.rmSync(dest, { recursive: true, force: true });
         return false;
       }
       LocalCacheService.repairDagFiles(dest);
@@ -252551,23 +251422,23 @@ class LocalCacheService {
     }
   }
   static repairDagFiles(libraryPath) {
-    const beePath = path10.join(libraryPath, "Bee");
-    if (!fs10.existsSync(beePath))
+    const beePath = path9.join(libraryPath, "Bee");
+    if (!fs8.existsSync(beePath))
       return 0;
-    const currentWorkspace = path10.resolve(path10.join(libraryPath, ".."));
+    const currentWorkspace = path9.resolve(path9.join(libraryPath, ".."));
     let repaired = 0;
     const isDagOrCompanion = (name) => name.endsWith(".dag") || name.endsWith(".dag.json") || name.endsWith(".dag.outputdata") || name.endsWith("-inputdata.json");
     const scanAndRepair = (directory) => {
       let names;
       try {
-        names = fs10.readdirSync(directory);
+        names = fs8.readdirSync(directory);
       } catch {
         return;
       }
       for (const name of names) {
-        const fullPath = path10.join(directory, name);
+        const fullPath = path9.join(directory, name);
         try {
-          const stat = fs10.statSync(fullPath);
+          const stat = fs8.statSync(fullPath);
           if (typeof stat.isDirectory === "function" && stat.isDirectory()) {
             scanAndRepair(fullPath);
             continue;
@@ -252578,7 +251449,7 @@ class LocalCacheService {
         if (!isDagOrCompanion(name))
           continue;
         try {
-          const content = fs10.readFileSync(fullPath, "utf8");
+          const content = fs8.readFileSync(fullPath, "utf8");
           const workspacePattern = /([A-Z]:[\\/][^\s"';,\n]+[\\/])(?=Library[\\/]|Assets[\\/]|Packages[\\/]|Temp[\\/])/gi;
           const matches = content.match(workspacePattern);
           if (!matches)
@@ -252599,7 +251470,7 @@ class LocalCacheService {
             updatedContent = updatedContent.replace(new RegExp(escapedStale, "gi"), currentWorkspace);
           }
           if (updatedContent !== content) {
-            fs10.writeFileSync(fullPath, updatedContent, "utf8");
+            fs8.writeFileSync(fullPath, updatedContent, "utf8");
             repaired++;
           }
         } catch {}
@@ -252612,20 +251483,20 @@ class LocalCacheService {
     return repaired;
   }
   static repairPackageManagerPaths(libraryPath) {
-    const pmPath = path10.join(libraryPath, "PackageManager");
-    if (!fs10.existsSync(pmPath))
+    const pmPath = path9.join(libraryPath, "PackageManager");
+    if (!fs8.existsSync(pmPath))
       return 0;
-    const currentWorkspace = path10.resolve(path10.join(libraryPath, ".."));
+    const currentWorkspace = path9.resolve(path9.join(libraryPath, ".."));
     const currentFwd = currentWorkspace.replace(/\\/g, "/");
     const currentBackEscaped = currentWorkspace.replace(/\\/g, "\\\\");
     let repaired = 0;
     const pmFiles = ["projectResolution.json", "ProjectCache"];
     for (const fileName of pmFiles) {
-      const filePath = path10.join(pmPath, fileName);
-      if (!fs10.existsSync(filePath))
+      const filePath = path9.join(pmPath, fileName);
+      if (!fs8.existsSync(filePath))
         continue;
       try {
-        let content = fs10.readFileSync(filePath, "utf8");
+        let content = fs8.readFileSync(filePath, "utf8");
         let changed = false;
         const fwdMatch = content.match(/((?:[A-Z]:\/)?[\w./-]*actions-runner[^/]*\/_work\/\w+\/\w+)/);
         if (fwdMatch && fwdMatch[1] !== currentFwd) {
@@ -252638,12 +251509,12 @@ class LocalCacheService {
           changed = true;
         }
         if (changed) {
-          fs10.writeFileSync(filePath, content, "utf8");
+          fs8.writeFileSync(filePath, content, "utf8");
           repaired++;
         }
       } catch {
         try {
-          fs10.unlinkSync(filePath);
+          fs8.unlinkSync(filePath);
           orchestrator_logger_default.logWarning(`[LocalCache] Removed ${fileName} (repair failed, Unity will regenerate)`);
         } catch {}
       }
@@ -252676,11 +251547,11 @@ class LocalCacheService {
     } catch {
       orchestrator_logger_default.log("[LocalCache] LFS count check unavailable, falling back to scan");
     }
-    const markerPath = path10.join(projectPath, "Library", ".game-ci-lfs-validated-sha");
+    const markerPath = path9.join(projectPath, "Library", ".game-ci-lfs-validated-sha");
     let diffBasedResult = null;
     try {
-      if (fs10.existsSync(markerPath)) {
-        const lastSha = fs10.readFileSync(markerPath, "utf8").trim();
+      if (fs8.existsSync(markerPath)) {
+        const lastSha = fs8.readFileSync(markerPath, "utf8").trim();
         if (/^[0-9a-f]{40}$/i.test(lastSha)) {
           const configDiff = execSync(`git diff --name-only ${lastSha} -- .gitattributes .lfsconfig`, {
             cwd: projectPath,
@@ -252702,13 +251573,13 @@ class LocalCacheService {
             }
             diffBasedResult = [];
             for (const file of changedFiles) {
-              const fullPath = path10.join(projectPath, file);
-              if (!fs10.existsSync(fullPath))
+              const fullPath = path9.join(projectPath, file);
+              if (!fs8.existsSync(fullPath))
                 continue;
               try {
-                const stat = fs10.statSync(fullPath);
+                const stat = fs8.statSync(fullPath);
                 if (stat.size > 0 && stat.size < 200) {
-                  const content = fs10.readFileSync(fullPath, "utf8");
+                  const content = fs8.readFileSync(fullPath, "utf8");
                   if (content.startsWith(LFS_HEADER)) {
                     diffBasedResult.push(fullPath);
                   }
@@ -252736,11 +251607,11 @@ class LocalCacheService {
     }
     const poisoned = [];
     const scanTargets = [
-      path10.join(projectPath, "Library", "ScriptAssemblies"),
-      path10.join(projectPath, "Library", "PackageCache")
+      path9.join(projectPath, "Library", "ScriptAssemblies"),
+      path9.join(projectPath, "Library", "PackageCache")
     ];
     for (const target of scanTargets) {
-      if (!fs10.existsSync(target))
+      if (!fs8.existsSync(target))
         continue;
       LocalCacheService.scanForLfsPointers(target, LFS_HEADER, poisoned);
     }
@@ -252763,21 +251634,21 @@ class LocalCacheService {
         stdio: ["pipe", "pipe", "pipe"]
       }).trim();
       if (/^[0-9a-f]{40}$/i.test(sha)) {
-        const markerPath = path10.join(projectPath, "Library", ".game-ci-lfs-validated-sha");
-        fs10.mkdirSync(path10.dirname(markerPath), { recursive: true });
-        fs10.writeFileSync(markerPath, sha, "utf8");
+        const markerPath = path9.join(projectPath, "Library", ".game-ci-lfs-validated-sha");
+        fs8.mkdirSync(path9.dirname(markerPath), { recursive: true });
+        fs8.writeFileSync(markerPath, sha, "utf8");
       }
     } catch {}
   }
   static scanForLfsPointers(directory, lfsHeader, results, maxBytes = 200) {
     let entries;
     try {
-      entries = fs10.readdirSync(directory, { withFileTypes: true });
+      entries = fs8.readdirSync(directory, { withFileTypes: true });
     } catch {
       return;
     }
     for (const entry of entries) {
-      const fullPath = path10.join(directory, entry.name);
+      const fullPath = path9.join(directory, entry.name);
       if (entry.isDirectory()) {
         LocalCacheService.scanForLfsPointers(fullPath, lfsHeader, results, maxBytes);
         continue;
@@ -252788,10 +251659,10 @@ class LocalCacheService {
       if (!ext.endsWith(".dll") && !ext.endsWith(".so") && !ext.endsWith(".dylib"))
         continue;
       try {
-        const stat = fs10.statSync(fullPath);
+        const stat = fs8.statSync(fullPath);
         if (stat.size > maxBytes || stat.size === 0)
           continue;
-        const content = fs10.readFileSync(fullPath, "utf8");
+        const content = fs8.readFileSync(fullPath, "utf8");
         if (content.startsWith(lfsHeader)) {
           results.push(fullPath);
         }
@@ -252807,13 +251678,13 @@ class LocalCacheService {
     if (!LocalCacheService.clearDirectory(cachePath)) {
       throw new Error(`could not replace the existing cache entry at ${cachePath}`);
     }
-    fs10.mkdirSync(path10.dirname(cachePath), { recursive: true });
+    fs8.mkdirSync(path9.dirname(cachePath), { recursive: true });
     if (saveMode === "copy-directory") {
       copyIntoPlace(folderPath, cachePath);
     } else {
       LocalCacheService.renameOrCopy(folderPath, cachePath);
     }
-    orchestrator_logger_default.log(`[LocalCache] ${path10.basename(folderPath)} directory cache saved successfully`);
+    orchestrator_logger_default.log(`[LocalCache] ${path9.basename(folderPath)} directory cache saved successfully`);
   }
   static renameOrCopy(source, destination) {
     const move = moveDirectory(source, destination);
@@ -252825,7 +251696,7 @@ class LocalCacheService {
     }
   }
   static clearDirectory(directory) {
-    if (!fs10.existsSync(directory))
+    if (!fs8.existsSync(directory))
       return true;
     const removal = removeDirectory(directory);
     if (removal.outcome === "kept-whole") {
@@ -252865,50 +251736,50 @@ class LocalCacheService {
 `);
   }
   static spawnBackgroundSave(folderPath, cachePath) {
-    const lockPath = path10.join(path10.dirname(cachePath), BACKGROUND_LOCK_FILE);
+    const lockPath = path9.join(path9.dirname(cachePath), BACKGROUND_LOCK_FILE);
     const script = LocalCacheService.backgroundSaveScript(folderPath, cachePath, lockPath);
     try {
-      fs10.mkdirSync(path10.dirname(lockPath), { recursive: true });
-      fs10.writeFileSync(lockPath, "pending", "utf8");
-      const child = spawn3(process.execPath, ["-e", script], {
+      fs8.mkdirSync(path9.dirname(lockPath), { recursive: true });
+      fs8.writeFileSync(lockPath, "pending", "utf8");
+      const child = spawn2(process.execPath, ["-e", script], {
         detached: true,
         stdio: "ignore"
       });
-      fs10.writeFileSync(lockPath, String(child.pid), "utf8");
+      fs8.writeFileSync(lockPath, String(child.pid), "utf8");
       child.unref();
-      orchestrator_logger_default.log(`[LocalCache] Background cache save started (PID ${child.pid}) for ${path10.basename(folderPath)}`);
+      orchestrator_logger_default.log(`[LocalCache] Background cache save started (PID ${child.pid}) for ${path9.basename(folderPath)}`);
     } catch (error) {
       orchestrator_logger_default.logWarning(`[LocalCache] Background save spawn failed, falling back to sync: ${error.message}`);
       try {
-        fs10.unlinkSync(lockPath);
+        fs8.unlinkSync(lockPath);
       } catch {}
       if (!LocalCacheService.clearDirectory(cachePath)) {
         throw new Error(`could not replace the existing cache entry at ${cachePath}`, {
           cause: error
         });
       }
-      fs10.mkdirSync(path10.dirname(cachePath), { recursive: true });
+      fs8.mkdirSync(path9.dirname(cachePath), { recursive: true });
       copyIntoPlace(folderPath, cachePath);
     }
   }
   static sweepStaleLocks(cacheRoot) {
-    if (!fs10.existsSync(cacheRoot))
+    if (!fs8.existsSync(cacheRoot))
       return 0;
     let cacheKeyDirs;
     try {
-      cacheKeyDirs = fs10.readdirSync(cacheRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+      cacheKeyDirs = fs8.readdirSync(cacheRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
     } catch (error) {
       orchestrator_logger_default.logWarning(`[LocalCache] Failed to scan ${cacheRoot} for stale locks: ${error.message}`);
       return 0;
     }
     let swept = 0;
     for (const cacheKeyDir of cacheKeyDirs) {
-      LocalCacheService.sweepAbandonedCopies(path10.join(cacheRoot, cacheKeyDir));
-      const lockPath = path10.join(cacheRoot, cacheKeyDir, BACKGROUND_LOCK_FILE);
-      if (!fs10.existsSync(lockPath))
+      LocalCacheService.sweepAbandonedCopies(path9.join(cacheRoot, cacheKeyDir));
+      const lockPath = path9.join(cacheRoot, cacheKeyDir, BACKGROUND_LOCK_FILE);
+      if (!fs8.existsSync(lockPath))
         continue;
       try {
-        const lockContents = fs10.readFileSync(lockPath, "utf8").trim();
+        const lockContents = fs8.readFileSync(lockPath, "utf8").trim();
         const pid = /^\d+$/.test(lockContents) ? Number(lockContents) : 0;
         if (pid > 0) {
           try {
@@ -252919,10 +251790,10 @@ class LocalCacheService {
               continue;
             }
           }
-        } else if (Date.now() - fs10.statSync(lockPath).mtimeMs < BACKGROUND_LOCK_GRACE_MS) {
+        } else if (Date.now() - fs8.statSync(lockPath).mtimeMs < BACKGROUND_LOCK_GRACE_MS) {
           continue;
         }
-        fs10.unlinkSync(lockPath);
+        fs8.unlinkSync(lockPath);
         swept++;
         orchestrator_logger_default.log(`[LocalCache] Swept stale background-save lock: ${lockPath}`);
       } catch (error) {
@@ -252948,15 +251819,15 @@ class LocalCacheService {
     }
   }
   static waitForBackgroundLock(cachePath, timeoutMs = 300000) {
-    const lockPath = path10.join(path10.dirname(cachePath), BACKGROUND_LOCK_FILE);
-    if (!fs10.existsSync(lockPath))
+    const lockPath = path9.join(path9.dirname(cachePath), BACKGROUND_LOCK_FILE);
+    if (!fs8.existsSync(lockPath))
       return;
     orchestrator_logger_default.log("[LocalCache] Waiting for background cache save to complete...");
     const start = Date.now();
     const pollInterval = 1000;
-    while (fs10.existsSync(lockPath) && Date.now() - start < timeoutMs) {
+    while (fs8.existsSync(lockPath) && Date.now() - start < timeoutMs) {
       try {
-        const lockContents = fs10.readFileSync(lockPath, "utf8").trim();
+        const lockContents = fs8.readFileSync(lockPath, "utf8").trim();
         const pid = /^\d+$/.test(lockContents) ? Number(lockContents) : 0;
         if (pid > 0) {
           try {
@@ -252967,14 +251838,14 @@ class LocalCacheService {
             }
             orchestrator_logger_default.log("[LocalCache] Background save process exited, removing stale lock");
             try {
-              fs10.unlinkSync(lockPath);
+              fs8.unlinkSync(lockPath);
             } catch {}
             return;
           }
         }
       } catch {
         try {
-          fs10.unlinkSync(lockPath);
+          fs8.unlinkSync(lockPath);
         } catch {}
         return;
       }
@@ -252982,22 +251853,22 @@ class LocalCacheService {
       const view = new Int32Array(buffer);
       Atomics.wait(view, 0, 0, pollInterval);
     }
-    if (fs10.existsSync(lockPath)) {
+    if (fs8.existsSync(lockPath)) {
       orchestrator_logger_default.logWarning("[LocalCache] Background save lock timed out, removing lock and proceeding");
       try {
-        fs10.unlinkSync(lockPath);
+        fs8.unlinkSync(lockPath);
       } catch {}
     }
   }
   static async removeDirectoriesParallel(directories) {
-    const existing = directories.filter((dir) => fs10.existsSync(dir));
+    const existing = directories.filter((dir) => fs8.existsSync(dir));
     if (existing.length === 0)
       return [];
     const startTime = Date.now();
     orchestrator_logger_default.log(`[LocalCache] Removing ${existing.length} directories in parallel...`);
     const results = await Promise.all(existing.map(async (dir) => {
       try {
-        await fs10.promises.rm(dir, { recursive: true, force: true });
+        await fs8.promises.rm(dir, { recursive: true, force: true });
         return dir;
       } catch (error) {
         orchestrator_logger_default.logWarning(`[LocalCache] Failed to remove ${dir}: ${error.message}`);
@@ -253010,31 +251881,31 @@ class LocalCacheService {
     return removed;
   }
   static async restoreLfsCache(repoPath, cacheRoot, cacheKey) {
-    const cachePath = path10.join(cacheRoot, cacheKey, "lfs");
+    const cachePath = path9.join(cacheRoot, cacheKey, "lfs");
     try {
-      if (!fs10.existsSync(cachePath)) {
+      if (!fs8.existsSync(cachePath)) {
         orchestrator_logger_default.log(`[LocalCache] LFS cache miss: ${cachePath}`);
         return false;
       }
-      const files = fs10.readdirSync(cachePath).filter((f) => f.endsWith(".tar"));
+      const files = fs8.readdirSync(cachePath).filter((f) => f.endsWith(".tar"));
       if (files.length === 0) {
         orchestrator_logger_default.log(`[LocalCache] LFS cache miss (no tar files): ${cachePath}`);
         return false;
       }
       let latestFile = files[0];
-      let latestMtime = fs10.statSync(path10.join(cachePath, files[0])).mtimeMs;
+      let latestMtime = fs8.statSync(path9.join(cachePath, files[0])).mtimeMs;
       for (let i = 1;i < files.length; i++) {
-        const mtime = fs10.statSync(path10.join(cachePath, files[i])).mtimeMs;
+        const mtime = fs8.statSync(path9.join(cachePath, files[i])).mtimeMs;
         if (mtime > latestMtime) {
           latestMtime = mtime;
           latestFile = files[i];
         }
       }
-      const tarPath = path10.join(cachePath, latestFile);
-      const lfsDest = path10.join(repoPath, ".git", "lfs");
-      fs10.mkdirSync(lfsDest, { recursive: true });
+      const tarPath = path9.join(cachePath, latestFile);
+      const lfsDest = path9.join(repoPath, ".git", "lfs");
+      fs8.mkdirSync(lfsDest, { recursive: true });
       orchestrator_logger_default.log(`[LocalCache] LFS cache hit: restoring from ${tarPath}`);
-      await OrchestratorSystem.Run(`tar -xf "${tarPath}" -C "${path10.join(repoPath, ".git")}"`, true);
+      await OrchestratorSystem.Run(`tar -xf "${tarPath}" -C "${path9.join(repoPath, ".git")}"`, true);
       orchestrator_logger_default.log(`[LocalCache] LFS cache restored successfully`);
       return true;
     } catch (error) {
@@ -253043,24 +251914,24 @@ class LocalCacheService {
     }
   }
   static async saveLfsCache(repoPath, cacheRoot, cacheKey, maxCacheEntries = 2) {
-    const lfsPath = path10.join(repoPath, ".git", "lfs");
+    const lfsPath = path9.join(repoPath, ".git", "lfs");
     try {
-      if (!fs10.existsSync(lfsPath)) {
+      if (!fs8.existsSync(lfsPath)) {
         orchestrator_logger_default.log(`[LocalCache] LFS folder does not exist, skipping save`);
         return;
       }
-      const entries = fs10.readdirSync(lfsPath);
+      const entries = fs8.readdirSync(lfsPath);
       if (entries.length === 0) {
         orchestrator_logger_default.log(`[LocalCache] LFS folder is empty, skipping save`);
         return;
       }
-      const cachePath = path10.join(cacheRoot, cacheKey, "lfs");
-      fs10.mkdirSync(cachePath, { recursive: true });
+      const cachePath = path9.join(cacheRoot, cacheKey, "lfs");
+      fs8.mkdirSync(cachePath, { recursive: true });
       const timestamp = Date.now();
       const tarName = `lfs-${timestamp}.tar`;
-      const tarPath = path10.join(cachePath, tarName);
+      const tarPath = path9.join(cachePath, tarName);
       orchestrator_logger_default.log(`[LocalCache] Saving LFS cache to ${tarPath}`);
-      await OrchestratorSystem.Run(`tar -cf "${tarPath}" -C "${path10.join(repoPath, ".git")}" lfs`, true);
+      await OrchestratorSystem.Run(`tar -cf "${tarPath}" -C "${path9.join(repoPath, ".git")}" lfs`, true);
       orchestrator_logger_default.log(`[LocalCache] LFS cache saved successfully`);
       await LocalCacheService.cleanupOldEntries(cachePath, maxCacheEntries);
     } catch (error) {
@@ -253069,16 +251940,16 @@ class LocalCacheService {
   }
   static async garbageCollect(cacheRoot, maxAgeDays = 7, minCacheEntries = 0) {
     try {
-      if (!fs10.existsSync(cacheRoot)) {
+      if (!fs8.existsSync(cacheRoot)) {
         orchestrator_logger_default.log(`[LocalCache] Cache root does not exist, nothing to collect`);
         return;
       }
       const now = Date.now();
       const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-      const entries = fs10.readdirSync(cacheRoot).map((name) => {
-        const entryPath = path10.join(cacheRoot, name);
+      const entries = fs8.readdirSync(cacheRoot).map((name) => {
+        const entryPath = path9.join(cacheRoot, name);
         try {
-          const stat = fs10.statSync(entryPath);
+          const stat = fs8.statSync(entryPath);
           return { name, entryPath, isDir: stat.isDirectory(), mtimeMs: stat.mtimeMs };
         } catch {
           return { name, entryPath, isDir: false, mtimeMs: 0 };
@@ -253092,7 +251963,7 @@ class LocalCacheService {
         }
         if (now - entry.mtimeMs > maxAgeMs) {
           try {
-            fs10.rmSync(entry.entryPath, { recursive: true, force: true });
+            fs8.rmSync(entry.entryPath, { recursive: true, force: true });
             removedCount++;
             orchestrator_logger_default.log(`[LocalCache] Garbage collected: ${entry.entryPath}`);
           } catch (error) {
@@ -253107,15 +251978,15 @@ class LocalCacheService {
   }
   static async cleanupOldEntries(cachePath, keepCount) {
     try {
-      const files = fs10.readdirSync(cachePath).filter((f) => f.endsWith(".tar")).map((f) => ({
+      const files = fs8.readdirSync(cachePath).filter((f) => f.endsWith(".tar")).map((f) => ({
         name: f,
-        mtime: fs10.statSync(path10.join(cachePath, f)).mtimeMs
+        mtime: fs8.statSync(path9.join(cachePath, f)).mtimeMs
       })).sort((a, b) => b.mtime - a.mtime);
       if (files.length > keepCount) {
         const toRemove = files.slice(keepCount);
         for (const file of toRemove) {
-          const filePath = path10.join(cachePath, file.name);
-          fs10.unlinkSync(filePath);
+          const filePath = path9.join(cachePath, file.name);
+          fs8.unlinkSync(filePath);
           orchestrator_logger_default.log(`[LocalCache] Cleaned up old cache entry: ${filePath}`);
         }
       }
@@ -253125,21 +251996,21 @@ class LocalCacheService {
   }
   static isCacheFolderComplete(folderPath, folder) {
     try {
-      if (!fs10.existsSync(folderPath))
+      if (!fs8.existsSync(folderPath))
         return false;
-      const entries = fs10.readdirSync(folderPath);
+      const entries = fs8.readdirSync(folderPath);
       if (entries.length === 0)
         return false;
       if (folder.replace(/\\/g, "/").split("/").pop() !== "Library") {
         return true;
       }
       const skeletonMarkers = [
-        path10.join(folderPath, "ArtifactDB"),
-        path10.join(folderPath, "assetDatabase.info")
+        path9.join(folderPath, "ArtifactDB"),
+        path9.join(folderPath, "assetDatabase.info")
       ];
       for (const marker of skeletonMarkers) {
-        if (fs10.existsSync(marker)) {
-          const stat = fs10.statSync(marker);
+        if (fs8.existsSync(marker)) {
+          const stat = fs8.statSync(marker);
           if (stat.size === 0) {
             return false;
           }
@@ -253155,16 +252026,16 @@ class LocalCacheService {
     if (folderName !== "Library") {
       return [];
     }
-    const libraryPath = path10.join(projectPath, folder);
+    const libraryPath = path9.join(projectPath, folder);
     return LocalCacheService.removeCacheSubfolders(libraryPath, ["ScriptAssemblies", "Bee"]);
   }
   static removeCacheSubfolders(rootPath, subfolders) {
     const removed = [];
     for (const subfolder of subfolders) {
-      const target = path10.join(rootPath, subfolder);
+      const target = path9.join(rootPath, subfolder);
       try {
-        if (fs10.existsSync(target)) {
-          fs10.rmSync(target, { recursive: true, force: true });
+        if (fs8.existsSync(target)) {
+          fs8.rmSync(target, { recursive: true, force: true });
           removed.push(target);
           orchestrator_logger_default.log(`[LocalCache] Cleared profile-dependent cache folder: ${target}`);
         }
@@ -253184,8 +252055,8 @@ var init_local_cache_service = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/workflows/build-automation-workflow.ts
-import path11 from "node:path";
-import fs11 from "node:fs";
+import path10 from "node:path";
+import fs9 from "node:fs";
 var BuildAutomationWorkflow;
 var init_build_automation_workflow = __esm(() => {
   init_orchestrator_logger();
@@ -253256,7 +252127,7 @@ var init_build_automation_workflow = __esm(() => {
         const cacheRoot = LocalCacheService.resolveCacheRoot(bp) || "";
         const cacheKey = LocalCacheService.generateCacheKey(bp.targetPlatform, bp.editorVersion, bp.branch || "") || "";
         const workspacePath = process.cwd();
-        const projectFullPath = path11.join(workspacePath, bp.projectPath);
+        const projectFullPath = path10.join(workspacePath, bp.projectPath);
         if (bp.localCacheLfs) {
           await LocalCacheService.restoreLfsCache(workspacePath, cacheRoot, cacheKey);
         }
@@ -253282,7 +252153,7 @@ var init_build_automation_workflow = __esm(() => {
         await Promise.resolve().then(() => init_local_cache_service());
         const { cacheRoot, cacheKey } = cacheState;
         const workspacePath = process.cwd();
-        const projectFullPath = path11.join(workspacePath, bp.projectPath);
+        const projectFullPath = path10.join(workspacePath, bp.projectPath);
         if (bp.localCacheLibrary) {
           await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
             saveMode: bp.localCacheMode,
@@ -253332,8 +252203,8 @@ var init_build_automation_workflow = __esm(() => {
     static analyzeRunForCacheFloor() {
       try {
         const bp = orchestrator_default.buildParameters;
-        const projectPath = path11.isAbsolute(bp.projectPath || "") ? bp.projectPath : path11.join(process.cwd(), bp.projectPath || ".");
-        const logFilePath = path11.join(process.cwd(), "temp", "job-log.txt");
+        const projectPath = path10.isAbsolute(bp.projectPath || "") ? bp.projectPath : path10.join(process.cwd(), bp.projectPath || ".");
+        const logFilePath = path10.join(process.cwd(), "temp", "job-log.txt");
         const logText = BuildAutomationWorkflow.readEditorLogForCacheFloor(logFilePath);
         const exitCodeMatch = logText.match(/RUNSTEPS_EXIT_CODE:(-?\d+)/);
         const exitCode = exitCodeMatch ? Number(exitCodeMatch[1]) : 1;
@@ -253349,7 +252220,7 @@ var init_build_automation_workflow = __esm(() => {
     }
     static readEditorLogForCacheFloor(logFilePath) {
       try {
-        return fs11.readFileSync(logFilePath, "utf8");
+        return fs9.readFileSync(logFilePath, "utf8");
       } catch {
         return "";
       }
@@ -253370,7 +252241,7 @@ var init_build_automation_workflow = __esm(() => {
         await Promise.resolve().then(() => init_local_cache_service());
         const { cacheRoot, cacheKey } = cacheState;
         const workspacePath = process.cwd();
-        const projectFullPath = path11.join(workspacePath, bp.projectPath);
+        const projectFullPath = path10.join(workspacePath, bp.projectPath);
         if (bp.localCacheLibrary) {
           await LocalCacheService.saveEngineCache(projectFullPath, cacheRoot, cacheKey, {
             saveMode: bp.localCacheMode,
@@ -253406,7 +252277,7 @@ var init_build_automation_workflow = __esm(() => {
       ];
       const isContainerized = orchestrator_default.buildParameters.providerStrategy === "aws" || orchestrator_default.buildParameters.providerStrategy === "k8s" || orchestrator_default.buildParameters.providerStrategy === "local-docker";
       const isBareLocalProvider = BuildAutomationWorkflow.isBareLocalProvider;
-      const builderPath = isContainerized ? OrchestratorFolders.ToLinuxFolder(path11.join(OrchestratorFolders.builderPathAbsolute, "dist", `index.js`)) : OrchestratorFolders.ToLinuxFolder(path11.join(process.cwd(), "dist", `index.js`));
+      const builderPath = isContainerized ? OrchestratorFolders.ToLinuxFolder(path10.join(OrchestratorFolders.builderPathAbsolute, "dist", `index.js`)) : OrchestratorFolders.ToLinuxFolder(path10.join(process.cwd(), "dist", `index.js`));
       return `echo "orchestrator build workflow starting"
       ${isContainerized && orchestrator_default.buildParameters.providerStrategy !== "local-docker" ? "apt-get update > /dev/null || true" : "# skipping apt-get in local-docker or non-container provider"}
       ${isContainerized && orchestrator_default.buildParameters.providerStrategy !== "local-docker" ? `apt-get install -y curl tar tree npm git-lfs jq git > /dev/null || true
@@ -253434,7 +252305,7 @@ ${OrchestratorFolders.gitAuthConfigScript}
 ${OrchestratorFolders.cloneBuilderScript(OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.builderPathAbsolute))}
 chmod +x ${builderPath}`;
       if (isContainerized) {
-        const cloneBuilderCommands = `if [ -e "${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute)}" ] && [ -e "${OrchestratorFolders.ToLinuxFolder(path11.join(OrchestratorFolders.builderPathAbsolute, `.git`))}" ] ; then echo "Builder Already Exists!" && (command -v tree > /dev/null 2>&1 && tree ${OrchestratorFolders.builderPathAbsolute} || ls -la ${OrchestratorFolders.builderPathAbsolute}); else ${commands} ; fi`;
+        const cloneBuilderCommands = `if [ -e "${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.uniqueOrchestratorJobFolderAbsolute)}" ] && [ -e "${OrchestratorFolders.ToLinuxFolder(path10.join(OrchestratorFolders.builderPathAbsolute, `.git`))}" ] ; then echo "Builder Already Exists!" && (command -v tree > /dev/null 2>&1 && tree ${OrchestratorFolders.builderPathAbsolute} || ls -la ${OrchestratorFolders.builderPathAbsolute}); else ${commands} ; fi`;
         return `export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
 ${cloneBuilderCommands}
 export CACHE_KEY="${orchestrator_default.buildParameters.cacheKey}"
@@ -253450,17 +252321,17 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     }
     static BuildCommands(builderPath, isContainerized, isBareLocalProvider = false) {
       const hostCli = process.env.GAME_CI_CLI_COMMAND || `node ${builderPath}`;
-      const distFolder = path11.join(OrchestratorFolders.builderPathAbsolute, "dist");
-      const ubuntuPlatformsFolder = path11.join(OrchestratorFolders.builderPathAbsolute, "dist", "platforms", "ubuntu");
+      const distFolder = path10.join(OrchestratorFolders.builderPathAbsolute, "dist");
+      const ubuntuPlatformsFolder = path10.join(OrchestratorFolders.builderPathAbsolute, "dist", "platforms", "ubuntu");
       if (isContainerized) {
         if (orchestrator_default.buildParameters.providerStrategy === "local-docker") {
           return `
     mkdir -p ${`${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.projectBuildFolderAbsolute)}/build`}
     mkdir -p "/data/cache/$CACHE_KEY/build"
     cd "$GITHUB_WORKSPACE/${orchestrator_default.buildParameters.projectPath}"
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(distFolder, "default-build-script"))}" "/UnityBuilderAction"
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(ubuntuPlatformsFolder, "entrypoint.sh"))}" "/entrypoint.sh"
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(ubuntuPlatformsFolder, "steps"))}" "/steps"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(distFolder, "default-build-script"))}" "/UnityBuilderAction"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(ubuntuPlatformsFolder, "entrypoint.sh"))}" "/entrypoint.sh"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(ubuntuPlatformsFolder, "steps"))}" "/steps"
     chmod -R +x "/entrypoint.sh"
     chmod -R +x "/steps"
     ${orchestrator_default.buildParameters.skipInContainerClone ? `# Skipping in-container Git LFS pull because skipInContainerClone is true.
@@ -253531,9 +252402,9 @@ exit 0
         return `
     mkdir -p ${`${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.projectBuildFolderAbsolute)}/build`}
     cd ${OrchestratorFolders.ToLinuxFolder(OrchestratorFolders.projectPathAbsolute)}
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(distFolder, "default-build-script"))}" "/UnityBuilderAction"
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(ubuntuPlatformsFolder, "entrypoint.sh"))}" "/entrypoint.sh"
-    cp -r "${OrchestratorFolders.ToLinuxFolder(path11.join(ubuntuPlatformsFolder, "steps"))}" "/steps"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(distFolder, "default-build-script"))}" "/UnityBuilderAction"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(ubuntuPlatformsFolder, "entrypoint.sh"))}" "/entrypoint.sh"
+    cp -r "${OrchestratorFolders.ToLinuxFolder(path10.join(ubuntuPlatformsFolder, "steps"))}" "/steps"
     chmod -R +x "/entrypoint.sh"
     chmod -R +x "/steps"
     { echo "game ci start"; echo "game ci start" >> /home/job-log.txt; echo "CACHE_KEY=$CACHE_KEY"; echo "$CACHE_KEY"; if [ -n "$LOCKED_WORKSPACE" ]; then echo "Retained Workspace: true"; fi; if [ -n "$LOCKED_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE/.git" ]; then echo "Retained Workspace Already Exists!"; fi; /entrypoint.sh; } | node ${builderPath} remote-cli-log-stream --logFile /home/job-log.txt
@@ -253556,7 +252427,7 @@ exit 0
       }
       if (isBareLocalProvider) {
         const bp = orchestrator_default.buildParameters;
-        const stepsDir = OrchestratorFolders.ToLinuxFolder(path11.join(process.env.GAME_CI_CLI_DIST_PATH || path11.join(process.cwd(), "dist"), "platforms", "ubuntu", "steps"));
+        const stepsDir = OrchestratorFolders.ToLinuxFolder(path10.join(process.env.GAME_CI_CLI_DIST_PATH || path10.join(process.cwd(), "dist"), "platforms", "ubuntu", "steps"));
         return `
     echo "game ci start"
     echo "game ci start" >> "$LOG_FILE"
@@ -253699,17 +252570,17 @@ var init_workflow_composition_root = __esm(() => {
 class OrchestratorError {
   static async handleException(error, buildParameters, secrets) {
     orchestrator_logger_default.error(orchestrator_logger_default.stringifyError(error));
-    core17.setFailed(`Orchestrator failed: ${error instanceof Error ? error.message : String(error)}`);
+    core13.setFailed(`Orchestrator failed: ${error instanceof Error ? error.message : String(error)}`);
     if (orchestrator_default.Provider !== undefined) {
       await orchestrator_default.Provider.cleanupWorkflow(buildParameters, buildParameters.branch, secrets);
     }
   }
 }
-var core17;
+var core13;
 var init_orchestrator_error = __esm(() => {
   init_orchestrator_logger();
   init_orchestrator();
-  core17 = __toESM(require_core());
+  core13 = __toESM(require_core());
 });
 
 // plugins/orchestrator/src/model/orchestrator/options/orchestrator-options-reader.ts
@@ -254373,11 +253244,11 @@ var init_unity_recovery_service = __esm(() => {
 
 // plugins/orchestrator/src/model/orchestrator/services/reliability/build-reliability-service.ts
 import { execSync as execSync2, execFileSync } from "node:child_process";
-import fs12 from "node:fs";
-import path12 from "node:path";
-var core18, BuildReliabilityService;
+import fs10 from "node:fs";
+import path11 from "node:path";
+var core14, BuildReliabilityService;
 var init_build_reliability_service = __esm(() => {
-  core18 = __toESM(require_core());
+  core14 = __toESM(require_core());
   BuildReliabilityService = class BuildReliabilityService {
     static RESERVED_NAMES = new Set([
       "con",
@@ -254411,7 +253282,7 @@ var init_build_reliability_service = __esm(() => {
     ]);
     static LOCK_FILE_MAX_AGE_MS = 10 * 60 * 1000;
     static checkGitIntegrity(repoPath = ".") {
-      core18.info(`[Reliability] Checking git integrity in ${repoPath}`);
+      core14.info(`[Reliability] Checking git integrity in ${repoPath}`);
       try {
         const output = execSync2(`git -C "${repoPath}" fsck --no-dangling`, {
           encoding: "utf8",
@@ -254427,52 +253298,52 @@ var init_build_reliability_service = __esm(() => {
         ];
         for (const pattern of corruptionPatterns) {
           if (pattern.test(output)) {
-            core18.warning(`[Reliability] Git integrity check found issues: ${output.trim()}`);
+            core14.warning(`[Reliability] Git integrity check found issues: ${output.trim()}`);
             return false;
           }
         }
-        core18.info("[Reliability] Git integrity check passed");
+        core14.info("[Reliability] Git integrity check passed");
         return true;
       } catch (error) {
         const stderr = error.stderr?.toString() ?? error.message;
-        core18.warning(`[Reliability] Git integrity check failed: ${stderr}`);
+        core14.warning(`[Reliability] Git integrity check failed: ${stderr}`);
         return false;
       }
     }
     static cleanStaleLockFiles(repoPath = ".") {
-      const gitDir = path12.join(repoPath, ".git");
-      if (!fs12.existsSync(gitDir) || !fs12.statSync(gitDir).isDirectory()) {
+      const gitDir = path11.join(repoPath, ".git");
+      if (!fs10.existsSync(gitDir) || !fs10.statSync(gitDir).isDirectory()) {
         return 0;
       }
-      core18.info(`[Reliability] Scanning for stale lock files in ${gitDir}`);
+      core14.info(`[Reliability] Scanning for stale lock files in ${gitDir}`);
       const now = Date.now();
       let removed = 0;
       const cleanDirectory = (directory) => {
-        if (!fs12.existsSync(directory))
+        if (!fs10.existsSync(directory))
           return;
         try {
-          const entries = fs12.readdirSync(directory, { withFileTypes: true });
+          const entries = fs10.readdirSync(directory, { withFileTypes: true });
           for (const entry of entries) {
-            const fullPath = path12.join(directory, entry.name);
+            const fullPath = path11.join(directory, entry.name);
             if (entry.isDirectory()) {
               cleanDirectory(fullPath);
             } else if (entry.name.endsWith(".lock")) {
-              const relativePath = path12.relative(gitDir, fullPath);
+              const relativePath = path11.relative(gitDir, fullPath);
               const isKnownLock = BuildReliabilityService.LOCK_FILE_NAMES.has(entry.name);
-              const isRefsLock = relativePath.startsWith("refs" + path12.sep);
+              const isRefsLock = relativePath.startsWith("refs" + path11.sep);
               if (isKnownLock || isRefsLock) {
                 try {
-                  const stat = fs12.statSync(fullPath);
+                  const stat = fs10.statSync(fullPath);
                   const ageMs = now - stat.mtimeMs;
                   if (ageMs > BuildReliabilityService.LOCK_FILE_MAX_AGE_MS) {
-                    fs12.unlinkSync(fullPath);
+                    fs10.unlinkSync(fullPath);
                     removed++;
-                    core18.info(`[Reliability] Removed stale lock file (age: ${Math.round(ageMs / 1000)}s): ${relativePath}`);
+                    core14.info(`[Reliability] Removed stale lock file (age: ${Math.round(ageMs / 1000)}s): ${relativePath}`);
                   } else {
-                    core18.info(`[Reliability] Lock file is recent (age: ${Math.round(ageMs / 1000)}s), skipping: ${relativePath}`);
+                    core14.info(`[Reliability] Lock file is recent (age: ${Math.round(ageMs / 1000)}s), skipping: ${relativePath}`);
                   }
                 } catch {
-                  core18.warning(`[Reliability] Could not remove lock file: ${fullPath}`);
+                  core14.warning(`[Reliability] Could not remove lock file: ${fullPath}`);
                 }
               }
             }
@@ -254481,111 +253352,111 @@ var init_build_reliability_service = __esm(() => {
       };
       cleanDirectory(gitDir);
       if (removed > 0) {
-        core18.info(`[Reliability] Cleaned ${removed} stale lock file(s)`);
+        core14.info(`[Reliability] Cleaned ${removed} stale lock file(s)`);
       } else {
-        core18.info("[Reliability] No stale lock files found");
+        core14.info("[Reliability] No stale lock files found");
       }
       return removed;
     }
     static validateSubmoduleBackingStores(repoPath = ".") {
       const broken = [];
-      const gitmodulesPath = path12.join(repoPath, ".gitmodules");
-      if (!fs12.existsSync(gitmodulesPath)) {
-        core18.info("[Reliability] No .gitmodules found, skipping submodule validation");
+      const gitmodulesPath = path11.join(repoPath, ".gitmodules");
+      if (!fs10.existsSync(gitmodulesPath)) {
+        core14.info("[Reliability] No .gitmodules found, skipping submodule validation");
         return broken;
       }
-      core18.info(`[Reliability] Validating submodule backing stores in ${repoPath}`);
+      core14.info(`[Reliability] Validating submodule backing stores in ${repoPath}`);
       try {
-        const content = fs12.readFileSync(gitmodulesPath, "utf8");
+        const content = fs10.readFileSync(gitmodulesPath, "utf8");
         const pathMatches = content.matchAll(/path\s*=\s*(.+)/g);
         for (const match of pathMatches) {
           const submodulePath = match[1].trim();
-          const gitFile = path12.join(repoPath, submodulePath, ".git");
-          if (!fs12.existsSync(gitFile)) {
+          const gitFile = path11.join(repoPath, submodulePath, ".git");
+          if (!fs10.existsSync(gitFile)) {
             continue;
           }
           try {
-            const stat = fs12.statSync(gitFile);
+            const stat = fs10.statSync(gitFile);
             if (stat.isFile()) {
-              const gitFileContent = fs12.readFileSync(gitFile, "utf8").trim();
+              const gitFileContent = fs10.readFileSync(gitFile, "utf8").trim();
               const gitdirMatch = gitFileContent.match(/^gitdir:\s*(.+)$/);
               if (gitdirMatch) {
-                const backingStore = path12.resolve(path12.join(repoPath, submodulePath), gitdirMatch[1]);
-                if (!fs12.existsSync(backingStore)) {
+                const backingStore = path11.resolve(path11.join(repoPath, submodulePath), gitdirMatch[1]);
+                if (!fs10.existsSync(backingStore)) {
                   broken.push(submodulePath);
-                  core18.warning(`[Reliability] Submodule ${submodulePath} has broken backing store: ${backingStore}`);
+                  core14.warning(`[Reliability] Submodule ${submodulePath} has broken backing store: ${backingStore}`);
                 } else {
-                  core18.info(`[Reliability] Submodule ${submodulePath} backing store OK`);
+                  core14.info(`[Reliability] Submodule ${submodulePath} backing store OK`);
                 }
               } else {
                 broken.push(submodulePath);
-                core18.warning(`[Reliability] Submodule ${submodulePath} .git file has invalid format`);
+                core14.warning(`[Reliability] Submodule ${submodulePath} .git file has invalid format`);
               }
             }
           } catch {
-            core18.warning(`[Reliability] Could not read .git file for submodule: ${submodulePath}`);
+            core14.warning(`[Reliability] Could not read .git file for submodule: ${submodulePath}`);
           }
         }
       } catch (error) {
-        core18.warning(`[Reliability] Could not read .gitmodules: ${error.message}`);
+        core14.warning(`[Reliability] Could not read .gitmodules: ${error.message}`);
       }
       if (broken.length > 0) {
-        core18.warning(`[Reliability] ${broken.length} submodule(s) have broken backing stores`);
+        core14.warning(`[Reliability] ${broken.length} submodule(s) have broken backing stores`);
       } else {
-        core18.info("[Reliability] All submodule backing stores are valid");
+        core14.info("[Reliability] All submodule backing stores are valid");
       }
       return broken;
     }
     static recoverCorruptedRepo(repoPath = ".") {
-      core18.warning(`[Reliability] Attempting automatic recovery for ${repoPath}`);
+      core14.warning(`[Reliability] Attempting automatic recovery for ${repoPath}`);
       const locksRemoved = BuildReliabilityService.cleanStaleLockFiles(repoPath);
       if (locksRemoved > 0) {
-        core18.info(`[Reliability] Recovery: cleaned ${locksRemoved} lock file(s)`);
+        core14.info(`[Reliability] Recovery: cleaned ${locksRemoved} lock file(s)`);
       }
       try {
-        core18.info("[Reliability] Recovery: re-fetching from remote");
+        core14.info("[Reliability] Recovery: re-fetching from remote");
         execSync2(`git -C "${repoPath}" fetch --all`, {
           encoding: "utf8",
           timeout: 300000,
           stdio: ["pipe", "pipe", "pipe"]
         });
-        core18.info("[Reliability] Recovery: fetch completed");
+        core14.info("[Reliability] Recovery: fetch completed");
       } catch (error) {
-        core18.warning(`[Reliability] Recovery: fetch failed: ${error.stderr?.toString() ?? error.message}`);
+        core14.warning(`[Reliability] Recovery: fetch failed: ${error.stderr?.toString() ?? error.message}`);
       }
       const healthy = BuildReliabilityService.checkGitIntegrity(repoPath);
       if (healthy) {
-        core18.info("[Reliability] Recovery succeeded -- repository is healthy");
+        core14.info("[Reliability] Recovery succeeded -- repository is healthy");
       } else {
-        core18.warning("[Reliability] Recovery failed -- repository still has integrity issues");
+        core14.warning("[Reliability] Recovery failed -- repository still has integrity issues");
       }
       return healthy;
     }
     static cleanReservedFilenames(projectPath) {
-      const assetsPath = path12.join(projectPath, "Assets");
-      if (!fs12.existsSync(assetsPath)) {
-        core18.info(`[Reliability] No Assets directory found at ${assetsPath}, skipping reserved filename scan`);
+      const assetsPath = path11.join(projectPath, "Assets");
+      if (!fs10.existsSync(assetsPath)) {
+        core14.info(`[Reliability] No Assets directory found at ${assetsPath}, skipping reserved filename scan`);
         return [];
       }
-      core18.info(`[Reliability] Scanning for reserved filenames in ${assetsPath}`);
+      core14.info(`[Reliability] Scanning for reserved filenames in ${assetsPath}`);
       const cleaned = [];
       const scanDirectory = (directory) => {
         try {
-          const entries = fs12.readdirSync(directory, { withFileTypes: true });
+          const entries = fs10.readdirSync(directory, { withFileTypes: true });
           for (const entry of entries) {
             const nameWithoutExtension = entry.name.split(".")[0].toLowerCase();
-            const fullPath = path12.join(directory, entry.name);
+            const fullPath = path11.join(directory, entry.name);
             if (BuildReliabilityService.RESERVED_NAMES.has(nameWithoutExtension)) {
               try {
                 if (entry.isDirectory()) {
-                  fs12.rmSync(fullPath, { recursive: true, force: true });
+                  fs10.rmSync(fullPath, { recursive: true, force: true });
                 } else {
-                  fs12.unlinkSync(fullPath);
+                  fs10.unlinkSync(fullPath);
                 }
                 cleaned.push(fullPath);
-                core18.warning(`[Reliability] Removed reserved filename: ${fullPath}`);
+                core14.warning(`[Reliability] Removed reserved filename: ${fullPath}`);
               } catch {
-                core18.warning(`[Reliability] Could not remove reserved filename: ${fullPath}`);
+                core14.warning(`[Reliability] Could not remove reserved filename: ${fullPath}`);
               }
             } else if (entry.isDirectory()) {
               scanDirectory(fullPath);
@@ -254595,17 +253466,17 @@ var init_build_reliability_service = __esm(() => {
       };
       scanDirectory(assetsPath);
       if (cleaned.length > 0) {
-        core18.warning(`[Reliability] Cleaned ${cleaned.length} reserved filename(s)`);
+        core14.warning(`[Reliability] Cleaned ${cleaned.length} reserved filename(s)`);
       } else {
-        core18.info("[Reliability] No reserved filenames found");
+        core14.info("[Reliability] No reserved filenames found");
       }
       return cleaned;
     }
     static clearUnityLibrarySubfolders(projectPath, subfolders) {
-      const libraryPath = path12.join(projectPath, "Library");
+      const libraryPath = path11.join(projectPath, "Library");
       const removed = [];
       for (const subfolder of subfolders) {
-        const target = path12.join(libraryPath, subfolder);
+        const target = path11.join(libraryPath, subfolder);
         if (BuildReliabilityService.removeDirectoryWithRetry(target)) {
           removed.push(target);
         }
@@ -254613,75 +253484,75 @@ var init_build_reliability_service = __esm(() => {
       return removed;
     }
     static clearScriptAssemblies(projectPath) {
-      return BuildReliabilityService.removeDirectoryWithRetry(path12.join(projectPath, "Library", "ScriptAssemblies"));
+      return BuildReliabilityService.removeDirectoryWithRetry(path11.join(projectPath, "Library", "ScriptAssemblies"));
     }
     static clearBee(projectPath) {
-      return BuildReliabilityService.removeDirectoryWithRetry(path12.join(projectPath, "Library", "Bee"));
+      return BuildReliabilityService.removeDirectoryWithRetry(path11.join(projectPath, "Library", "Bee"));
     }
     static clearPackageCache(projectPath) {
-      return BuildReliabilityService.removeDirectoryWithRetry(path12.join(projectPath, "Library", "PackageCache"));
+      return BuildReliabilityService.removeDirectoryWithRetry(path11.join(projectPath, "Library", "PackageCache"));
     }
     static resetSourceAssetDatabase(projectPath) {
-      const removedSourceAssetDb = BuildReliabilityService.removeDirectoryWithRetry(path12.join(projectPath, "Library", "SourceAssetDB"));
-      const removedTemp = BuildReliabilityService.removeDirectoryWithRetry(path12.join(projectPath, "Temp"));
+      const removedSourceAssetDb = BuildReliabilityService.removeDirectoryWithRetry(path11.join(projectPath, "Library", "SourceAssetDB"));
+      const removedTemp = BuildReliabilityService.removeDirectoryWithRetry(path11.join(projectPath, "Temp"));
       return removedSourceAssetDb || removedTemp;
     }
     static removeAutoGeneratedAssets(projectPath, relativeAssetPaths) {
       const removed = [];
       for (const relativeAssetPath of relativeAssetPaths) {
-        const fullPath = path12.resolve(projectPath, relativeAssetPath);
-        const relativePath = path12.relative(projectPath, fullPath);
-        if (relativePath.startsWith("..") || path12.isAbsolute(relativePath)) {
-          core18.warning(`[Reliability] Refusing to remove asset outside project: ${relativeAssetPath}`);
+        const fullPath = path11.resolve(projectPath, relativeAssetPath);
+        const relativePath = path11.relative(projectPath, fullPath);
+        if (relativePath.startsWith("..") || path11.isAbsolute(relativePath)) {
+          core14.warning(`[Reliability] Refusing to remove asset outside project: ${relativeAssetPath}`);
           continue;
         }
         try {
-          if (!fs12.existsSync(fullPath))
+          if (!fs10.existsSync(fullPath))
             continue;
-          const stat = fs12.statSync(fullPath);
+          const stat = fs10.statSync(fullPath);
           if (stat.isDirectory()) {
-            fs12.rmSync(fullPath, { recursive: true, force: true });
+            fs10.rmSync(fullPath, { recursive: true, force: true });
           } else {
-            fs12.unlinkSync(fullPath);
+            fs10.unlinkSync(fullPath);
           }
           const metaPath = `${fullPath}.meta`;
-          if (fs12.existsSync(metaPath)) {
-            fs12.unlinkSync(metaPath);
+          if (fs10.existsSync(metaPath)) {
+            fs10.unlinkSync(metaPath);
           }
           removed.push(fullPath);
-          core18.info(`[Reliability] Removed auto-generated asset before Unity launch: ${fullPath}`);
+          core14.info(`[Reliability] Removed auto-generated asset before Unity launch: ${fullPath}`);
         } catch (error) {
-          core18.warning(`[Reliability] Failed to remove auto-generated asset ${fullPath}: ${error.message}`);
+          core14.warning(`[Reliability] Failed to remove auto-generated asset ${fullPath}: ${error.message}`);
         }
       }
       return removed;
     }
     static removeDirectoryWithRetry(directoryPath, attempts = 4, delayMs = 500) {
-      if (!fs12.existsSync(directoryPath)) {
+      if (!fs10.existsSync(directoryPath)) {
         return false;
       }
       for (let attempt = 1;attempt <= attempts; attempt++) {
         try {
-          fs12.rmSync(directoryPath, { recursive: true, force: true });
-          if (!fs12.existsSync(directoryPath)) {
-            core18.info(`[Reliability] Removed directory: ${directoryPath}`);
+          fs10.rmSync(directoryPath, { recursive: true, force: true });
+          if (!fs10.existsSync(directoryPath)) {
+            core14.info(`[Reliability] Removed directory: ${directoryPath}`);
             return true;
           }
         } catch (error) {
           if (attempt === attempts) {
-            core18.warning(`[Reliability] Failed to remove ${directoryPath}: ${error.message}`);
+            core14.warning(`[Reliability] Failed to remove ${directoryPath}: ${error.message}`);
           }
         }
         if (attempt < attempts && delayMs > 0) {
           BuildReliabilityService.sleepSync(delayMs);
         }
       }
-      return !fs12.existsSync(directoryPath);
+      return !fs10.existsSync(directoryPath);
     }
     static getAvailableSpaceMB(directoryPath) {
       try {
         if (process.platform === "win32") {
-          const drive = path12.parse(directoryPath).root;
+          const drive = path11.parse(directoryPath).root;
           const driveLetter = drive.replace(/[:\\/]/g, "");
           const output = execFileSync("wmic", ["logicaldisk", "where", `DeviceID='${driveLetter}:'`, "get", "FreeSpace", "/value"], { encoding: "utf8", timeout: 1e4 });
           const match = output.match(/FreeSpace=(\d+)/);
@@ -254701,20 +253572,20 @@ var init_build_reliability_service = __esm(() => {
     }
     static getDirectorySizeMB(directoryPath) {
       try {
-        const stat = fs12.statSync(directoryPath);
+        const stat = fs10.statSync(directoryPath);
         if (!stat.isDirectory()) {
           return stat.size / (1024 * 1024);
         }
         let totalBytes = 0;
         const walkDirectory = (dir) => {
-          const entries = fs12.readdirSync(dir, { withFileTypes: true });
+          const entries = fs10.readdirSync(dir, { withFileTypes: true });
           for (const entry of entries) {
-            const fullPath = path12.join(dir, entry.name);
+            const fullPath = path11.join(dir, entry.name);
             if (entry.isDirectory()) {
               walkDirectory(fullPath);
             } else {
               try {
-                totalBytes += fs12.statSync(fullPath).size;
+                totalBytes += fs10.statSync(fullPath).size;
               } catch {}
             }
           }
@@ -254726,91 +253597,91 @@ var init_build_reliability_service = __esm(() => {
       }
     }
     static archiveBuildOutput(sourcePath, archivePath) {
-      if (!fs12.existsSync(sourcePath)) {
-        core18.info(`[Reliability] No build output to archive at ${sourcePath}`);
+      if (!fs10.existsSync(sourcePath)) {
+        core14.info(`[Reliability] No build output to archive at ${sourcePath}`);
         return;
       }
-      fs12.mkdirSync(archivePath, { recursive: true });
+      fs10.mkdirSync(archivePath, { recursive: true });
       const sourceSizeMB = BuildReliabilityService.getDirectorySizeMB(sourcePath);
       const availableSpaceMB = BuildReliabilityService.getAvailableSpaceMB(archivePath);
       if (sourceSizeMB >= 0 && availableSpaceMB >= 0) {
         const neededMB = Math.ceil(sourceSizeMB * 1.1);
         if (availableSpaceMB < neededMB) {
-          core18.warning(`[Reliability] Insufficient disk space for archive. ` + `Need ~${neededMB}MB, available: ${Math.floor(availableSpaceMB)}MB. Skipping archive.`);
+          core14.warning(`[Reliability] Insufficient disk space for archive. ` + `Need ~${neededMB}MB, available: ${Math.floor(availableSpaceMB)}MB. Skipping archive.`);
           return;
         }
-        core18.info(`[Reliability] Disk space check passed: need ~${neededMB}MB, available: ${Math.floor(availableSpaceMB)}MB`);
+        core14.info(`[Reliability] Disk space check passed: need ~${neededMB}MB, available: ${Math.floor(availableSpaceMB)}MB`);
       } else if (availableSpaceMB < 0) {
-        core18.warning("[Reliability] Could not determine available disk space. Proceeding with archive cautiously.");
+        core14.warning("[Reliability] Could not determine available disk space. Proceeding with archive cautiously.");
       }
       const timestamp = new Date().toISOString().replace(/[.:]/g, "-");
-      const archiveFile = path12.join(archivePath, `build-${timestamp}.tar.gz`);
+      const archiveFile = path11.join(archivePath, `build-${timestamp}.tar.gz`);
       try {
-        execSync2(`tar -czf "${archiveFile}" -C "${path12.dirname(sourcePath)}" "${path12.basename(sourcePath)}"`, {
+        execSync2(`tar -czf "${archiveFile}" -C "${path11.dirname(sourcePath)}" "${path11.basename(sourcePath)}"`, {
           encoding: "utf8",
           timeout: 600000,
           stdio: ["pipe", "pipe", "pipe"]
         });
-        core18.info(`[Reliability] Build output archived to ${archiveFile}`);
+        core14.info(`[Reliability] Build output archived to ${archiveFile}`);
       } catch (error) {
-        core18.warning(`[Reliability] Failed to archive build output: ${error.stderr?.toString() ?? error.message}`);
+        core14.warning(`[Reliability] Failed to archive build output: ${error.stderr?.toString() ?? error.message}`);
         try {
-          if (fs12.existsSync(archiveFile)) {
-            fs12.unlinkSync(archiveFile);
-            core18.info(`[Reliability] Cleaned up partial archive: ${archiveFile}`);
+          if (fs10.existsSync(archiveFile)) {
+            fs10.unlinkSync(archiveFile);
+            core14.info(`[Reliability] Cleaned up partial archive: ${archiveFile}`);
           }
         } catch {}
       }
     }
     static enforceRetention(archivePath, retentionDays) {
-      if (!fs12.existsSync(archivePath)) {
+      if (!fs10.existsSync(archivePath)) {
         return 0;
       }
       const now = Date.now();
       const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
       let removed = 0;
       try {
-        const entries = fs12.readdirSync(archivePath, { withFileTypes: true });
+        const entries = fs10.readdirSync(archivePath, { withFileTypes: true });
         for (const entry of entries) {
-          const fullPath = path12.join(archivePath, entry.name);
+          const fullPath = path11.join(archivePath, entry.name);
           try {
-            const stat = fs12.statSync(fullPath);
+            const stat = fs10.statSync(fullPath);
             const ageMs = now - stat.mtimeMs;
             if (ageMs > retentionMs) {
               if (entry.isDirectory()) {
-                fs12.rmSync(fullPath, { recursive: true, force: true });
+                fs10.rmSync(fullPath, { recursive: true, force: true });
               } else {
-                fs12.unlinkSync(fullPath);
+                fs10.unlinkSync(fullPath);
               }
               removed++;
-              core18.info(`[Reliability] Removed old archive: ${entry.name} (age: ${Math.round(ageMs / (24 * 60 * 60 * 1000))} days)`);
+              core14.info(`[Reliability] Removed old archive: ${entry.name} (age: ${Math.round(ageMs / (24 * 60 * 60 * 1000))} days)`);
             }
           } catch {
-            core18.warning(`[Reliability] Could not process archive entry: ${fullPath}`);
+            core14.warning(`[Reliability] Could not process archive entry: ${fullPath}`);
           }
         }
       } catch {
-        core18.warning(`[Reliability] Could not read archive directory: ${archivePath}`);
+        core14.warning(`[Reliability] Could not read archive directory: ${archivePath}`);
         return 0;
       }
       if (removed > 0) {
-        core18.info(`[Reliability] Retention enforced: removed ${removed} old archive(s), retention: ${retentionDays} days`);
+        core14.info(`[Reliability] Retention enforced: removed ${removed} old archive(s), retention: ${retentionDays} days`);
       }
       return removed;
     }
     static configureGitEnvironment() {
-      core18.info("[Reliability] Configuring git environment for CI");
+      core14.info("[Reliability] Configuring git environment for CI");
       process.env.GIT_TERMINAL_PROMPT = "0";
-      core18.info("[Reliability] Set GIT_TERMINAL_PROMPT=0");
+      core14.info("[Reliability] Set GIT_TERMINAL_PROMPT=0");
       try {
         execSync2("git config --global http.postBuffer 524288000", {
           encoding: "utf8",
           timeout: 1e4,
           stdio: ["pipe", "pipe", "pipe"]
         });
-        core18.info("[Reliability] Set http.postBuffer=524288000 (500MB)");
+        core14.info("[Reliability] Set http.postBuffer=524288000 (500MB)");
       } catch (error) {
-        core18.warning(`[Reliability] Could not set http.postBuffer: ${error.message}`);
+        core14.warning(`[Reliability] Could not set http.postBuffer: ${error.message}`);
       }
       try {
         execSync2("git config --global core.longpaths true", {
@@ -254818,9 +253689,9 @@ var init_build_reliability_service = __esm(() => {
           timeout: 1e4,
           stdio: ["pipe", "pipe", "pipe"]
         });
-        core18.info("[Reliability] Set core.longpaths=true");
+        core14.info("[Reliability] Set core.longpaths=true");
       } catch (error) {
-        core18.warning(`[Reliability] Could not set core.longpaths: ${error.message}`);
+        core14.warning(`[Reliability] Could not set core.longpaths: ${error.message}`);
       }
     }
     static sleepSync(delayMs) {
@@ -254832,8 +253703,8 @@ var init_build_reliability_service = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/services/reliability/unity-retry-service.ts
-import fs13 from "node:fs";
-import path13 from "node:path";
+import fs11 from "node:fs";
+import path12 from "node:path";
 
 class UnityRetryService {
   static MAX_TOTAL_RETRIES = 5;
@@ -254845,7 +253716,7 @@ class UnityRetryService {
     let lastDiagnostics;
     while (attempts <= maxRetries) {
       attempts++;
-      core19.info(`[UnityRetry] Attempt ${attempts}/${maxRetries + 1}`);
+      core15.info(`[UnityRetry] Attempt ${attempts}/${maxRetries + 1}`);
       const result = await runUnity();
       const diagnostics = UnityBuildDiagnosticsService.analyzeRun({
         exitCode: result.exitCode,
@@ -254857,21 +253728,21 @@ class UnityRetryService {
       lastDiagnostics = diagnostics;
       UnityBuildDiagnosticsService.emitSummary(diagnostics);
       if (diagnostics.failureCategory === "SUCCESS") {
-        core19.info(`[UnityRetry] Succeeded on attempt ${attempts}`);
+        core15.info(`[UnityRetry] Succeeded on attempt ${attempts}`);
         return { succeeded: true, attempts, lastDiagnostics: diagnostics, actionsPerformed };
       }
       if (attempts > maxRetries)
         break;
       const decision = UnityRecoveryService.decide(diagnostics, budgets);
       if (!decision.shouldRetry) {
-        core19.info(`[UnityRetry] No retry available: ${decision.reason}`);
+        core15.info(`[UnityRetry] No retry available: ${decision.reason}`);
         break;
       }
-      core19.info(`[UnityRetry] Recovery action: ${decision.action} -- ${decision.reason}`);
+      core15.info(`[UnityRetry] Recovery action: ${decision.action} -- ${decision.reason}`);
       actionsPerformed.push(decision.action);
       await UnityRetryService.performRecovery(projectPath, diagnostics, decision.clearSubfolders, decision.nukeLibrary, decision.delaySeconds);
     }
-    core19.warning(`[UnityRetry] Failed after ${attempts} attempt(s). Category: ${lastDiagnostics?.failureCategory ?? "UNKNOWN"}`);
+    core15.warning(`[UnityRetry] Failed after ${attempts} attempt(s). Category: ${lastDiagnostics?.failureCategory ?? "UNKNOWN"}`);
     return {
       succeeded: false,
       attempts,
@@ -254881,14 +253752,14 @@ class UnityRetryService {
   }
   static async performRecovery(projectPath, diagnostics, clearSubfolders, nukeLibrary, delaySeconds) {
     if (delaySeconds > 0) {
-      core19.info(`[UnityRetry] Waiting ${delaySeconds}s before retry...`);
+      core15.info(`[UnityRetry] Waiting ${delaySeconds}s before retry...`);
       await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
     }
-    const libraryPath = path13.join(projectPath, "Library");
+    const libraryPath = path12.join(projectPath, "Library");
     if (nukeLibrary) {
       UnityRetryService.backupLibrary(projectPath);
       BuildReliabilityService.removeDirectoryWithRetry(libraryPath);
-      core19.info("[UnityRetry] Library nuked");
+      core15.info("[UnityRetry] Library nuked");
       return;
     }
     if (diagnostics.failureCategory === "CRASH") {
@@ -254896,11 +253767,11 @@ class UnityRetryService {
       if (crashPatternCount >= 3) {
         UnityRetryService.backupLibrary(projectPath);
         BuildReliabilityService.removeDirectoryWithRetry(libraryPath);
-        core19.info("[UnityRetry] Dense crash evidence -- Library nuked");
+        core15.info("[UnityRetry] Dense crash evidence -- Library nuked");
         return;
       }
       BuildReliabilityService.clearScriptAssemblies(projectPath);
-      core19.info("[UnityRetry] Cleared ScriptAssemblies after crash");
+      core15.info("[UnityRetry] Cleared ScriptAssemblies after crash");
       return;
     }
     for (const subfolder of clearSubfolders) {
@@ -254908,39 +253779,39 @@ class UnityRetryService {
         UnityRetryService.backupLibrary(projectPath);
         BuildReliabilityService.removeDirectoryWithRetry(libraryPath);
       } else {
-        BuildReliabilityService.removeDirectoryWithRetry(path13.join(libraryPath, subfolder));
+        BuildReliabilityService.removeDirectoryWithRetry(path12.join(libraryPath, subfolder));
       }
-      core19.info(`[UnityRetry] Cleared ${subfolder}`);
+      core15.info(`[UnityRetry] Cleared ${subfolder}`);
     }
     if (diagnostics.guidErrors && !clearSubfolders.includes("ScriptAssemblies")) {
       BuildReliabilityService.clearScriptAssemblies(projectPath);
-      core19.info("[UnityRetry] Cleared ScriptAssemblies (GUID compile errors)");
+      core15.info("[UnityRetry] Cleared ScriptAssemblies (GUID compile errors)");
     }
   }
   static backupLibrary(projectPath) {
-    const libraryPath = path13.join(projectPath, "Library");
-    if (!fs13.existsSync(libraryPath))
+    const libraryPath = path12.join(projectPath, "Library");
+    if (!fs11.existsSync(libraryPath))
       return;
-    const backupPath = path13.join(projectPath, `Library.backup-${Date.now()}`);
+    const backupPath = path12.join(projectPath, `Library.backup-${Date.now()}`);
     try {
-      fs13.renameSync(libraryPath, backupPath);
-      core19.info(`[UnityRetry] Library backed up to ${backupPath}`);
+      fs11.renameSync(libraryPath, backupPath);
+      core15.info(`[UnityRetry] Library backed up to ${backupPath}`);
     } catch (error) {
-      core19.warning(`[UnityRetry] Library backup failed: ${error.message}`);
+      core15.warning(`[UnityRetry] Library backup failed: ${error.message}`);
     }
   }
 }
-var core19;
+var core15;
 var init_unity_retry_service = __esm(() => {
   init_unity_build_diagnostics_service();
   init_unity_recovery_service();
   init_build_reliability_service();
-  core19 = __toESM(require_core());
+  core15 = __toESM(require_core());
 });
 
 // plugins/orchestrator/src/model/orchestrator/providers/local/index.ts
-import fs14 from "node:fs";
-import path14 from "node:path";
+import fs12 from "node:fs";
+import path13 from "node:path";
 
 class LocalOrchestrator {
   listResources() {
@@ -254975,8 +253846,8 @@ class LocalOrchestrator {
   }
   static async runWithRetry(command) {
     const bp = orchestrator_default.buildParameters;
-    const projectPath = path14.isAbsolute(bp.projectPath || "") ? bp.projectPath : path14.join(process.cwd(), bp.projectPath || ".");
-    const logFilePath = path14.join(process.cwd(), "temp", "job-log.txt");
+    const projectPath = path13.isAbsolute(bp.projectPath || "") ? bp.projectPath : path13.join(process.cwd(), bp.projectPath || ".");
+    const logFilePath = path13.join(process.cwd(), "temp", "job-log.txt");
     let lastOutput = "";
     const result = await UnityRetryService.executeWithRetry(projectPath, async () => {
       const startedAtMs = Date.now();
@@ -254999,7 +253870,7 @@ ${lastOutput}`);
   }
   static readEditorLog(logFilePath) {
     try {
-      return fs14.readFileSync(logFilePath, "utf8");
+      return fs12.readFileSync(logFilePath, "utf8");
     } catch {
       return "";
     }
@@ -255016,24 +253887,88 @@ var init_local = __esm(() => {
   local_default = LocalOrchestrator;
 });
 
+// plugins/orchestrator/src/model/docker.ts
+import { spawn as spawn3 } from "node:child_process";
+
+class Docker2 {
+  static async run(image, parameters, silent = false, overrideCommands = "", additionalVariables = [], options, entrypointBash = false) {
+    const workspace = parameters.workspace || process.env.GITHUB_WORKSPACE || process.cwd();
+    const args = ["run", "--rm"];
+    args.push("-v", `${workspace}:/github/workspace`);
+    args.push("-v", `${workspace}:/data`);
+    args.push("-w", "/github/workspace");
+    for (const envVar of additionalVariables) {
+      if (envVar && envVar.name && envVar.value !== undefined) {
+        args.push("-e", `${envVar.name}=${envVar.value}`);
+      }
+    }
+    if (overrideCommands && entrypointBash) {
+      args.push("--entrypoint", "/bin/sh");
+    }
+    args.push(image);
+    if (overrideCommands) {
+      if (entrypointBash) {
+        args.push("-c", overrideCommands);
+      } else {
+        args.push(overrideCommands);
+      }
+    }
+    if (!silent) {
+      core16.info(`[Docker] run: image=${image}, overrideCommands=${overrideCommands}`);
+    }
+    return new Promise((resolve, reject) => {
+      const child = spawn3("docker", args, {
+        stdio: ["pipe", "pipe", "pipe"]
+      });
+      child.stdout.on("data", (data) => {
+        if (!silent) {
+          process.stdout.write(data);
+        }
+        if (options?.listeners?.stdout) {
+          options.listeners.stdout(data);
+        }
+      });
+      child.stderr.on("data", (data) => {
+        if (!silent) {
+          process.stderr.write(data);
+        }
+        if (options?.listeners?.stderr) {
+          options.listeners.stderr(data);
+        }
+      });
+      child.on("error", (error) => {
+        reject(new Error(`Docker process failed to start: ${error.message}`));
+      });
+      child.on("close", (code) => {
+        resolve(code ?? 1);
+      });
+    });
+  }
+}
+var core16, docker_default;
+var init_docker2 = __esm(() => {
+  core16 = __toESM(require_core());
+  docker_default = Docker2;
+});
+
 // plugins/orchestrator/src/model/orchestrator/providers/docker/cache-summary.ts
-import * as fs15 from "node:fs";
-import * as path15 from "node:path";
+import * as fs13 from "node:fs";
+import * as path14 from "node:path";
 function summariseCacheDirectory(directory) {
-  if (!fs15.existsSync(directory)) {
+  if (!fs13.existsSync(directory)) {
     return { entries: [], totalSize: 0 };
   }
-  const entries = fs15.readdirSync(directory);
+  const entries = fs13.readdirSync(directory);
   let totalSize = 0;
   for (const entry of entries) {
-    totalSize += walkSize(path15.join(directory, entry));
+    totalSize += walkSize(path14.join(directory, entry));
   }
   return { entries, totalSize };
 }
 function walkSize(target) {
   let stat;
   try {
-    stat = fs15.statSync(target);
+    stat = fs13.statSync(target);
   } catch {
     return 0;
   }
@@ -255046,12 +253981,12 @@ function walkSize(target) {
   let total = 0;
   let children;
   try {
-    children = fs15.readdirSync(target);
+    children = fs13.readdirSync(target);
   } catch {
     return 0;
   }
   for (const child of children) {
-    total += walkSize(path15.join(target, child));
+    total += walkSize(path14.join(target, child));
   }
   return total;
 }
@@ -255073,8 +254008,8 @@ var init_cache_summary = () => {};
 
 // plugins/orchestrator/src/model/orchestrator/providers/docker/index.ts
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import * as fs16 from "node:fs";
-import * as path16 from "node:path";
+import * as fs14 from "node:fs";
+import * as path15 from "node:path";
 
 class LocalDockerOrchestrator {
   buildParameters;
@@ -255184,10 +254119,10 @@ class LocalDockerOrchestrator {
     const { workspace } = action_default;
     const buildCacheDir = `${workspace}/orchestrator-cache/cache/build`;
     const staleTarball = `${buildCacheDir}/build-${buildParameters.buildGuid}.tar${orchestrator_default.buildParameters.useCompressionStrategy ? ".lz4" : ""}`;
-    if (fs16.existsSync(staleTarball)) {
+    if (fs14.existsSync(staleTarball)) {
       const summary = summariseCacheDirectory(buildCacheDir);
       orchestrator_logger_default.log(`[local-docker] build cache entries before stale tarball removal: ${summary.entries.length === 0 ? "(empty)" : summary.entries.join(", ")}`);
-      fs16.rmSync(staleTarball, { recursive: true, force: true });
+      fs14.rmSync(staleTarball, { recursive: true, force: true });
     }
   }
   setupWorkflow(buildGuid, buildParameters, branchName, defaultSecretsArray) {
@@ -255246,11 +254181,11 @@ find ${sharedFolder} -maxdepth 1 -type f -name "test-*" -exec cp -a {} /github/w
       flag: "w"
     });
     if (orchestrator_default.buildParameters.configFiles && Object.keys(orchestrator_default.buildParameters.configFiles).length > 0) {
-      const configDir = path16.join(workspace, "game-ci-config");
-      fs16.mkdirSync(configDir, { recursive: true });
+      const configDir = path15.join(workspace, "game-ci-config");
+      fs14.mkdirSync(configDir, { recursive: true });
       for (const [filename, fileContent] of Object.entries(orchestrator_default.buildParameters.configFiles)) {
-        const filePath = path16.join(configDir, filename);
-        fs16.mkdirSync(path16.dirname(filePath), { recursive: true });
+        const filePath = path15.join(configDir, filename);
+        fs14.mkdirSync(path15.dirname(filePath), { recursive: true });
         writeFileSync3(filePath, fileContent);
       }
       orchestrator_logger_default.log(`Injected ${Object.keys(orchestrator_default.buildParameters.configFiles).length} config files into ${configDir}`);
@@ -255259,7 +254194,7 @@ find ${sharedFolder} -maxdepth 1 -type f -name "test-*" -exec cp -a {} /github/w
       orchestrator_logger_default.log(`Running local-docker: 
  ${fileContents}`);
     }
-    if (fs16.existsSync(`${workspace}/orchestrator-cache`)) {
+    if (fs14.existsSync(`${workspace}/orchestrator-cache`)) {
       const summary = summariseCacheDirectory(`${workspace}/orchestrator-cache`);
       orchestrator_logger_default.log(`[local-docker] orchestrator-cache entries: ${summary.entries.length === 0 ? "(empty)" : summary.entries.join(", ")}`);
       orchestrator_logger_default.log(`[local-docker] orchestrator-cache total size: ${formatHumanReadableSize(summary.totalSize)} (${summary.totalSize} bytes)`);
@@ -256104,7 +255039,7 @@ class GitHubActionsProvider {
       if (elapsedMs >= MAX_POLLING_DURATION_MS) {
         const hours = Math.round(MAX_POLLING_DURATION_MS / 3600000);
         const message = `GitHub Actions workflow did not complete within ${hours} hours. Run URL: ${runUrl}`;
-        core20.error(message);
+        core17.error(message);
         throw new Error(message);
       }
       await new Promise((resolve) => setTimeout(resolve, 15000));
@@ -256183,11 +255118,11 @@ class GitHubActionsProvider {
     }
   }
 }
-var core20, MAX_POLLING_DURATION_MS = 14400000, github_actions_default;
+var core17, MAX_POLLING_DURATION_MS = 14400000, github_actions_default;
 var init_github_actions = __esm(() => {
   init_orchestrator_system();
   init_orchestrator_logger();
-  core20 = __toESM(require_core());
+  core17 = __toESM(require_core());
   github_actions_default = GitHubActionsProvider;
 });
 
@@ -256249,7 +255184,7 @@ class GitLabCIProvider {
       if (elapsedMs >= MAX_POLLING_DURATION_MS2) {
         const hours = Math.round(MAX_POLLING_DURATION_MS2 / 3600000);
         const message = `GitLab CI pipeline did not complete within ${hours} hours. Pipeline URL: ${pipelineUrl}`;
-        core21.error(message);
+        core18.error(message);
         throw new Error(message);
       }
       await new Promise((resolve) => setTimeout(resolve, 15000));
@@ -256313,11 +255248,11 @@ ${jobLog}`);
     return "";
   }
 }
-var core21, MAX_POLLING_DURATION_MS2 = 14400000, gitlab_ci_default;
+var core18, MAX_POLLING_DURATION_MS2 = 14400000, gitlab_ci_default;
 var init_gitlab_ci = __esm(() => {
   init_orchestrator_system();
   init_orchestrator_logger();
-  core21 = __toESM(require_core());
+  core18 = __toESM(require_core());
   gitlab_ci_default = GitLabCIProvider;
 });
 
@@ -256350,7 +255285,7 @@ class AnsibleProvider {
       await OrchestratorSystem.Run("command -v ansible-playbook || which ansible-playbook || where ansible-playbook");
       orchestrator_logger_default.log(`[Ansible] ansible-playbook binary verified`);
     } catch (error) {
-      core22.error("ansible-playbook not found. Install Ansible or ensure it is in PATH.");
+      core19.error("ansible-playbook not found. Install Ansible or ensure it is in PATH.");
       throw new Error(`ansible-playbook not found on PATH: ${error.message || error}`, {
         cause: error
       });
@@ -256426,11 +255361,11 @@ class AnsibleProvider {
     return "";
   }
 }
-var core22, ansible_default;
+var core19, ansible_default;
 var init_ansible = __esm(() => {
   init_orchestrator_system();
   init_orchestrator_logger();
-  core22 = __toESM(require_core());
+  core19 = __toESM(require_core());
   ansible_default = AnsibleProvider;
 });
 
@@ -256513,38 +255448,38 @@ var init_provider_url_parser = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/providers/provider-git-manager.ts
-import { exec as exec5 } from "child_process";
+import { exec as exec4 } from "child_process";
 import { promisify as promisify3 } from "util";
-import * as fs17 from "fs";
-import path17 from "path";
+import * as fs15 from "fs";
+import path16 from "path";
 var execAsync2, ProviderGitManager;
 var init_provider_git_manager = __esm(() => {
   init_orchestrator_logger();
   init_provider_url_parser();
-  execAsync2 = promisify3(exec5);
+  execAsync2 = promisify3(exec4);
   ProviderGitManager = class ProviderGitManager {
-    static CACHE_DIR = path17.join(process.cwd(), ".provider-cache");
+    static CACHE_DIR = path16.join(process.cwd(), ".provider-cache");
     static GIT_TIMEOUT = 30000;
     static ensureCacheDir() {
-      if (!fs17.existsSync(this.CACHE_DIR)) {
-        fs17.mkdirSync(this.CACHE_DIR, { recursive: true });
+      if (!fs15.existsSync(this.CACHE_DIR)) {
+        fs15.mkdirSync(this.CACHE_DIR, { recursive: true });
         orchestrator_logger_default.log(`Created provider cache directory: ${this.CACHE_DIR}`);
       }
     }
     static getLocalPath(urlInfo) {
       const cacheKey = generateCacheKey(urlInfo);
-      return path17.join(this.CACHE_DIR, cacheKey);
+      return path16.join(this.CACHE_DIR, cacheKey);
     }
     static isRepositoryCloned(urlInfo) {
       const localPath = this.getLocalPath(urlInfo);
-      return fs17.existsSync(localPath) && fs17.existsSync(path17.join(localPath, ".git"));
+      return fs15.existsSync(localPath) && fs15.existsSync(path16.join(localPath, ".git"));
     }
     static async cloneRepository(urlInfo) {
       this.ensureCacheDir();
       const localPath = this.getLocalPath(urlInfo);
-      if (fs17.existsSync(localPath)) {
+      if (fs15.existsSync(localPath)) {
         orchestrator_logger_default.log(`Removing existing directory: ${localPath}`);
-        fs17.rmSync(localPath, { recursive: true, force: true });
+        fs15.rmSync(localPath, { recursive: true, force: true });
       }
       try {
         orchestrator_logger_default.log(`Cloning repository: ${urlInfo.url} to ${localPath}`);
@@ -256645,7 +255580,7 @@ var init_provider_git_manager = __esm(() => {
     }
     static getProviderModulePath(urlInfo, localPath) {
       if (urlInfo.path) {
-        return path17.join(localPath, urlInfo.path);
+        return path16.join(localPath, urlInfo.path);
       }
       const commonEntryPoints = [
         "index.js",
@@ -256658,8 +255593,8 @@ var init_provider_git_manager = __esm(() => {
         "dist/index.js.map"
       ];
       for (const entryPoint of commonEntryPoints) {
-        const fullPath = path17.join(localPath, entryPoint);
-        if (fs17.existsSync(fullPath)) {
+        const fullPath = path16.join(localPath, entryPoint);
+        if (fs15.existsSync(fullPath)) {
           orchestrator_logger_default.log(`Found provider entry point: ${entryPoint}`);
           return fullPath;
         }
@@ -256670,16 +255605,16 @@ var init_provider_git_manager = __esm(() => {
     static async cleanupOldRepositories(maxAgeDays = 30) {
       this.ensureCacheDir();
       try {
-        const entries = fs17.readdirSync(this.CACHE_DIR, { withFileTypes: true });
+        const entries = fs15.readdirSync(this.CACHE_DIR, { withFileTypes: true });
         const now = Date.now();
         const maxAge = maxAgeDays * 24 * 60 * 60 * 1000;
         for (const entry of entries) {
           if (entry.isDirectory()) {
-            const entryPath = path17.join(this.CACHE_DIR, entry.name);
-            const stats = fs17.statSync(entryPath);
+            const entryPath = path16.join(this.CACHE_DIR, entry.name);
+            const stats = fs15.statSync(entryPath);
             if (now - stats.mtime.getTime() > maxAge) {
               orchestrator_logger_default.log(`Cleaning up old repository: ${entry.name}`);
-              fs17.rmSync(entryPath, { recursive: true, force: true });
+              fs15.rmSync(entryPath, { recursive: true, force: true });
             }
           }
         }
@@ -256691,9 +255626,9 @@ var init_provider_git_manager = __esm(() => {
 });
 
 // plugins/orchestrator/src/model/orchestrator/providers/config/config-provider.ts
-import { exec as exec6 } from "node:child_process";
-import fs18 from "node:fs";
-import path18 from "node:path";
+import { exec as exec5 } from "node:child_process";
+import fs16 from "node:fs";
+import path17 from "node:path";
 
 class ConfigProvider {
   buildParameters;
@@ -256702,7 +255637,7 @@ class ConfigProvider {
   constructor(source, buildParameters) {
     this.buildParameters = buildParameters;
     this.definition = ConfigProvider.loadDefinition(source);
-    this.configDirectory = path18.dirname(path18.resolve(source.filePath));
+    this.configDirectory = path17.dirname(path17.resolve(source.filePath));
   }
   setupWorkflow(buildGuid, buildParameters, branchName, defaultSecretsArray) {
     this.buildParameters = buildParameters;
@@ -256799,7 +255734,7 @@ class ConfigProvider {
     const renderedCommand = this.renderTemplate(command, context);
     orchestrator_logger_default.log(`[ConfigProvider] Running ${this.definition.name || "configured provider"} command`);
     return new Promise((resolve, reject) => {
-      exec6(renderedCommand, {
+      exec5(renderedCommand, {
         cwd,
         env: this.createEnvironment(context),
         maxBuffer: 1024 * 1024 * 20,
@@ -256850,9 +255785,9 @@ ${output}`.trim(), {
   }
   resolveCwd(cwd, context) {
     const renderedCwd = cwd ? this.renderTemplate(cwd, context) : this.configDirectory;
-    if (path18.isAbsolute(renderedCwd))
+    if (path17.isAbsolute(renderedCwd))
       return renderedCwd;
-    return path18.resolve(this.configDirectory, renderedCwd);
+    return path17.resolve(this.configDirectory, renderedCwd);
   }
   renderTemplate(template, context) {
     return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, expression) => {
@@ -256892,9 +255827,9 @@ ${output}`.trim(), {
     return { filePath, providerName };
   }
   static loadDefinition(source) {
-    const resolvedPath = path18.resolve(source.filePath);
-    const extension = path18.extname(resolvedPath).toLowerCase();
-    const raw = fs18.readFileSync(resolvedPath, "utf8");
+    const resolvedPath = path17.resolve(source.filePath);
+    const extension = path17.extname(resolvedPath).toLowerCase();
+    const raw = fs16.readFileSync(resolvedPath, "utf8");
     const parsed = extension === ".json" ? JSON.parse(raw) : exports_dist.parse(raw);
     if (!parsed || typeof parsed !== "object") {
       throw new Error(`Config provider '${source.filePath}' must contain an object`);
@@ -258377,7 +257312,7 @@ class CliProvider {
         timedOut = true;
         const minutes = Math.round(timeoutMs / 60000);
         const message = `CLI provider timed out after ${minutes} minutes. The external provider may be unresponsive.`;
-        core23.error(message);
+        core20.error(message);
         gracefulKill(child);
         reject(new Error(`CliProvider run-task timed out after ${timeoutMs}ms`));
       }, timeoutMs);
@@ -258474,7 +257409,7 @@ class CliProvider {
         timedOut = true;
         const minutes = Math.round(timeoutMs / 60000);
         const message = `CLI provider timed out after ${minutes} minutes. The external provider may be unresponsive.`;
-        core23.error(message);
+        core20.error(message);
         gracefulKill(child);
         reject(new Error(`CliProvider watch-workflow timed out after ${timeoutMs}ms`));
       }, timeoutMs);
@@ -258601,10 +257536,10 @@ class CliProvider {
     });
   }
 }
-var core23, DEFAULT_TIMEOUT_MS2 = 300000, RUN_TASK_TIMEOUT_MS2 = 7200000, WATCH_WORKFLOW_TIMEOUT_MS2 = 3600000, SIGKILL_GRACE_MS = 1e4, cli_provider_default;
+var core20, DEFAULT_TIMEOUT_MS2 = 300000, RUN_TASK_TIMEOUT_MS2 = 7200000, WATCH_WORKFLOW_TIMEOUT_MS2 = 3600000, SIGKILL_GRACE_MS = 1e4, cli_provider_default;
 var init_cli_provider = __esm(() => {
   init_orchestrator_logger();
-  core23 = __toESM(require_core());
+  core20 = __toESM(require_core());
   cli_provider_default = CliProvider;
 });
 
@@ -258648,12 +257583,12 @@ class Orchestrator {
     if (github_default.githubInputEnabled) {
       const buildParameterPropertyNames = Object.getOwnPropertyNames(buildParameters);
       for (const element of Orchestrator.orchestratorEnvironmentVariables) {
-        core24.setOutput(input_default.ToEnvVarFormat(element.name), element.value);
+        core21.setOutput(input_default.ToEnvVarFormat(element.name), element.value);
       }
       for (const element of buildParameterPropertyNames) {
-        core24.setOutput(input_default.ToEnvVarFormat(element), buildParameters[element]);
+        core21.setOutput(input_default.ToEnvVarFormat(element), buildParameters[element]);
       }
-      core24.setOutput(input_default.ToEnvVarFormat(`buildArtifact`), `build-${Orchestrator.buildParameters.buildGuid}.tar${Orchestrator.buildParameters.useCompressionStrategy ? ".lz4" : ""}`);
+      core21.setOutput(input_default.ToEnvVarFormat(`buildArtifact`), `build-${Orchestrator.buildParameters.buildGuid}.tar${Orchestrator.buildParameters.useCompressionStrategy ? ".lz4" : ""}`);
     }
     FollowLogStreamService.Reset();
   }
@@ -258671,10 +257606,10 @@ class Orchestrator {
         const fallback = Orchestrator.buildParameters.fallbackProviderStrategy;
         orchestrator_logger_default.log(`Falling back from '${original}' to '${fallback}' — ${result.reason}`);
         Orchestrator.buildParameters.providerStrategy = fallback;
-        core24.setOutput("providerFallbackUsed", "true");
-        core24.setOutput("providerFallbackReason", result.reason);
+        core21.setOutput("providerFallbackUsed", "true");
+        core21.setOutput("providerFallbackReason", result.reason);
       } else {
-        core24.setOutput("providerFallbackUsed", "false");
+        core21.setOutput("providerFallbackUsed", "false");
       }
     }
     const awsForceProvider = process.env.AWS_FORCE_PROVIDER || "";
@@ -258790,8 +257725,8 @@ class Orchestrator {
         orchestrator_logger_default.log(`Primary provider '${buildParameters.providerStrategy}' failed: ${primaryError.message}`);
         orchestrator_logger_default.log(`Retrying build on fallback provider '${fallback}'...`);
         buildParameters.providerStrategy = fallback;
-        core24.setOutput("providerFallbackUsed", "true");
-        core24.setOutput("providerFallbackReason", `Primary provider failed: ${primaryError.message}`);
+        core21.setOutput("providerFallbackUsed", "true");
+        core21.setOutput("providerFallbackReason", `Primary provider failed: ${primaryError.message}`);
         return await Orchestrator.runWithProvider(buildParameters, baseImage);
       }
       throw primaryError;
@@ -258824,7 +257759,7 @@ class Orchestrator {
       const output = await new WorkflowCompositionRoot().run(new OrchestratorStepParameters(baseImage, Orchestrator.orchestratorEnvironmentVariables, Orchestrator.defaultSecrets));
       await Orchestrator.Provider.cleanupWorkflow(Orchestrator.buildParameters, Orchestrator.buildParameters.branch, Orchestrator.defaultSecrets);
       if (!Orchestrator.buildParameters.isCliMode)
-        core24.endGroup();
+        core21.endGroup();
       if (buildParameters.asyncWorkflow && this.isOrchestratorEnvironment && this.isOrchestratorAsyncEnvironment) {
         await github_default.updateGitHubCheck(Orchestrator.buildParameters.buildGuid, `success`, `success`, `completed`);
       }
@@ -258855,7 +257790,7 @@ class Orchestrator {
       orchestrator_logger_default.log(orchestrator_logger_default.stringifyError(error));
       await github_default.updateGitHubCheck(Orchestrator.buildParameters.buildGuid, `Failed - Error ${error?.message || error}`, `failure`, `completed`);
       if (!Orchestrator.buildParameters.isCliMode)
-        core24.endGroup();
+        core21.endGroup();
       await OrchestratorError.handleException(error, Orchestrator.buildParameters, Orchestrator.defaultSecrets);
       throw error;
     } finally {
@@ -258938,7 +257873,7 @@ class Orchestrator {
     }
   }
 }
-var core24, orchestrator_default;
+var core21, orchestrator_default;
 var init_orchestrator = __esm(() => {
   init_aws();
   init_model2();
@@ -258964,9 +257899,1103 @@ var init_orchestrator = __esm(() => {
   init_orchestrator_options();
   init_resource_tracking();
   init_runner_availability_service();
-  core24 = __toESM(require_core());
+  core21 = __toESM(require_core());
   orchestrator_default = Orchestrator;
 });
+
+// plugins/orchestrator/src/model/orchestrator/remote-client/remote-client-logger.ts
+import fs17 from "node:fs";
+import os3 from "node:os";
+import path18 from "node:path";
+
+class RemoteClientLogger {
+  static get LogFilePath() {
+    if (process.env.ORCHESTRATOR_LOG_FILE) {
+      return process.env.ORCHESTRATOR_LOG_FILE;
+    }
+    if (process.platform === "win32") {
+      return path18.join(process.cwd(), "temp", "job-log.txt");
+    }
+    const containerLogPath = path18.join("/home", "job-log.txt");
+    try {
+      fs17.accessSync("/home", fs17.constants.W_OK);
+      return containerLogPath;
+    } catch {
+      return path18.join(os3.tmpdir(), "orchestrator-job-log.txt");
+    }
+  }
+  static log(message) {
+    const finalMessage = `[Client] ${message}`;
+    this.appendToFile(finalMessage);
+    orchestrator_logger_default.log(finalMessage);
+  }
+  static logCliError(message) {
+    orchestrator_logger_default.log(`[Client][Error] ${message}`);
+  }
+  static logCliDiagnostic(message) {
+    orchestrator_logger_default.log(`[Client][Diagnostic] ${message}`);
+  }
+  static logWarning(message) {
+    orchestrator_logger_default.logWarning(message);
+  }
+  static appendToFile(message) {
+    if (orchestrator_default.isOrchestratorEnvironment) {
+      const logDirectory = path18.dirname(RemoteClientLogger.LogFilePath);
+      if (!fs17.existsSync(logDirectory)) {
+        fs17.mkdirSync(logDirectory, { recursive: true });
+      }
+      fs17.appendFileSync(RemoteClientLogger.LogFilePath, `${message}
+`);
+    }
+  }
+  static async handleLogManagementPostJob() {
+    if (orchestrator_options_default.providerStrategy !== "k8s") {
+      return;
+    }
+    const collectedLogsMessage = `Collected Logs`;
+    RemoteClientLogger.appendToFile(collectedLogsMessage);
+    if (orchestrator_options_default.providerStrategy === "k8s") {
+      for (let index = 0;index < 3; index++) {
+        process.stdout.write(`${collectedLogsMessage}
+`, "utf8");
+        process.stderr.write(`${collectedLogsMessage}
+`, "utf8");
+      }
+      if (!process.stdout.isTTY) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+    orchestrator_logger_default.log(collectedLogsMessage);
+    if (!fs17.existsSync(RemoteClientLogger.LogFilePath)) {
+      const logFileMissingMessage = `Log file does not exist`;
+      if (orchestrator_options_default.providerStrategy === "k8s") {
+        process.stdout.write(`${logFileMissingMessage}
+`, "utf8");
+      }
+      orchestrator_logger_default.log(logFileMissingMessage);
+      if (!orchestrator_default.isOrchestratorEnvironment) {
+        const notCloudEnvironmentMessage = `Orchestrator is not running in a cloud environment, not collecting logs`;
+        if (orchestrator_options_default.providerStrategy === "k8s") {
+          process.stdout.write(`${notCloudEnvironmentMessage}
+`, "utf8");
+        }
+        orchestrator_logger_default.log(notCloudEnvironmentMessage);
+      }
+      return;
+    }
+    const logFileExistsMessage = `Log file exist`;
+    if (orchestrator_options_default.providerStrategy === "k8s") {
+      process.stdout.write(`${logFileExistsMessage}
+`, "utf8");
+    }
+    orchestrator_logger_default.log(logFileExistsMessage);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  static HandleLog(message) {
+    if (RemoteClientLogger.value !== "") {
+      RemoteClientLogger.value += `
+`;
+    }
+    RemoteClientLogger.value += message;
+    return false;
+  }
+  static value = "";
+}
+var init_remote_client_logger = __esm(() => {
+  init_orchestrator_logger();
+  init_orchestrator();
+  init_orchestrator_options();
+});
+
+// plugins/orchestrator/src/model/orchestrator/services/core/orchestrator-system.ts
+import { exec as exec6 } from "child_process";
+
+class OrchestratorSystem {
+  static async RunAndReadLines(command) {
+    const result = await OrchestratorSystem.Run(command, false, true);
+    return result.split(`
+`).map((x) => x.replace(`\r`, ``)).filter((x) => x !== ``).map((x) => {
+      const lineValues = x.split(` `);
+      return lineValues[lineValues.length - 1];
+    });
+  }
+  static async Run(command, suppressError = false, suppressLogs = false, outputCallback, onExitCode) {
+    for (const element of command.split(`
+`)) {
+      if (!suppressLogs) {
+        RemoteClientLogger.log(element);
+      }
+    }
+    return await new Promise((promise, throwError) => {
+      let output = "";
+      const child = exec6(command, { maxBuffer: 1024 * 1e4 }, (error, stdout, stderr) => {
+        if (!suppressError && error) {
+          RemoteClientLogger.log(error.toString());
+          throwError(error);
+        }
+        if (stderr) {
+          const diagnosticOutput = `${stderr.toString()}`;
+          if (!suppressLogs) {
+            RemoteClientLogger.logCliDiagnostic(diagnosticOutput);
+          }
+          output += diagnosticOutput;
+        }
+        const outputChunk = `${stdout}`;
+        if (outputCallback) {
+          outputCallback(outputChunk);
+        }
+        output += outputChunk;
+      });
+      child.on("close", (code) => {
+        if (!suppressLogs) {
+          RemoteClientLogger.log(`[${code}]`);
+        }
+        onExitCode?.(code ?? -1);
+        if (code !== 0 && !suppressError) {
+          throwError(output);
+        }
+        const outputLines = output.split(`
+`);
+        for (const element of outputLines) {
+          if (!suppressLogs) {
+            RemoteClientLogger.log(element);
+          }
+        }
+        promise(output);
+      });
+    });
+  }
+}
+var init_orchestrator_system = __esm(() => {
+  init_remote_client_logger();
+});
+
+// plugins/orchestrator/src/model/input-readers/generic-input-reader.ts
+class GenericInputReader {
+  static async Run(command) {
+    if (orchestrator_options_default.providerStrategy === "local")
+      return "";
+    return await OrchestratorSystem.Run(command, false, true);
+  }
+}
+var init_generic_input_reader = __esm(() => {
+  init_orchestrator_system();
+  init_orchestrator_options();
+});
+
+// plugins/orchestrator/src/model/orchestrator/services/secrets/secret-source-service.ts
+import fs18 from "node:fs";
+function validateSecretKey(key) {
+  if (!/^[a-zA-Z0-9\-_./]+$/.test(key)) {
+    throw new Error(`Invalid secret key name: "${key}". Keys may only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes.`);
+  }
+  return key;
+}
+function maskSecretValue(value) {
+  if (value.trim().length > 0) {
+    core22.setSecret(value);
+  }
+}
+var core22, SecretSourceService;
+var init_secret_source_service = __esm(() => {
+  init_orchestrator_logger();
+  init_orchestrator_system();
+  core22 = __toESM(require_core());
+  SecretSourceService = class SecretSourceService {
+    static premadeSources = {
+      "aws-secrets-manager": {
+        name: "aws-secrets-manager",
+        command: "aws secretsmanager get-secret-value --secret-id {0} --query SecretString --output text",
+        parseOutput: "raw"
+      },
+      "aws-secret-manager": {
+        name: "aws-secret-manager",
+        command: "aws secretsmanager get-secret-value --secret-id {0} --query SecretString --output text",
+        parseOutput: "raw"
+      },
+      "aws-parameter-store": {
+        name: "aws-parameter-store",
+        command: "aws ssm get-parameter --name {0} --with-decryption --query Parameter.Value --output text",
+        parseOutput: "raw"
+      },
+      "gcp-secret-manager": {
+        name: "gcp-secret-manager",
+        command: 'gcloud secrets versions access latest --secret="{0}"',
+        parseOutput: "raw"
+      },
+      "azure-key-vault": {
+        name: "azure-key-vault",
+        command: 'az keyvault secret show --vault-name "$AZURE_VAULT_NAME" --name {0} --query value --output tsv',
+        parseOutput: "raw"
+      },
+      "hashicorp-vault": {
+        name: "hashicorp-vault",
+        command: 'vault kv get -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
+        parseOutput: "raw"
+      },
+      "hashicorp-vault-kv1": {
+        name: "hashicorp-vault-kv1",
+        command: 'vault read -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
+        parseOutput: "raw"
+      },
+      vault: {
+        name: "vault",
+        command: 'vault kv get -mount="${VAULT_MOUNT:-secret}" -field=value {0}',
+        parseOutput: "raw"
+      }
+    };
+    static isPremadeSource(sourceName) {
+      return sourceName in SecretSourceService.premadeSources;
+    }
+    static getAvailableSources() {
+      return Object.keys(SecretSourceService.premadeSources);
+    }
+    static resolveSource(sourceName) {
+      if (SecretSourceService.isPremadeSource(sourceName)) {
+        return SecretSourceService.premadeSources[sourceName];
+      }
+      if (sourceName.includes("{0}") || sourceName.includes(" ")) {
+        return {
+          name: "custom-command",
+          command: sourceName,
+          parseOutput: "raw"
+        };
+      }
+      return;
+    }
+    static loadFromYaml(filePath) {
+      if (!fs18.existsSync(filePath)) {
+        orchestrator_logger_default.logWarning(`Secret source YAML not found: ${filePath}`);
+        return [];
+      }
+      try {
+        const content = fs18.readFileSync(filePath, "utf8");
+        const parsed = SecretSourceService.parseSimpleYaml(content);
+        return parsed;
+      } catch (error) {
+        orchestrator_logger_default.logWarning(`Failed to parse secret source YAML: ${error.message}`);
+        return [];
+      }
+    }
+    static async fetchSecret(source, key) {
+      validateSecretKey(key);
+      const command = source.command.replace(/\{0\}/g, key);
+      try {
+        const output = await OrchestratorSystem.Run(command, false, true);
+        let value;
+        if (source.parseOutput === "json-field" && source.jsonField) {
+          try {
+            const parsed = JSON.parse(output);
+            value = parsed[source.jsonField] || "";
+          } catch {
+            orchestrator_logger_default.logWarning(`Failed to parse JSON output from ${source.name} for key ${key}`);
+            value = output.trim();
+          }
+        } else {
+          value = output.trim();
+        }
+        maskSecretValue(value);
+        return value;
+      } catch (error) {
+        orchestrator_logger_default.logWarning(`Failed to fetch secret '${key}' from ${source.name}: ${error.message}`);
+        return "";
+      }
+    }
+    static fetchFromEnv(key) {
+      const value = process.env[key] || "";
+      maskSecretValue(value);
+      return value;
+    }
+    static async fetchAll(sourceName, keys) {
+      const results = {};
+      if (sourceName === "env") {
+        for (const key of keys) {
+          results[key] = SecretSourceService.fetchFromEnv(key);
+        }
+        return results;
+      }
+      const source = SecretSourceService.resolveSource(sourceName);
+      if (!source) {
+        orchestrator_logger_default.logWarning(`Unknown secret source '${sourceName}'. Available sources: ${SecretSourceService.getAvailableSources().join(", ")}`);
+        return results;
+      }
+      orchestrator_logger_default.log(`Fetching ${keys.length} secret(s) from ${source.name}`);
+      for (const key of keys) {
+        results[key] = await SecretSourceService.fetchSecret(source, key);
+      }
+      return results;
+    }
+    static parseSimpleYaml(content) {
+      const definitions = [];
+      const lines = content.split(`
+`);
+      let current = null;
+      for (const rawLine of lines) {
+        const line = rawLine.replace(/\r$/, "");
+        const trimmed = line.trim();
+        if (trimmed === "" || trimmed.startsWith("#"))
+          continue;
+        if (trimmed === "- name:" || trimmed.startsWith("- name:")) {
+          if (current?.name && current?.command) {
+            definitions.push(current);
+          }
+          current = {
+            name: trimmed.replace("- name:", "").trim().replace(/^['"]|['"]$/g, ""),
+            parseOutput: "raw"
+          };
+          continue;
+        }
+        if (current && trimmed.startsWith("command:")) {
+          current.command = trimmed.replace("command:", "").trim().replace(/^['"]|['"]$/g, "");
+        } else if (current && trimmed.startsWith("parseOutput:")) {
+          const value = trimmed.replace("parseOutput:", "").trim().replace(/^['"]|['"]$/g, "");
+          current.parseOutput = value;
+        } else if (current && trimmed.startsWith("jsonField:")) {
+          current.jsonField = trimmed.replace("jsonField:", "").trim().replace(/^['"]|['"]$/g, "");
+        }
+      }
+      if (current?.name && current?.command) {
+        definitions.push(current);
+      }
+      return definitions;
+    }
+  };
+});
+
+// plugins/orchestrator/src/model/orchestrator/options/orchestrator-query-override.ts
+class OrchestratorQueryOverride {
+  static queryOverrides;
+  static query(key, alternativeKey) {
+    if (OrchestratorQueryOverride.queryOverrides && OrchestratorQueryOverride.queryOverrides[key] !== undefined) {
+      return OrchestratorQueryOverride.queryOverrides[key];
+    }
+    if (OrchestratorQueryOverride.queryOverrides && alternativeKey && OrchestratorQueryOverride.queryOverrides[alternativeKey] !== undefined) {
+      return OrchestratorQueryOverride.queryOverrides[alternativeKey];
+    }
+    return;
+  }
+  static shouldUseOverride(query) {
+    if (orchestrator_options_default.inputPullCommand !== "") {
+      if (orchestrator_options_default.pullInputList.length > 0) {
+        const doesInclude = orchestrator_options_default.pullInputList.includes(query) || orchestrator_options_default.pullInputList.includes(input_default.ToEnvVarFormat(query));
+        return doesInclude;
+      } else {
+        return true;
+      }
+    }
+  }
+  static async queryOverride(query) {
+    if (!this.shouldUseOverride(query)) {
+      throw new Error(`Should not be trying to run override query on ${query}`);
+    }
+    validateSecretKey(query);
+    const result = await GenericInputReader.Run(formatFunction(orchestrator_options_default.inputPullCommand, [{ key: 0, value: query }]));
+    if (result && result.trim().length > 0) {
+      core23.setSecret(result);
+    }
+    return result;
+  }
+  static async PopulateQueryOverrideInput() {
+    const queries = orchestrator_options_default.pullInputList;
+    OrchestratorQueryOverride.queryOverrides = {};
+    const secretSource = orchestrator_options_default.secretSource;
+    if (secretSource) {
+      orchestrator_logger_default.log(`Using secret source: ${secretSource}`);
+      if (secretSource.endsWith(".yml") || secretSource.endsWith(".yaml")) {
+        const definitions = SecretSourceService.loadFromYaml(secretSource);
+        if (definitions.length > 0) {
+          orchestrator_logger_default.log(`Loaded ${definitions.length} secret source(s) from ${secretSource}`);
+          for (const key of queries) {
+            OrchestratorQueryOverride.queryOverrides[key] = await SecretSourceService.fetchSecret(definitions[0], key);
+          }
+        }
+        return;
+      }
+      const results = await SecretSourceService.fetchAll(secretSource, queries);
+      Object.assign(OrchestratorQueryOverride.queryOverrides, results);
+      return;
+    }
+    for (const element of queries) {
+      if (OrchestratorQueryOverride.shouldUseOverride(element)) {
+        OrchestratorQueryOverride.queryOverrides[element] = await OrchestratorQueryOverride.queryOverride(element);
+      }
+    }
+  }
+}
+var core23, formatFunction = (value, arguments_) => {
+  for (const element of arguments_) {
+    value = value.replace(`{${element.key}}`, element.value);
+  }
+  return value;
+}, orchestrator_query_override_default;
+var init_orchestrator_query_override = __esm(() => {
+  init_input();
+  init_generic_input_reader();
+  init_orchestrator_options();
+  init_secret_source_service();
+  init_orchestrator_logger();
+  core23 = __toESM(require_core());
+  orchestrator_query_override_default = OrchestratorQueryOverride;
+});
+
+// plugins/orchestrator/src/model/orchestrator/options/orchestrator-options.ts
+class OrchestratorOptions {
+  static getInput(query) {
+    if (github_default.githubInputEnabled) {
+      const coreInput = core24.getInput(query);
+      if (coreInput && coreInput !== "") {
+        return coreInput;
+      }
+    }
+    const alternativeQuery = OrchestratorOptions.ToEnvVarFormat(query);
+    if (Cli.query(query, alternativeQuery)) {
+      return Cli.query(query, alternativeQuery);
+    }
+    if (orchestrator_query_override_default.query(query, alternativeQuery)) {
+      return orchestrator_query_override_default.query(query, alternativeQuery);
+    }
+    if (process.env[query] !== undefined) {
+      return process.env[query];
+    }
+    if (alternativeQuery !== query && process.env[alternativeQuery] !== undefined) {
+      return process.env[alternativeQuery];
+    }
+  }
+  static ToEnvVarFormat(input) {
+    if (input.toUpperCase() === input) {
+      return input;
+    }
+    return input.replace(/([A-Z])/g, " $1").trim().toUpperCase().replace(/ /g, "_");
+  }
+  static get region() {
+    return OrchestratorOptions.getInput("region") || "eu-west-2";
+  }
+  static get githubChecks() {
+    const value = OrchestratorOptions.getInput("githubChecks");
+    return value === `true` || false;
+  }
+  static get githubCheckId() {
+    return OrchestratorOptions.getInput("githubCheckId") || ``;
+  }
+  static get githubOwner() {
+    return OrchestratorOptions.getInput("githubOwner") || OrchestratorOptions.githubRepo?.split(`/`)[0] || "";
+  }
+  static get githubRepoName() {
+    return OrchestratorOptions.getInput("githubRepoName") || OrchestratorOptions.githubRepo?.split(`/`)[1] || "";
+  }
+  static get orchestratorRepoName() {
+    return OrchestratorOptions.getInput("orchestratorRepoName") || "game-ci/orchestrator";
+  }
+  static get cloneDepth() {
+    return OrchestratorOptions.getInput("cloneDepth") || "50";
+  }
+  static get finalHooks() {
+    return OrchestratorOptions.getInput("finalHooks")?.split(",") || [];
+  }
+  static get githubRepo() {
+    return OrchestratorOptions.getInput("GITHUB_REPOSITORY") || OrchestratorOptions.getInput("GITHUB_REPO") || undefined;
+  }
+  static get branch() {
+    if (OrchestratorOptions.getInput(`GITHUB_REF`)) {
+      return OrchestratorOptions.getInput(`GITHUB_REF`)?.replace("refs/", "").replace(`head/`, "").replace(`heads/`, "") || ``;
+    } else if (OrchestratorOptions.getInput("branch")) {
+      return OrchestratorOptions.getInput("branch") || ``;
+    } else {
+      return "";
+    }
+  }
+  static get buildPlatform() {
+    const input = OrchestratorOptions.getInput("buildPlatform");
+    if (input && input !== "") {
+      return input;
+    }
+    if (OrchestratorOptions.providerStrategy !== "local") {
+      return "linux";
+    }
+    return process.platform;
+  }
+  static get orchestratorBranch() {
+    return OrchestratorOptions.getInput("orchestratorBranch") || "main";
+  }
+  static get providerStrategy() {
+    const provider = OrchestratorOptions.getInput("orchestratorCluster") || OrchestratorOptions.getInput("providerStrategy");
+    if (Cli.isCliMode) {
+      return provider || "aws";
+    }
+    return provider || "local";
+  }
+  static get fallbackProviderStrategy() {
+    return OrchestratorOptions.getInput("fallbackProviderStrategy") || "";
+  }
+  static get runnerCheckEnabled() {
+    return OrchestratorOptions.getInput("runnerCheckEnabled") === "true";
+  }
+  static get runnerCheckLabels() {
+    const labels = OrchestratorOptions.getInput("runnerCheckLabels");
+    return labels ? labels.split(",").map((l) => l.trim()) : [];
+  }
+  static get runnerCheckMinAvailable() {
+    return Number(OrchestratorOptions.getInput("runnerCheckMinAvailable")) || 1;
+  }
+  static get retryOnFallback() {
+    return OrchestratorOptions.getInput("retryOnFallback") === "true";
+  }
+  static get providerInitTimeout() {
+    return Number(OrchestratorOptions.getInput("providerInitTimeout")) || 0;
+  }
+  static get gitAuthMode() {
+    return OrchestratorOptions.getInput("gitAuthMode") || "header";
+  }
+  static get containerCpu() {
+    return OrchestratorOptions.getInput("containerCpu") || `1024`;
+  }
+  static get containerMemory() {
+    return OrchestratorOptions.getInput("containerMemory") || `3072`;
+  }
+  static get containerNamespace() {
+    return OrchestratorOptions.getInput("containerNamespace") || `default`;
+  }
+  static get customJob() {
+    return OrchestratorOptions.getInput("customJob") || "";
+  }
+  static get containerHookFiles() {
+    return OrchestratorOptions.getInput("containerHookFiles")?.split(`,`) || [];
+  }
+  static get commandHookFiles() {
+    return OrchestratorOptions.getInput("commandHookFiles")?.split(`,`) || [];
+  }
+  static get middlewareFiles() {
+    return OrchestratorOptions.getInput("middlewareFiles")?.split(`,`) || [];
+  }
+  static get commandHooks() {
+    return OrchestratorOptions.getInput("commandHooks") || "";
+  }
+  static get postBuildContainerHooks() {
+    return OrchestratorOptions.getInput("postBuildContainerHooks") || "";
+  }
+  static get preBuildContainerHooks() {
+    return OrchestratorOptions.getInput("preBuildContainerHooks") || "";
+  }
+  static get pullInputList() {
+    return OrchestratorOptions.getInput("pullInputList")?.split(`,`) || [];
+  }
+  static get secretSource() {
+    return OrchestratorOptions.getInput("secretSource") || "";
+  }
+  static get inputPullCommand() {
+    const value = OrchestratorOptions.getInput("inputPullCommand");
+    if (value === "gcp-secret-manager") {
+      return 'gcloud secrets versions access 1 --secret="{0}"';
+    } else if (value === "aws-secret-manager") {
+      return "aws secretsmanager get-secret-value --secret-id {0}";
+    }
+    return value || "";
+  }
+  static get awsStackName() {
+    return OrchestratorOptions.getInput("awsStackName") || "game-ci";
+  }
+  static get awsEndpoint() {
+    return OrchestratorOptions.getInput("awsEndpoint");
+  }
+  static get awsCloudFormationEndpoint() {
+    return OrchestratorOptions.getInput("awsCloudFormationEndpoint") || OrchestratorOptions.awsEndpoint;
+  }
+  static get awsEcsEndpoint() {
+    return OrchestratorOptions.getInput("awsEcsEndpoint") || OrchestratorOptions.awsEndpoint;
+  }
+  static get awsKinesisEndpoint() {
+    return OrchestratorOptions.getInput("awsKinesisEndpoint") || OrchestratorOptions.awsEndpoint;
+  }
+  static get awsCloudWatchLogsEndpoint() {
+    return OrchestratorOptions.getInput("awsCloudWatchLogsEndpoint") || OrchestratorOptions.awsEndpoint;
+  }
+  static get awsS3Endpoint() {
+    return OrchestratorOptions.getInput("awsS3Endpoint") || OrchestratorOptions.awsEndpoint;
+  }
+  static get storageProvider() {
+    return OrchestratorOptions.getInput("storageProvider") || "s3";
+  }
+  static get rcloneRemote() {
+    return OrchestratorOptions.getInput("rcloneRemote") || "";
+  }
+  static get kubeConfig() {
+    return OrchestratorOptions.getInput("kubeConfig") || "";
+  }
+  static get kubeVolume() {
+    return OrchestratorOptions.getInput("kubeVolume") || "";
+  }
+  static get kubeVolumeSize() {
+    return OrchestratorOptions.getInput("kubeVolumeSize") || "25Gi";
+  }
+  static get kubeStorageClass() {
+    return OrchestratorOptions.getInput("kubeStorageClass") || "";
+  }
+  static get cacheKey() {
+    return OrchestratorOptions.getInput("cacheKey") || OrchestratorOptions.branch;
+  }
+  static get cacheSaveOnFailure() {
+    return OrchestratorOptions.getInput("cacheSaveOnFailure") === "true";
+  }
+  static get cacheSaveOnFailureFilter() {
+    return OrchestratorOptions.getInput("cacheSaveOnFailureFilter") || "all";
+  }
+  static get cacheRetentionDays() {
+    return Number(OrchestratorOptions.getInput("cacheRetentionDays")) || 0;
+  }
+  static get orchestratorDebug() {
+    return OrchestratorOptions.getInput(`orchestratorTests`) === `true` || OrchestratorOptions.getInput(`orchestratorDebug`) === `true` || OrchestratorOptions.getInput(`orchestratorDebugTree`) === `true` || OrchestratorOptions.getInput(`orchestratorDebugEnv`) === `true` || false;
+  }
+  static get skipLfs() {
+    return OrchestratorOptions.getInput(`skipLfs`) === `true`;
+  }
+  static get skipInContainerClone() {
+    return OrchestratorOptions.getInput(`skipInContainerClone`) === `true`;
+  }
+  static get repoPathOverride() {
+    return OrchestratorOptions.getInput(`repoPathOverride`) || ``;
+  }
+  static get skipCache() {
+    return OrchestratorOptions.getInput(`skipCache`) === `true`;
+  }
+  static get asyncOrchestrator() {
+    return OrchestratorOptions.getInput("asyncOrchestrator") === "true";
+  }
+  static get resourceTracking() {
+    return OrchestratorOptions.getInput("resourceTracking") === "true";
+  }
+  static get useLargePackages() {
+    return OrchestratorOptions.getInput(`useLargePackages`) === `true`;
+  }
+  static get useSharedBuilder() {
+    return OrchestratorOptions.getInput(`useSharedBuilder`) === `true`;
+  }
+  static get useCompressionStrategy() {
+    return OrchestratorOptions.getInput(`useCompressionStrategy`) === `true`;
+  }
+  static get useCleanupCron() {
+    return (OrchestratorOptions.getInput(`useCleanupCron`) || "true") === "true";
+  }
+  static get maxRetainedWorkspaces() {
+    return OrchestratorOptions.getInput(`maxRetainedWorkspaces`) || `0`;
+  }
+  static get garbageMaxAge() {
+    return Number(OrchestratorOptions.getInput(`garbageMaxAge`)) || 24;
+  }
+  static get dryRun() {
+    return OrchestratorOptions.getInput("dryRun") === "true";
+  }
+  static get engine() {
+    return OrchestratorOptions.getInput("engine") || "unity";
+  }
+  static get enginePlugin() {
+    return OrchestratorOptions.getInput("enginePlugin") || "";
+  }
+  static get awsBaseStackName() {
+    return OrchestratorOptions.getInput("awsBaseStackName") || "";
+  }
+  static get gcpCloudRunRegion() {
+    return OrchestratorOptions.getInput("gcpCloudRunRegion") || "";
+  }
+  static get gcpCloudRunProject() {
+    return OrchestratorOptions.getInput("gcpCloudRunProject") || "";
+  }
+  static get azureResourceGroup() {
+    return OrchestratorOptions.getInput("azureResourceGroup") || "";
+  }
+  static get azureSubscriptionId() {
+    return OrchestratorOptions.getInput("azureSubscriptionId") || "";
+  }
+  static get githubActionsRepo() {
+    return OrchestratorOptions.getInput("githubActionsRepo") || "";
+  }
+  static get githubActionsWorkflow() {
+    return OrchestratorOptions.getInput("githubActionsWorkflow") || "";
+  }
+  static get githubActionsToken() {
+    return OrchestratorOptions.getInput("githubActionsToken") || "";
+  }
+  static get gitlabProjectId() {
+    return OrchestratorOptions.getInput("gitlabProjectId") || "";
+  }
+  static get gitlabTriggerToken() {
+    return OrchestratorOptions.getInput("gitlabTriggerToken") || "";
+  }
+  static get gitlabApiUrl() {
+    return OrchestratorOptions.getInput("gitlabApiUrl") || "";
+  }
+  static get remotePowershellHost() {
+    return OrchestratorOptions.getInput("remotePowershellHost") || "";
+  }
+  static get ansibleInventory() {
+    return OrchestratorOptions.getInput("ansibleInventory") || "";
+  }
+  static get ansiblePlaybook() {
+    return OrchestratorOptions.getInput("ansiblePlaybook") || "";
+  }
+  static get hotRunnerEnabled() {
+    return OrchestratorOptions.getInput("hotRunnerEnabled") === "true";
+  }
+  static get hotRunnerTransport() {
+    return OrchestratorOptions.getInput("hotRunnerTransport") || "tcp";
+  }
+  static get syncStrategy() {
+    return OrchestratorOptions.getInput("syncStrategy") || "full";
+  }
+}
+var core24, orchestrator_options_default;
+var init_orchestrator_options = __esm(() => {
+  init_cli();
+  init_orchestrator_query_override();
+  init_github();
+  core24 = __toESM(require_core());
+  orchestrator_options_default = OrchestratorOptions;
+});
+
+// plugins/orchestrator/src/model/build-parameters.ts
+class BuildParameters2 {
+  engine;
+  enginePlugin;
+  editorVersion;
+  customImage;
+  runnerTempPath;
+  targetPlatform;
+  projectPath;
+  buildProfile;
+  buildName;
+  buildPath;
+  buildFile;
+  buildMethod;
+  buildVersion;
+  androidVersionCode;
+  manualExit;
+  enableGpu;
+  isCliMode;
+  allowDirtyBuild;
+  cacheUnityInstallationOnMac;
+  providerStrategy;
+  maxRetainedWorkspaces;
+  maxCacheEntries;
+  minCacheEntries;
+  gcTimeoutMinutes;
+  useLargePackages;
+  useCompressionStrategy;
+  garbageMaxAge;
+  configFiles;
+  githubChecks;
+  asyncWorkflow;
+  githubCheckId;
+  finalHooks;
+  skipLfs;
+  skipCache;
+  skipActivation;
+  engineLaunchWrapper;
+  skipInContainerClone;
+  repoPathOverride;
+  lockedWorkspace;
+  cacheSaveOnFailure;
+  cacheSaveOnFailureFilter;
+  cacheRetentionDays;
+  dockerWorkspacePath;
+  dockerCpuLimit;
+  dockerMemoryLimit;
+  dockerIsolationMode;
+  gitPrivateToken;
+  sshAgent;
+  sshPublicKeysDirectoryPath;
+  chownFilesTo;
+  kubeConfig;
+  kubeVolumeSize;
+  kubeVolume;
+  kubeStorageClass;
+  containerMemory;
+  containerCpu;
+  readTimeout;
+  awsStackName;
+  awsBaseStackName;
+  awsUseSpot;
+  awsSpotFallback;
+  awsUseEphemeralStorage;
+  awsEphemeralStorageSize;
+  cloudRunnerCluster;
+  cloudRunnerCpu;
+  cloudRunnerMemory;
+  storageProvider;
+  rcloneRemote;
+  localCacheEnabled;
+  localCacheLibrary;
+  localCacheLfs;
+  localCacheRoot;
+  localCacheFallback;
+  localCacheFallbackKeys;
+  localCacheMode;
+  localCacheSaveOnFailure;
+  localCacheFloorCorruptionCategories;
+  childWorkspacesEnabled;
+  childWorkspaceName;
+  childWorkspaceCacheRoot;
+  childWorkspacePreserveGit;
+  childWorkspaceSeparateLibrary;
+  gitHooksEnabled;
+  gitHooksSkipList;
+  hotRunnerEnabled;
+  hotRunnerTransport;
+  hotRunnerHost;
+  hotRunnerPort;
+  hotRunnerHealthInterval;
+  hotRunnerMaxIdle;
+  hotRunnerFallbackToCold;
+  syncStrategy;
+  syncStatePath;
+  syncInputRef;
+  syncStorageRemote;
+  syncRevertAfter;
+  gitIntegrityCheck;
+  gitAutoRecover;
+  enableBuildRetry;
+  cleanReservedFilenames;
+  buildArchiveEnabled;
+  buildArchivePath;
+  buildArchiveRetention;
+  buildGuid;
+  branch;
+  gitSha;
+  submoduleProfilePath;
+  submoduleVariantPath;
+  submoduleToken;
+  lfsTransferAgent;
+  lfsTransferAgentArgs;
+  lfsStoragePaths;
+  testSuitePath;
+  testFilterRefs;
+  testFilterInjection;
+  testFilterInjectionPath;
+  preflightSuite;
+  artifactCustomTypes;
+  artifactOutputTypes;
+  artifactUploadTarget;
+  artifactUploadPath;
+  artifactCompression;
+  artifactRetentionDays;
+  middlewarePipeline;
+  remotePowershellHost;
+  remotePowershellTransport;
+  remotePowershellCredential;
+  githubActionsRepo;
+  githubActionsWorkflow;
+  githubActionsToken;
+  githubActionsRef;
+  gitlabProjectId;
+  gitlabTriggerToken;
+  gitlabApiUrl;
+  gitlabRef;
+  ansibleInventory;
+  ansiblePlaybook;
+  ansibleExtraVars;
+  ansibleVaultPassword;
+  static async create() {
+    const p = new BuildParameters2;
+    p.editorVersion = input_default.editorVersion || "2021.3.0f1";
+    p.targetPlatform = input_default.targetPlatform || "StandaloneLinux64";
+    p.projectPath = input_default.projectPath || ".";
+    p.buildName = input_default.buildName || p.targetPlatform;
+    p.buildPath = input_default.buildsPath || "./build";
+    p.buildFile = "";
+    p.buildMethod = "";
+    p.buildVersion = "1.0.0";
+    p.androidVersionCode = "";
+    p.customImage = input_default.customImage || input_default.getInput("image") || "";
+    p.runnerTempPath = process.env.RUNNER_TEMP || "";
+    p.manualExit = input_default.manualExit;
+    p.enableGpu = input_default.enableGpu;
+    p.isCliMode = Cli.isCliMode;
+    p.allowDirtyBuild = input_default.allowDirtyBuild;
+    p.providerStrategy = input_default.providerStrategy || "local";
+    p.maxRetainedWorkspaces = Number(input_default.getInput("maxRetainedWorkspaces")) || 0;
+    p.maxCacheEntries = Number(input_default.getInput("maxCacheEntries")) || 2;
+    p.minCacheEntries = Number(input_default.getInput("minCacheEntries")) || 0;
+    p.gcTimeoutMinutes = Number(input_default.getInput("gcTimeoutMinutes")) || 0;
+    try {
+      p.configFiles = JSON.parse(input_default.getInput("configFiles") || "{}");
+    } catch {
+      p.configFiles = {};
+    }
+    p.githubChecks = false;
+    p.asyncWorkflow = false;
+    p.githubCheckId = "";
+    p.finalHooks = [];
+    p.skipLfs = false;
+    p.skipCache = false;
+    p.skipActivation = Cli.options?.skipActivation ?? input_default.getInput("skipActivation") === "true";
+    p.engineLaunchWrapper = Cli.options?.engineLaunchWrapper ?? input_default.getInput("engineLaunchWrapper") ?? process.env.ENGINE_LAUNCH_WRAPPER ?? "";
+    p.skipInContainerClone = Cli.options?.skipInContainerClone ?? input_default.getInput("skipInContainerClone") === "true";
+    p.repoPathOverride = Cli.options?.repoPathOverride ?? input_default.getInput("repoPathOverride") ?? "";
+    p.lockedWorkspace = "";
+    p.cacheSaveOnFailure = false;
+    p.cacheSaveOnFailureFilter = "all";
+    p.cacheRetentionDays = 0;
+    p.awsStackName = input_default.getInput("awsStackName") || process.env.AWS_STACK_NAME || "game-ci";
+    p.storageProvider = input_default.getInput("storageProvider") || process.env.STORAGE_PROVIDER || "s3";
+    p.rcloneRemote = input_default.getInput("rcloneRemote") || process.env.RCLONE_REMOTE || "";
+    p.awsUseSpot = input_default.getInput("awsUseSpot") === "true";
+    p.awsSpotFallback = input_default.getInput("awsSpotFallback") !== "false";
+    p.awsUseEphemeralStorage = input_default.getInput("awsUseEphemeralStorage") === "true";
+    p.awsEphemeralStorageSize = Number(input_default.getInput("awsEphemeralStorageSize")) || 25;
+    p.dockerWorkspacePath = input_default.dockerWorkspacePath || "/github/workspace";
+    p.dockerCpuLimit = "";
+    p.dockerMemoryLimit = "";
+    p.dockerIsolationMode = "";
+    p.gitPrivateToken = input_default.getInput("gitPrivateToken") || process.env.GIT_PRIVATE_TOKEN || "";
+    p.engine = input_default.getInput("engine") || "unity";
+    p.enginePlugin = input_default.getInput("enginePlugin") || "";
+    p.preflightSuite = input_default.getInput("preflightSuite") || "";
+    p.testSuitePath = input_default.getInput("testSuitePath") || "";
+    p.testFilterRefs = input_default.getInput("testFilterRefs") || "";
+    p.testFilterInjection = input_default.getInput("testFilterInjection") || "";
+    p.testFilterInjectionPath = input_default.getInput("testFilterInjectionPath") || "";
+    initEngine(p.engine, p.enginePlugin || undefined);
+    p.orchestratorRepoName = input_default.getInput("orchestratorRepoName") || process.env.GITHUB_REPOSITORY || "game-ci/unity-builder";
+    p.orchestratorBranch = input_default.getInput("orchestratorBranch") || "main";
+    p.githubRepo = input_default.getInput("githubRepo") || process.env.GITHUB_REPOSITORY || "";
+    p.gitAuthMode = input_default.getInput("gitAuthMode") || "header";
+    p.buildGuid = orchestrator_guid_default.generateGuid(input_default.runNumber, p.targetPlatform);
+    p.branch = "";
+    p.gitSha = "";
+    p.customJob = "";
+    p.preBuildContainerHooks = "";
+    p.postBuildContainerHooks = "";
+    p.commandHooks = "";
+    p.runNumber = input_default.runNumber;
+    p.cacheUnityInstallationOnMac = input_default.cacheUnityInstallationOnMac;
+    p.buildPlatform = orchestrator_options_default.buildPlatform;
+    p.kubeConfig = orchestrator_options_default.kubeConfig;
+    p.containerMemory = orchestrator_options_default.containerMemory;
+    p.containerCpu = orchestrator_options_default.containerCpu;
+    p.containerNamespace = orchestrator_options_default.containerNamespace;
+    p.kubeVolumeSize = orchestrator_options_default.kubeVolumeSize;
+    p.kubeVolume = orchestrator_options_default.kubeVolume;
+    p.kubeStorageClass = orchestrator_options_default.kubeStorageClass;
+    p.orchestratorDebug = orchestrator_options_default.orchestratorDebug;
+    p.cloneDepth = Number.parseInt(orchestrator_options_default.cloneDepth);
+    p.awsEndpoint = orchestrator_options_default.awsEndpoint;
+    p.awsCloudFormationEndpoint = orchestrator_options_default.awsCloudFormationEndpoint;
+    p.awsEcsEndpoint = orchestrator_options_default.awsEcsEndpoint;
+    p.awsKinesisEndpoint = orchestrator_options_default.awsKinesisEndpoint;
+    p.awsCloudWatchLogsEndpoint = orchestrator_options_default.awsCloudWatchLogsEndpoint;
+    p.awsS3Endpoint = orchestrator_options_default.awsS3Endpoint;
+    p.inputPullCommand = orchestrator_options_default.inputPullCommand;
+    p.pullInputList = orchestrator_options_default.pullInputList;
+    p.cacheKey = orchestrator_options_default.cacheKey;
+    p.useLargePackages = orchestrator_options_default.useLargePackages;
+    p.useCompressionStrategy = orchestrator_options_default.useCompressionStrategy;
+    p.garbageMaxAge = orchestrator_options_default.garbageMaxAge;
+    if (Cli.options) {
+      for (const [key, value] of Object.entries(Cli.options)) {
+        if (value !== undefined && !((key in p) && p[key] !== undefined)) {
+          p[key] = value;
+        }
+      }
+    }
+    return p;
+  }
+  static shouldUseRetainedWorkspaceMode(buildParameters) {
+    return buildParameters.maxRetainedWorkspaces > 0 && buildParameters.lockedWorkspace !== "";
+  }
+  static parseBuildFile(filename, _platform, _androidExportType) {
+    return filename;
+  }
+  static getSerialFromLicenseFile(_license) {
+    return "";
+  }
+}
+var build_parameters_default;
+var init_build_parameters = __esm(() => {
+  init_cli();
+  init_input();
+  init_engine();
+  init_orchestrator_guid();
+  init_orchestrator_options();
+  build_parameters_default = BuildParameters2;
+});
+
+// plugins/orchestrator/src/model/image-tag.ts
+class ImageTag {
+  repository;
+  editorVersion;
+  targetPlatform;
+  builderPlatform;
+  customImage;
+  imageRollingVersion;
+  imagePlatformPrefix;
+  constructor(imageProperties) {
+    const {
+      editorVersion = "",
+      targetPlatform = "",
+      builderPlatform = "",
+      customImage = ""
+    } = imageProperties;
+    if (editorVersion !== "" && typeof editorVersion?.then === "function") {
+      throw new TypeError("ImageTag received a Promise for editorVersion instead of a resolved string - " + "a caller almost certainly forgot to `await` an async Unity-version lookup " + "(e.g. UnityVersioning.determineUnityVersion) before building these parameters.");
+    }
+    this.repository = "unityci";
+    this.editorVersion = editorVersion;
+    this.targetPlatform = targetPlatform;
+    this.builderPlatform = builderPlatform;
+    this.customImage = customImage;
+    this.imageRollingVersion = 3;
+    this.imagePlatformPrefix = ImageTag.getImagePlatformPrefixes(builderPlatform);
+  }
+  static get versionPattern() {
+    return /^\d+\.\d+\.\d+[a-z]\d+$/;
+  }
+  static get targetPlatformSuffixes() {
+    return {
+      StandaloneOSX: "mac-mono",
+      StandaloneWindows: "windows-mono",
+      StandaloneWindows64: "windows-mono",
+      StandaloneLinux64: "linux-il2cpp",
+      iOS: "ios",
+      Android: "android",
+      WebGL: "webgl"
+    };
+  }
+  static getImagePlatformPrefixes(platform) {
+    switch (platform) {
+      case "linux":
+        return "";
+      case "win32":
+        return "windows-";
+      case "darwin":
+        return "mac-";
+      default:
+        return "";
+    }
+  }
+  static getTargetPlatformToTargetPlatformSuffixMap(platform, _version, _providerStrategy) {
+    return ImageTag.targetPlatformSuffixes[platform] || platform.toLowerCase();
+  }
+  get tag() {
+    const platformSuffix = ImageTag.targetPlatformSuffixes[this.targetPlatform] || this.targetPlatform.toLowerCase();
+    return `${this.editorVersion}-${platformSuffix}-${this.imageRollingVersion}`;
+  }
+  get image() {
+    return `${this.repository}/${this.imagePlatformPrefix}editor`;
+  }
+  toString() {
+    if (this.customImage)
+      return this.customImage;
+    return `${this.image}:${this.tag}`;
+  }
+}
+var image_tag_default;
+var init_image_tag = __esm(() => {
+  image_tag_default = ImageTag;
+});
+
+// plugins/orchestrator/src/model/platform.ts
+var init_platform = () => {};
+
+// plugins/orchestrator/src/model/unity-versioning.ts
+var init_unity_versioning = () => {};
 
 // plugins/orchestrator/src/model/index.ts
 var init_model2 = __esm(() => {
@@ -261020,18 +261049,31 @@ var init_input_mapper = __esm(() => {
   init_github();
 });
 
+// plugins/orchestrator/src/cli/remote-build-context.ts
+async function prepareRemoteBuild(cliArguments) {
+  mapCliArgumentsToInput(cliArguments);
+  Cli.options.versioning = "None";
+  const buildParameters = await build_parameters_default.create();
+  buildParameters.buildGuid = process.env.BUILD_GUID || buildParameters.buildGuid;
+  buildParameters.lockedWorkspace = process.env.LOCKED_WORKSPACE || ``;
+  await orchestrator_default.setup(buildParameters);
+}
+var init_remote_build_context = __esm(() => {
+  init_model2();
+  init_cli();
+  init_input_mapper();
+});
+
 // plugins/orchestrator/src/cli/commands/remote-cli-pre-build.ts
 var remoteCliPreBuildCommand, remote_cli_pre_build_default;
 var init_remote_cli_pre_build = __esm(() => {
-  init_model2();
   init_remote_client();
-  init_input_mapper();
+  init_remote_build_context();
   remoteCliPreBuildCommand = {
     command: "remote-cli-pre-build",
     describe: "Sets up a repository, usually before a game-ci build (internal - runs inside the remote build container)",
     handler: async (cliArguments) => {
-      mapCliArgumentsToInput(cliArguments);
-      orchestrator_default.buildParameters = await build_parameters_default.create();
+      await prepareRemoteBuild(cliArguments);
       await RemoteClient.setupRemoteClient();
     }
   };
@@ -261041,15 +261083,13 @@ var init_remote_cli_pre_build = __esm(() => {
 // plugins/orchestrator/src/cli/commands/remote-cli-post-build.ts
 var remoteCliPostBuildCommand, remote_cli_post_build_default;
 var init_remote_cli_post_build = __esm(() => {
-  init_model2();
   init_remote_client();
-  init_input_mapper();
+  init_remote_build_context();
   remoteCliPostBuildCommand = {
     command: "remote-cli-post-build",
     describe: "Runs post-build cache push tasks (internal - runs inside the remote build container)",
     handler: async (cliArguments) => {
-      mapCliArgumentsToInput(cliArguments);
-      orchestrator_default.buildParameters = await build_parameters_default.create();
+      await prepareRemoteBuild(cliArguments);
       await RemoteClient.remoteClientPostBuild();
     }
   };
