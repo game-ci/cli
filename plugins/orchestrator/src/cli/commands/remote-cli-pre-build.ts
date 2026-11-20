@@ -1,7 +1,7 @@
 import type { CommandModule } from 'yargs';
-import { BuildParameters, Orchestrator } from '../../model';
 import { RemoteClient } from '../../model/orchestrator/remote-client';
-import { mapCliArgumentsToInput, CliArguments } from '../input-mapper';
+import { CliArguments } from '../input-mapper';
+import { prepareRemoteBuild } from '../remote-build-context';
 
 /**
  * Runs inside the remote build container (AWS/K8s), before the actual
@@ -27,8 +27,7 @@ const remoteCliPreBuildCommand: CommandModule<object, CliArguments> = {
   describe:
     'Sets up a repository, usually before a game-ci build (internal - runs inside the remote build container)',
   handler: async (cliArguments) => {
-    mapCliArgumentsToInput(cliArguments);
-    Orchestrator.buildParameters = await BuildParameters.create();
+    await prepareRemoteBuild(cliArguments);
     await RemoteClient.setupRemoteClient();
   },
 };

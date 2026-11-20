@@ -1,7 +1,7 @@
 import type { CommandModule } from 'yargs';
-import { BuildParameters, Orchestrator } from '../../model';
 import { RemoteClient } from '../../model/orchestrator/remote-client';
-import { mapCliArgumentsToInput, CliArguments } from '../input-mapper';
+import { CliArguments } from '../input-mapper';
+import { prepareRemoteBuild } from '../remote-build-context';
 
 /**
  * Runs inside the remote build container (AWS/K8s), after the build -
@@ -13,8 +13,7 @@ const remoteCliPostBuildCommand: CommandModule<object, CliArguments> = {
   command: 'remote-cli-post-build',
   describe: 'Runs post-build cache push tasks (internal - runs inside the remote build container)',
   handler: async (cliArguments) => {
-    mapCliArgumentsToInput(cliArguments);
-    Orchestrator.buildParameters = await BuildParameters.create();
+    await prepareRemoteBuild(cliArguments);
     await RemoteClient.remoteClientPostBuild();
   },
 };
