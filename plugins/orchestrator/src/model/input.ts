@@ -11,18 +11,27 @@ import * as core from '@actions/core';
 import { Cli } from './cli/cli';
 
 class Input {
+  /**
+   * CLI options first, then (outside CLI mode) the action input, then the
+   * environment as `query` or SCREAMING_SNAKE_CASE. Remote build containers run
+   * in CLI mode and receive the build's parameters as environment variables.
+   */
   static getInput(query: string): string | undefined {
-    if (Cli.isCliMode) {
-      return Cli.query(query, Input.ToEnvVarFormat(query));
-    }
+    const environmentName = Input.ToEnvVarFormat(query);
 
-    // Check Cli.options as a fallback (used by tests that set overrides without CLI mode)
-    const cliResult = Cli.query(query, Input.ToEnvVarFormat(query));
+    const cliResult = Cli.query(query, environmentName);
     if (cliResult !== undefined) {
       return cliResult;
     }
 
-    return core.getInput(query) || undefined;
+    if (!Cli.isCliMode) {
+      const actionInput = core.getInput(query);
+      if (actionInput) {
+        return actionInput;
+      }
+    }
+
+    return process.env[query] ?? process.env[environmentName] ?? undefined;
   }
 
   static ToEnvVarFormat(input: string): string {
