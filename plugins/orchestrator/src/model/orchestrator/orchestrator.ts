@@ -33,7 +33,18 @@ class Orchestrator {
   public static buildParameters: BuildParameters;
   private static defaultSecrets: OrchestratorSecret[];
   private static orchestratorEnvironmentVariables: OrchestratorEnvironmentVariable[];
-  static lockedWorkspace: string = ``;
+  /**
+   * The retained workspace this build locked, kept on its BuildParameters, which
+   * BuildParameters.shouldUseRetainedWorkspaceMode reads (it can't import this class).
+   */
+  static get lockedWorkspace(): string {
+    return Orchestrator.buildParameters?.lockedWorkspace ?? ``;
+  }
+
+  static set lockedWorkspace(workspace: string) {
+    Orchestrator.buildParameters.lockedWorkspace = workspace;
+  }
+
   public static readonly retainedWorkspacePrefix: string = `retained-workspace`;
 
   // When true, validates AWS CloudFormation templates even when using local-docker execution
