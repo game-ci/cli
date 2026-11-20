@@ -246,6 +246,11 @@ export class RemoteClient {
       `game-ci`,
       `hooks`,
     );
+    if (!fs.existsSync(gameCiCustomHooksPath)) {
+      RemoteClientLogger.log(`No custom hook files at ${gameCiCustomHooksPath}`);
+
+      return;
+    }
     try {
       const files = fs.readdirSync(gameCiCustomHooksPath);
       for (const file of files) {

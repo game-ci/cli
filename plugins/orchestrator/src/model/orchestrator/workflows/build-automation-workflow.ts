@@ -576,6 +576,9 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     isContainerized: boolean,
     isBareLocalProvider = false,
   ) {
+    // On a host build the game-ci CLI that started it serves the remote-cli
+    // commands; containers run the bundle from their clone of game-ci/cli.
+    const hostCli = process.env.GAME_CI_CLI_COMMAND || `node ${builderPath}`;
     const distFolder = path.join(OrchestratorFolders.builderPathAbsolute, 'dist');
     const ubuntuPlatformsFolder = path.join(
       OrchestratorFolders.builderPathAbsolute,
@@ -736,16 +739,16 @@ echo "CACHE_KEY=$CACHE_KEY"`;
     mkdir -p "$ACTIVATE_LICENSE_PATH"
     mkdir -p "$GITHUB_WORKSPACE/$BUILD_PATH"
     # Pipe runsteps.sh output through log stream to capture Unity build/activation output
-    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | node ${builderPath} remote-cli-log-stream --logFile "$LOG_FILE"
-    node ${builderPath} remote-cli-post-build`;
+    { bash "$STEPS_DIR/runsteps.sh"; echo "RUNSTEPS_EXIT_CODE:$?" >> "$LOG_FILE"; } | ${hostCli} remote-cli-log-stream --logFile "$LOG_FILE"
+    ${hostCli} remote-cli-post-build`;
     }
 
     // prettier-ignore
     return `
     echo "game ci start"
     echo "game ci start" >> "$LOG_FILE"
-    timeout 3s node ${builderPath} remote-cli-log-stream --logFile "$LOG_FILE" || true
-    node ${builderPath} remote-cli-post-build`;
+    timeout 3s ${hostCli} remote-cli-log-stream --logFile "$LOG_FILE" || true
+    ${hostCli} remote-cli-post-build`;
   }
 
   /**

@@ -1,5 +1,6 @@
 import { yaml, yargs, getHomeDir, __dirname, isCompiledBinary, path, process, fs } from "./dependencies.ts";
 import type { YargsInstance, YargsArguments } from "./dependencies.ts";
+import { CliCommand } from "./model/cli-command.ts";
 import { CommandInterface } from "./command/command-interface.ts";
 import { configureLogger } from "./middleware/logger-verbosity/index.ts";
 import { CommandFactory } from "./command/command-factory.ts";
@@ -20,6 +21,7 @@ export class Cli {
   private readonly cliStorageCanonicalPath: string;
   private readonly cliPath: string;
   private readonly cliDistPath: string;
+  private readonly cliCommand: string;
   private readonly configFileName!: string;
   private readonly rawArgs: string[];
   private readonly currentWorkDir: string;
@@ -62,6 +64,10 @@ export class Cli {
     // scripts and builder assets as the CLI. Expose their resolved location
     // so plugin code does not guess from the caller's working directory.
     process.env.GAME_CI_CLI_DIST_PATH ??= this.cliDistPath;
+    // And how to run this CLI again, e.g. for the orchestrator's remote-cli
+    // commands on a host build.
+    this.cliCommand = CliCommand.of(process.execPath, process.argv[1]);
+    process.env.GAME_CI_CLI_COMMAND ??= this.cliCommand;
   }
 
   public async setup() {
@@ -319,6 +325,7 @@ export class Cli {
       .default("currentWorkDir", this.currentWorkDir)
       .default("cliPath", this.cliPath)
       .default("cliDistPath", this.cliDistPath)
+      .default("cliCommand", this.cliCommand)
       .default("cliStoragePath", this.cliStoragePath)
       .default("isRunningLocally", this.isRunningLocally)
       .default("hostPlatform", this.hostPlatform)

@@ -20,7 +20,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node",
+    "build": "bun build src/index.ts --outdir dist --target node --conditions bun",
     "build:assets": "node scripts/generate-embedded-assets.mjs",
     "build:binary": "bun run build:assets && bun build src/index.ts --compile --outfile game-ci",
     "test": "bun test ./src",
@@ -50,5 +50,6 @@
   },
   "engines": {
     "bun": ">=1.0.0"
-  }
+  },
+  "packageManager": "bun@1.4.5"
 }
