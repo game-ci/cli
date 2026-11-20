@@ -51,3 +51,37 @@ describe('BuildParameters.shouldUseRetainedWorkspaceMode', () => {
     expect(BuildParameters.shouldUseRetainedWorkspaceMode(buildParameters)).toBe(false);
   });
 });
+
+describe('BuildParameters.create in a remote build container', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    Cli.options = undefined;
+    process.env = { ...saved };
+  });
+
+  // The host serialises these into the container's environment.
+  it("reads the orchestrator's parameters from the environment, typed", async () => {
+    Cli.options = { mode: 'cli', versioning: 'None' };
+    process.env.CACHE_KEY = 'test-case-1';
+    process.env.USE_LARGE_PACKAGES = 'true';
+    process.env.CLONE_DEPTH = '10';
+    process.env.GARBAGE_MAX_AGE = '6';
+    process.env.CONTAINER_NAMESPACE = 'ci';
+
+    const buildParameters = await BuildParameters.create();
+
+    expect(buildParameters.cacheKey).toBe('test-case-1');
+    expect(buildParameters.useLargePackages).toBe(true);
+    expect(buildParameters.cloneDepth).toBe(10);
+    expect(buildParameters.garbageMaxAge).toBe(6);
+    expect(buildParameters.containerNamespace).toBe('ci');
+  });
+
+  it('still lets CLI options win', async () => {
+    Cli.options = { mode: 'cli', versioning: 'None', cacheKey: 'from-cli' };
+    process.env.CACHE_KEY = 'from-env';
+
+    expect((await BuildParameters.create()).cacheKey).toBe('from-cli');
+  });
+});

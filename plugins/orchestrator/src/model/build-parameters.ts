@@ -24,6 +24,7 @@ import { Cli } from './cli/cli';
 import Input from './input';
 import { initEngine } from './engine';
 import OrchestratorNamespace from './orchestrator/options/orchestrator-guid';
+import OrchestratorOptions from './orchestrator/options/orchestrator-options';
 
 class BuildParameters {
   // ── engine ─────────────────────────────────────────────────────────
@@ -330,6 +331,33 @@ class BuildParameters {
     p.preBuildContainerHooks = '';
     p.postBuildContainerHooks = '';
     p.commandHooks = '';
+
+    // Typed orchestrator parameters, read from CLI options, action inputs or the
+    // environment, which is how a remote build container receives them.
+    p.runNumber = Input.runNumber;
+    p.cacheUnityInstallationOnMac = Input.cacheUnityInstallationOnMac;
+    p.buildPlatform = OrchestratorOptions.buildPlatform;
+    p.kubeConfig = OrchestratorOptions.kubeConfig;
+    p.containerMemory = OrchestratorOptions.containerMemory;
+    p.containerCpu = OrchestratorOptions.containerCpu;
+    p.containerNamespace = OrchestratorOptions.containerNamespace;
+    p.kubeVolumeSize = OrchestratorOptions.kubeVolumeSize;
+    p.kubeVolume = OrchestratorOptions.kubeVolume;
+    p.kubeStorageClass = OrchestratorOptions.kubeStorageClass;
+    p.orchestratorDebug = OrchestratorOptions.orchestratorDebug;
+    p.cloneDepth = Number.parseInt(OrchestratorOptions.cloneDepth);
+    p.awsEndpoint = OrchestratorOptions.awsEndpoint;
+    p.awsCloudFormationEndpoint = OrchestratorOptions.awsCloudFormationEndpoint;
+    p.awsEcsEndpoint = OrchestratorOptions.awsEcsEndpoint;
+    p.awsKinesisEndpoint = OrchestratorOptions.awsKinesisEndpoint;
+    p.awsCloudWatchLogsEndpoint = OrchestratorOptions.awsCloudWatchLogsEndpoint;
+    p.awsS3Endpoint = OrchestratorOptions.awsS3Endpoint;
+    p.inputPullCommand = OrchestratorOptions.inputPullCommand;
+    p.pullInputList = OrchestratorOptions.pullInputList;
+    p.cacheKey = OrchestratorOptions.cacheKey;
+    p.useLargePackages = OrchestratorOptions.useLargePackages;
+    p.useCompressionStrategy = OrchestratorOptions.useCompressionStrategy;
+    p.garbageMaxAge = OrchestratorOptions.garbageMaxAge;
 
     // Pass through any CLI overrides not explicitly handled above
     if (Cli.options) {
