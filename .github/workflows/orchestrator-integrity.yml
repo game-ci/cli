@@ -35,7 +35,8 @@ env:
   AWS_STACK_NAME: game-ci-team-pipelines
   # The branch remote build containers clone game-ci/cli at, to run its
   # dist/index.js: the one under test. A name, since `git clone -b` takes no ref.
-  ORCHESTRATOR_BRANCH: ${{ github.head_ref || github.ref_name }}
+  # An action input: BuildParameters reads INPUT_*, not plain environment variables.
+  INPUT_ORCHESTRATORBRANCH: ${{ github.head_ref || github.ref_name }}
   DEBUG: true
   PROJECT_PATH: test-project
   USE_IL2CPP: false
