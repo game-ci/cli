@@ -34,7 +34,6 @@ describe('Orchestrator Caching', () => {
         targetPlatform: 'StandaloneLinux64',
         cacheKey: `test-case-${uuidv4()}`,
         containerHookFiles: `debug-cache`,
-        orchestratorBranch: `main`,
         orchestratorDebug: true,
       };
 
