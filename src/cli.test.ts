@@ -106,6 +106,20 @@ describe("Cli plugin loading", () => {
     }
   }, 30000);
 
+  it("tells plugins how to run this CLI again", async () => {
+    const previous = process.env.GAME_CI_CLI_COMMAND;
+    delete process.env.GAME_CI_CLI_COMMAND;
+
+    try {
+      new Cli([], process.cwd());
+
+      expect(process.env.GAME_CI_CLI_COMMAND).toBe(`'${process.execPath}' '${process.argv[1]}'`);
+    } finally {
+      if (previous === undefined) delete process.env.GAME_CI_CLI_COMMAND;
+      else process.env.GAME_CI_CLI_COMMAND = previous;
+    }
+  });
+
   it("loads executable plugins from config during setup", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-cli-"));
     try {

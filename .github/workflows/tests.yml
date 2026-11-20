@@ -27,6 +27,9 @@ jobs:
             cli:
               - 'src/**'
               - 'dist/**'
+              # dist/index.js bundles the CLI with every workspace plugin.
+              - 'plugins/**'
+              - 'bun.lock'
               - 'scripts/**'
               # The root installer and the Action that runs it: without
               # these, a PR touching only install.sh skips the install
@@ -88,6 +91,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned: the dist/index.js check below rebuilds the bundle, and
+          # another Bun could bundle it differently.
+          bun-version-file: package.json
       - name: Install dependencies
         run: bun install
       - name: Code conventions
@@ -107,6 +114,16 @@ jobs:
       # file's bytes: gzip output is not byte-reproducible across zlib
       # versions, so a byte comparison failed purely because CI runs a
       # different Node than the machine that generated it.
+      # Remote build containers clone this repository and run the committed
+      # dist/index.js (the orchestrator's BuildAutomationWorkflow), so a stale
+      # bundle ships old code to every remote build.
+      - name: Verify dist/index.js is up to date
+        run: |
+          bun run build
+          git diff --quiet -- dist/index.js || {
+            echo "::error::dist/index.js is out of date. Run 'bun run build' with the Bun in package.json's packageManager, then 'node scripts/generate-embedded-assets.mjs', and commit both."
+            exit 1
+          }
       - name: Verify embedded assets are up to date
         run: node scripts/generate-embedded-assets.mjs --check
       # dist/platforms and dist/default-build-script are hand-maintained

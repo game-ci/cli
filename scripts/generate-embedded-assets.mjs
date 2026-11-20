@@ -136,14 +136,20 @@ function readFromGit() {
   return files;
 }
 
+// dist/index.js is the CLI bundle itself, built from src/, which imports this
+// module: embedding it would make every build embed the previous one. The
+// compiled binary runs as itself instead (GAME_CI_CLI_COMMAND in src/cli.ts).
+const NOT_EMBEDDED = new Set(['index.js']);
+
 const gitFiles = readFromGit();
-const files =
+const files = (
   gitFiles ??
   walk(distDir).map((file) => ({
     rel: file.rel,
     data: fs.readFileSync(file.abs),
     executable: (file.mode & 0o111) !== 0,
-  }));
+  }))
+).filter((file) => !NOT_EMBEDDED.has(file.rel));
 
 if (!gitFiles) {
   console.warn('Not a git checkout - falling back to working-tree contents and permissions.');

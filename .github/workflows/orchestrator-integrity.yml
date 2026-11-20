@@ -99,6 +99,9 @@ jobs:
         run: |
           bun ../../scripts/extract-embedded-assets.mjs "$RUNNER_TEMP/game-ci-cli-assets"
           echo "GAME_CI_CLI_DIST_PATH=$RUNNER_TEMP/game-ci-cli-assets" >> "$GITHUB_ENV"
+          # Host builds hand the remote-cli commands back to the game-ci CLI; nothing
+          # runs it here, so point them at the bundle this checkout carries.
+          echo "GAME_CI_CLI_COMMAND=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
       - name: Install package manager (from package.json)
         run: |
           corepack enable
@@ -555,6 +558,9 @@ jobs:
         run: |
           bun ../../scripts/extract-embedded-assets.mjs "$RUNNER_TEMP/game-ci-cli-assets"
           echo "GAME_CI_CLI_DIST_PATH=$RUNNER_TEMP/game-ci-cli-assets" >> "$GITHUB_ENV"
+          # Host builds hand the remote-cli commands back to the game-ci CLI; nothing
+          # runs it here, so point them at the bundle this checkout carries.
+          echo "GAME_CI_CLI_COMMAND=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
       - name: Install package manager (from package.json)
         run: |
           corepack enable
@@ -916,6 +922,9 @@ jobs:
         run: |
           bun ../../scripts/extract-embedded-assets.mjs "$RUNNER_TEMP/game-ci-cli-assets"
           echo "GAME_CI_CLI_DIST_PATH=$RUNNER_TEMP/game-ci-cli-assets" >> "$GITHUB_ENV"
+          # Host builds hand the remote-cli commands back to the game-ci CLI; nothing
+          # runs it here, so point them at the bundle this checkout carries.
+          echo "GAME_CI_CLI_COMMAND=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
       - name: Install package manager (from package.json)
         run: |
           corepack enable
@@ -1275,6 +1284,9 @@ jobs:
         run: |
           bun ../../scripts/extract-embedded-assets.mjs "$RUNNER_TEMP/game-ci-cli-assets"
           echo "GAME_CI_CLI_DIST_PATH=$RUNNER_TEMP/game-ci-cli-assets" >> "$GITHUB_ENV"
+          # Host builds hand the remote-cli commands back to the game-ci CLI; nothing
+          # runs it here, so point them at the bundle this checkout carries.
+          echo "GAME_CI_CLI_COMMAND=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
       - name: Install package manager (from package.json)
         run: |
           corepack enable
@@ -1430,6 +1442,9 @@ jobs:
         run: |
           bun ../../scripts/extract-embedded-assets.mjs "$RUNNER_TEMP/game-ci-cli-assets"
           echo "GAME_CI_CLI_DIST_PATH=$RUNNER_TEMP/game-ci-cli-assets" >> "$GITHUB_ENV"
+          # Host builds hand the remote-cli commands back to the game-ci CLI; nothing
+          # runs it here, so point them at the bundle this checkout carries.
+          echo "GAME_CI_CLI_COMMAND=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
       - name: Read Node version from mise.toml
         id: node
         run: echo "version=$(grep -E '^node\\s*=' mise.toml | sed -E 's/.*"([^"]+)".*/\\1/')" >> "$GITHUB_OUTPUT"
