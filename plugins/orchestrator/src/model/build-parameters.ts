@@ -23,6 +23,7 @@ import * as core from '@actions/core';
 import { Cli } from './cli/cli';
 import Input from './input';
 import { initEngine } from './engine';
+import OrchestratorNamespace from './orchestrator/options/orchestrator-guid';
 
 class BuildParameters {
   // ── engine ─────────────────────────────────────────────────────────
@@ -321,7 +322,8 @@ class BuildParameters {
     p.orchestratorBranch = Input.getInput('orchestratorBranch') || 'main';
     p.githubRepo = Input.getInput('githubRepo') || process.env.GITHUB_REPOSITORY || '';
     p.gitAuthMode = Input.getInput('gitAuthMode') || 'header';
-    p.buildGuid = '';
+    // Names this build's retained workspace and locks, so it must be unique.
+    p.buildGuid = OrchestratorNamespace.generateGuid(Input.runNumber, p.targetPlatform);
     p.branch = '';
     p.gitSha = '';
     p.customJob = '';
