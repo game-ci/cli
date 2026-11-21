@@ -37,7 +37,7 @@ env:
   # AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   # AWS_DEFAULT_REGION: eu-west-2
   # AWS_STACK_NAME: game-ci-github-pipelines
-  ORCHESTRATOR_BRANCH: ${{ github.ref }}
+  INPUT_ORCHESTRATORBRANCH: ${{ github.head_ref || github.ref_name }}
   ORCHESTRATOR_DEBUG: true
   ORCHESTRATOR_DEBUG_TREE: true
   DEBUG: true
