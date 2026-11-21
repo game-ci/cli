@@ -9,18 +9,15 @@ export class AsyncWorkflow {
     environmentVariables: OrchestratorEnvironmentVariable[],
     secrets: OrchestratorSecret[],
   ): Promise<string> {
-    try {
-      OrchestratorLogger.log(`Orchestrator is running async mode`);
-      const asyncEnvironmentVariable = new OrchestratorEnvironmentVariable();
-      asyncEnvironmentVariable.name = `ASYNC_WORKFLOW`;
-      asyncEnvironmentVariable.value = `true`;
+    OrchestratorLogger.log(`Orchestrator is running async mode`);
+    const asyncEnvironmentVariable = new OrchestratorEnvironmentVariable();
+    asyncEnvironmentVariable.name = `ASYNC_WORKFLOW`;
+    asyncEnvironmentVariable.value = `true`;
 
-      let output = '';
-
-      output += await Orchestrator.Provider.runTaskInWorkflow(
-        Orchestrator.buildParameters.buildGuid,
-        `ubuntu`,
-        `apt-get update > /dev/null
+    return await Orchestrator.Provider.runTaskInWorkflow(
+      Orchestrator.buildParameters.buildGuid,
+      `ubuntu`,
+      `apt-get update > /dev/null
 apt-get install -y curl tar tree npm git git-lfs jq git > /dev/null
 mkdir /builder
 printenv
@@ -36,34 +33,27 @@ unzip awscliv2.zip
 ./aws/install
 aws --version
 node /builder/dist/index.js remote-cli-async-workflow`,
-        `/${OrchestratorFolders.buildVolumeFolder}`,
-        `/${OrchestratorFolders.buildVolumeFolder}/`,
-        [...environmentVariables, asyncEnvironmentVariable],
-        [
-          ...secrets,
-          ...[
-            {
-              ParameterKey: `GITHUB_TOKEN`,
-              EnvironmentVariable: `GITHUB_TOKEN`,
-              ParameterValue: process.env.GITHUB_TOKEN || ``,
-            },
-            {
-              ParameterKey: `AWS_ACCESS_KEY_ID`,
-              EnvironmentVariable: `AWS_ACCESS_KEY_ID`,
-              ParameterValue: process.env.AWS_ACCESS_KEY_ID || ``,
-            },
-            {
-              ParameterKey: `AWS_SECRET_ACCESS_KEY`,
-              EnvironmentVariable: `AWS_SECRET_ACCESS_KEY`,
-              ParameterValue: process.env.AWS_SECRET_ACCESS_KEY || ``,
-            },
-          ],
-        ],
-      );
-
-      return output;
-    } catch (error) {
-      throw error;
-    }
+      `/${OrchestratorFolders.buildVolumeFolder}`,
+      `/${OrchestratorFolders.buildVolumeFolder}/`,
+      [...environmentVariables, asyncEnvironmentVariable],
+      [
+        ...secrets,
+        {
+          ParameterKey: `GITHUB_TOKEN`,
+          EnvironmentVariable: `GITHUB_TOKEN`,
+          ParameterValue: process.env.GITHUB_TOKEN || ``,
+        },
+        {
+          ParameterKey: `AWS_ACCESS_KEY_ID`,
+          EnvironmentVariable: `AWS_ACCESS_KEY_ID`,
+          ParameterValue: process.env.AWS_ACCESS_KEY_ID || ``,
+        },
+        {
+          ParameterKey: `AWS_SECRET_ACCESS_KEY`,
+          EnvironmentVariable: `AWS_SECRET_ACCESS_KEY`,
+          ParameterValue: process.env.AWS_SECRET_ACCESS_KEY || ``,
+        },
+      ],
+    );
   }
 }
