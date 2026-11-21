@@ -252488,13 +252488,11 @@ var init_orchestrator_environment_variable = __esm(() => {
 // plugins/orchestrator/src/model/orchestrator/workflows/async-workflow.ts
 class AsyncWorkflow {
   static async runAsyncWorkflow(environmentVariables, secrets) {
-    try {
-      orchestrator_logger_default.log(`Orchestrator is running async mode`);
-      const asyncEnvironmentVariable = new orchestrator_environment_variable_default;
-      asyncEnvironmentVariable.name = `ASYNC_WORKFLOW`;
-      asyncEnvironmentVariable.value = `true`;
-      let output = "";
-      output += await orchestrator_default.Provider.runTaskInWorkflow(orchestrator_default.buildParameters.buildGuid, `ubuntu`, `apt-get update > /dev/null
+    orchestrator_logger_default.log(`Orchestrator is running async mode`);
+    const asyncEnvironmentVariable = new orchestrator_environment_variable_default;
+    asyncEnvironmentVariable.name = `ASYNC_WORKFLOW`;
+    asyncEnvironmentVariable.value = `true`;
+    return await orchestrator_default.Provider.runTaskInWorkflow(orchestrator_default.buildParameters.buildGuid, `ubuntu`, `apt-get update > /dev/null
 apt-get install -y curl tar tree npm git git-lfs jq git > /dev/null
 mkdir /builder
 printenv
@@ -252509,30 +252507,24 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip
 unzip awscliv2.zip
 ./aws/install
 aws --version
-node /builder/dist/index.js -m async-workflow`, `/${OrchestratorFolders.buildVolumeFolder}`, `/${OrchestratorFolders.buildVolumeFolder}/`, [...environmentVariables, asyncEnvironmentVariable], [
-        ...secrets,
-        ...[
-          {
-            ParameterKey: `GITHUB_TOKEN`,
-            EnvironmentVariable: `GITHUB_TOKEN`,
-            ParameterValue: process.env.GITHUB_TOKEN || ``
-          },
-          {
-            ParameterKey: `AWS_ACCESS_KEY_ID`,
-            EnvironmentVariable: `AWS_ACCESS_KEY_ID`,
-            ParameterValue: process.env.AWS_ACCESS_KEY_ID || ``
-          },
-          {
-            ParameterKey: `AWS_SECRET_ACCESS_KEY`,
-            EnvironmentVariable: `AWS_SECRET_ACCESS_KEY`,
-            ParameterValue: process.env.AWS_SECRET_ACCESS_KEY || ``
-          }
-        ]
-      ]);
-      return output;
-    } catch (error) {
-      throw error;
-    }
+node /builder/dist/index.js remote-cli-async-workflow`, `/${OrchestratorFolders.buildVolumeFolder}`, `/${OrchestratorFolders.buildVolumeFolder}/`, [...environmentVariables, asyncEnvironmentVariable], [
+      ...secrets,
+      {
+        ParameterKey: `GITHUB_TOKEN`,
+        EnvironmentVariable: `GITHUB_TOKEN`,
+        ParameterValue: process.env.GITHUB_TOKEN || ``
+      },
+      {
+        ParameterKey: `AWS_ACCESS_KEY_ID`,
+        EnvironmentVariable: `AWS_ACCESS_KEY_ID`,
+        ParameterValue: process.env.AWS_ACCESS_KEY_ID || ``
+      },
+      {
+        ParameterKey: `AWS_SECRET_ACCESS_KEY`,
+        EnvironmentVariable: `AWS_SECRET_ACCESS_KEY`,
+        ParameterValue: process.env.AWS_SECRET_ACCESS_KEY || ``
+      }
+    ]);
   }
 }
 var init_async_workflow = __esm(() => {
@@ -261120,6 +261112,24 @@ var init_remote_cli_log_stream = __esm(() => {
   remote_cli_log_stream_default = remoteCliLogStreamCommand;
 });
 
+// plugins/orchestrator/src/cli/commands/remote-cli-async-workflow.ts
+var remoteCliAsyncWorkflowCommand, remote_cli_async_workflow_default;
+var init_remote_cli_async_workflow = __esm(() => {
+  init_model2();
+  init_input_mapper();
+  remoteCliAsyncWorkflowCommand = {
+    command: "remote-cli-async-workflow",
+    describe: "Runs an orchestrator build from the async workflow container (internal - runs inside the remote build container)",
+    handler: async (cliArguments) => {
+      mapCliArgumentsToInput(cliArguments);
+      const buildParameters = await build_parameters_default.create();
+      const baseImage = new image_tag_default(buildParameters);
+      await orchestrator_default.run(buildParameters, baseImage.toString());
+    }
+  };
+  remote_cli_async_workflow_default = remoteCliAsyncWorkflowCommand;
+});
+
 // plugins/orchestrator/src/cli-plugin/remote-cli-commands.ts
 function ownArgumentsOf(name, options) {
   const own = {};
@@ -261153,10 +261163,12 @@ var init_remote_cli_commands = __esm(() => {
   init_remote_cli_pre_build();
   init_remote_cli_post_build();
   init_remote_cli_log_stream();
+  init_remote_cli_async_workflow();
   remoteCliCommands = {
     "remote-cli-pre-build": remote_cli_pre_build_default,
     "remote-cli-post-build": remote_cli_post_build_default,
-    "remote-cli-log-stream": remote_cli_log_stream_default
+    "remote-cli-log-stream": remote_cli_log_stream_default,
+    "remote-cli-async-workflow": remote_cli_async_workflow_default
   };
   remoteCliCommandNames = Object.keys(remoteCliCommands);
   ownOptions = {
@@ -264478,7 +264490,12 @@ class CliCommands {
     });
   }
   async remoteCliCommands() {
-    for (const name of ["remote-cli-pre-build", "remote-cli-post-build", "remote-cli-log-stream"]) {
+    for (const name of [
+      "remote-cli-pre-build",
+      "remote-cli-post-build",
+      "remote-cli-log-stream",
+      "remote-cli-async-workflow"
+    ]) {
       await this.yargs.command(name, false, async (yargs) => {
         this.register(yargs);
       });
