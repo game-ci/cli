@@ -8,6 +8,7 @@ import updateCommand from '../commands/update';
 import remoteCliPreBuildCommand from '../commands/remote-cli-pre-build';
 import remoteCliLogStreamCommand from '../commands/remote-cli-log-stream';
 import remoteCliPostBuildCommand from '../commands/remote-cli-post-build';
+import remoteCliAsyncWorkflowCommand from '../commands/remote-cli-async-workflow';
 
 function createFakeYargs(): { yargs: any; options: Record<string, any> } {
   const options: Record<string, any> = {};
@@ -317,6 +318,20 @@ describe('CLI commands', () => {
 
     it('takes no required options - the original bare invocation took none', () => {
       expect(remoteCliPostBuildCommand.builder).toBeUndefined();
+    });
+  });
+
+  describe('remote-cli-async-workflow command', () => {
+    it('exports the command name AsyncWorkflow runs', () => {
+      expect(remoteCliAsyncWorkflowCommand.command).toStrictEqual('remote-cli-async-workflow');
+    });
+
+    it('has a description', () => {
+      expect(remoteCliAsyncWorkflowCommand.describe).toBeTruthy();
+    });
+
+    it('takes no options - the original bare invocation took none', () => {
+      expect(remoteCliAsyncWorkflowCommand.builder).toBeUndefined();
     });
   });
 });
