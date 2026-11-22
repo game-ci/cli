@@ -261053,10 +261053,11 @@ function restoreHostBuildParameters(buildParameters, kept = []) {
   for (const [key, typedDefault] of Object.entries(typedDefaults)) {
     const name = TaskParameterSerializer.ToEnvVarFormat(key);
     const sent = process.env[name];
-    if (sent === undefined || typeof typedDefault === "object" || kept.includes(key) || containerOwnParameters.has(key)) {
+    const type = typeof (typedDefault ?? container[key]);
+    if (sent === undefined || type === "undefined" || type === "object" || kept.includes(key) || containerOwnParameters.has(key)) {
       continue;
     }
-    const value = valueAsSent(sent, typedDefault);
+    const value = valueAsSent(sent, type);
     if (value === undefined) {
       orchestrator_logger_default.logWarning(`Ignoring ${name}: expected a number, got "${sent}"`);
       continue;
@@ -261066,10 +261067,10 @@ function restoreHostBuildParameters(buildParameters, kept = []) {
   }
   orchestrator_logger_default.log(`Restored ${restored.length} build parameters from the host`);
 }
-function valueAsSent(sent, typedDefault) {
-  if (typeof typedDefault === "boolean")
+function valueAsSent(sent, type) {
+  if (type === "boolean")
     return sent === "true";
-  if (typeof typedDefault === "number") {
+  if (type === "number") {
     const number = Number(sent);
     return Number.isNaN(number) ? undefined : number;
   }
