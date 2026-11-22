@@ -83,6 +83,7 @@ describe('remote-cli commands for the game-ci CLI', () => {
     process.env.BRANCH = 'feature/async';
     process.env.GIT_SHA = '0123abc';
     process.env.LOCKED_WORKSPACE = 'retained-workspace-116-linux64-px12';
+    process.env.PRE_BUILD_CONTAINER_HOOKS = '- name: warm-up\n  image: ubuntu\n  commands: echo hi';
     const run = vi.spyOn(Orchestrator, 'run').mockResolvedValue({ BuildSucceeded: true } as any);
 
     try {
@@ -98,6 +99,7 @@ describe('remote-cli commands for the game-ci CLI', () => {
       expect(buildParameters.branch).toBe('feature/async');
       expect(buildParameters.gitSha).toBe('0123abc');
       expect(buildParameters.lockedWorkspace).toBe('');
+      expect(buildParameters.preBuildContainerHooks).toBe(process.env.PRE_BUILD_CONTAINER_HOOKS);
       expect(baseImage).toContain('2022.3.13f1');
     } finally {
       process.env = saved;

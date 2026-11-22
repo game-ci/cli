@@ -85,6 +85,21 @@ describe('prepareRemoteBuild', () => {
     expect(Orchestrator.buildParameters.configFiles).toEqual({ 'ProjectSettings/a.asset': 'b' });
   });
 
+  it('keeps the container hooks the host configured', async () => {
+    process.env.PRE_BUILD_CONTAINER_HOOKS = '- name: warm-up\n  image: ubuntu\n  commands: echo hi';
+    process.env.POST_BUILD_CONTAINER_HOOKS =
+      '- name: report\n  image: ubuntu\n  commands: echo bye';
+
+    await prepareRemoteBuild({});
+
+    expect(Orchestrator.buildParameters.preBuildContainerHooks).toBe(
+      process.env.PRE_BUILD_CONTAINER_HOOKS,
+    );
+    expect(Orchestrator.buildParameters.postBuildContainerHooks).toBe(
+      process.env.POST_BUILD_CONTAINER_HOOKS,
+    );
+  });
+
   it('stays in CLI mode, whatever the host ran in', async () => {
     process.env.IS_CLI_MODE = 'false';
 
