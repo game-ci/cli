@@ -6,9 +6,17 @@ import { getUnityChangeset } from "unity-changeset";
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
   static unityHubExecPath = `${SetupMac.unityHubBasePath}/Contents/MacOS/"Unity Hub"`;
+  static unityEditorInstallPath = "/Applications/Unity/Hub/Editor";
+  static unityCliInstallScriptUrl = "https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh";
 
   public static async setup(options: Options) {
-    const unityEditorPath = `/Applications/Unity/Hub/Editor/${options.engineVersion}/Unity.app/Contents/MacOS/Unity`;
+    const unityEditorPath = `${SetupMac.unityEditorInstallPath}/${options.engineVersion}/Unity.app/Contents/MacOS/Unity`;
+
+    // Unity Hub 4 removed the headless `install` command ("'install' is not supported by the
+    // native Unity Hub"), and Homebrew's unity-hub cask now installs Hub 4. So CI installs the
+    // Editor with Unity's own CLI instead and no longer needs Unity Hub. Pinning
+    // unityHubVersionOnMac keeps the Unity Hub flow for anyone who needs a specific Hub 3.x.
+    const useUnityHub = options.isRunningLocally || options.unityHubVersionOnMac !== "";
 
     // unityHubExecPath/unityHubBasePath embed literal double-quote characters
     // (needed below, where they're interpolated into a shell command string
@@ -16,7 +24,7 @@ class SetupMac {
     // splitting). fs.existsSync does a raw filesystem stat with no shell
     // involved, so those literal quotes must be stripped first or this checks
     // a path that never exists - see game-ci/cli#273.
-    if (!fs.existsSync(this.unityHubExecPath.replaceAll('"', ""))) {
+    if (useUnityHub && !fs.existsSync(this.unityHubExecPath.replaceAll('"', ""))) {
       if (!options.isRunningLocally) {
         await SetupMac.installUnityHub(options);
       } else {
@@ -26,11 +34,13 @@ class SetupMac {
     }
 
     if (!fs.existsSync(unityEditorPath)) {
-      if (!options.isRunningLocally) {
-        await SetupMac.installUnity(options);
-      } else {
+      if (options.isRunningLocally) {
         throw new Error(String.dedent`Unity Editor ${options.engineVersion} is not installed at the default location.
         Please install Unity Editor ${options.engineVersion} at the default location with the necessary modules and try again.`);
+      } else if (useUnityHub) {
+        await SetupMac.installUnity(options);
+      } else {
+        await SetupMac.installUnityWithUnityCli(options);
       }
     }
 
@@ -87,6 +97,42 @@ class SetupMac {
         return "--architecture arm64";
       default:
         throw new Error(`Unsupported architecture: ${process.arch}.`);
+    }
+  }
+
+  // Unity CLI module IDs match Unity Hub's, except tvOS: the Unity CLI calls it "appletv" and
+  // skips unknown modules with only a warning, so "tvos" would install no tvOS support at all.
+  private static getUnityCliModuleArgument(targetPlatform: string): string {
+    return SetupMac.getModuleParametersForTargetPlatform(targetPlatform).replace("--module tvos", "--module appletv");
+  }
+
+  private static async installUnityWithUnityCli(options: Options, silent = false) {
+    const unityChangeset = await getUnityChangeset(options.engineVersion);
+    const unityCliHome = `${process.env.HOME}/.unity`;
+    const unityCli = `"${unityCliHome}/bin/unity"`;
+    const installScript = `"${unityCliHome}/install.sh"`;
+
+    // The install script installs to UNITY_CLI_HOME (default ~/.unity on macOS). Download it to a
+    // file first: System.run uses `sh -c` without pipefail, so `curl | bash` would hide a failed
+    // download. Then pin the install path to the location setup() checks.
+    const commands = [
+      `mkdir -p "${unityCliHome}" && curl -fsSL ${SetupMac.unityCliInstallScriptUrl} -o ${installScript}`,
+      `UNITY_CLI_HOME="${unityCliHome}" bash ${installScript}`,
+      // `install-path --set` rejects a folder that does not exist yet, as on a fresh runner.
+      `mkdir -p "${SetupMac.unityEditorInstallPath}" && ${unityCli} install-path --set "${SetupMac.unityEditorInstallPath}" --non-interactive`,
+      `${unityCli} install ${options.engineVersion} \
+        --changeset ${unityChangeset.changeset} \
+        ${SetupMac.getUnityCliModuleArgument(options.targetPlatform)} \
+        ${SetupMac.getArchitectureArgument()} \
+        --child-modules --accept-eula --yes --non-interactive`,
+    ];
+
+    try {
+      for (const command of commands) {
+        await System.run(command, undefined, { silent });
+      }
+    } catch (error) {
+      throw new Error(`There was an error installing the Unity Editor with the Unity CLI. See logs above for details. ${error}`);
     }
   }
 
