@@ -11,9 +11,10 @@ const containerOwnParameters = new Set(['isCliMode']);
  * environment, the inverse of TaskParameterSerializer: the host sends each
  * field as its SCREAMING_SNAKE_CASE name and its value as a string.
  *
- * The CLI option mapping supplies every field with a typed default, so each
- * value is read back as the type the host sent. Lists and objects are sent
- * flattened, so they keep the container's value, as do fields named in `kept`.
+ * Each value is read back as its field's type: the CLI option mapping's typed
+ * default, or for a field it leaves unset, the value BuildParameters.create()
+ * gave it. A field with neither keeps the container's value, as do lists and
+ * objects, which the host sends flattened, and fields named in `kept`.
  */
 export function restoreHostBuildParameters(
   buildParameters: BuildParameters,
@@ -26,16 +27,18 @@ export function restoreHostBuildParameters(
   for (const [key, typedDefault] of Object.entries(typedDefaults)) {
     const name = TaskParameterSerializer.ToEnvVarFormat(key);
     const sent = process.env[name];
+    const type = typeof (typedDefault ?? container[key]);
     if (
       sent === undefined ||
-      typeof typedDefault === 'object' ||
+      type === 'undefined' ||
+      type === 'object' ||
       kept.includes(key) ||
       containerOwnParameters.has(key)
     ) {
       continue;
     }
 
-    const value = valueAsSent(sent, typedDefault);
+    const value = valueAsSent(sent, type);
     if (value === undefined) {
       OrchestratorLogger.logWarning(`Ignoring ${name}: expected a number, got "${sent}"`);
       continue;
@@ -48,9 +51,9 @@ export function restoreHostBuildParameters(
   OrchestratorLogger.log(`Restored ${restored.length} build parameters from the host`);
 }
 
-function valueAsSent(sent: string, typedDefault: unknown): unknown {
-  if (typeof typedDefault === 'boolean') return sent === 'true';
-  if (typeof typedDefault === 'number') {
+function valueAsSent(sent: string, type: string): unknown {
+  if (type === 'boolean') return sent === 'true';
+  if (type === 'number') {
     const number = Number(sent);
 
     return Number.isNaN(number) ? undefined : number;

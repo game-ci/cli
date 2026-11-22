@@ -73,6 +73,18 @@ describe('prepareRemoteBuild', () => {
     expect(container.cacheRetentionDays).toBe(host.cacheRetentionDays);
   });
 
+  // Fields the CLI option mapping leaves unset have no typed default to read the
+  // host's value back as; BuildParameters.create() already reads them, typed.
+  it('keeps the type of fields the option mapping leaves unset', async () => {
+    process.env.MAX_CACHE_ENTRIES = '3';
+    process.env.CONFIG_FILES = '{"ProjectSettings/a.asset":"b"}';
+
+    await prepareRemoteBuild({});
+
+    expect(Orchestrator.buildParameters.maxCacheEntries).toBe(3);
+    expect(Orchestrator.buildParameters.configFiles).toEqual({ 'ProjectSettings/a.asset': 'b' });
+  });
+
   it('stays in CLI mode, whatever the host ran in', async () => {
     process.env.IS_CLI_MODE = 'false';
 
