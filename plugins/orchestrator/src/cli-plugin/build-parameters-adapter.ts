@@ -17,13 +17,26 @@ let hasWarnedDeprecatedCacheMode = false;
  * via yargs and passes them as a plain object. This adapter bridges that format
  * to the BuildParameters class that all providers expect.
  */
-export function createBuildParametersFromCliOptions(options: Record<string, any>): BuildParameters {
+export function createBuildParametersFromCliOptions(
+  options: Parameters<typeof mapCliOptionsToBuildParameters>[0],
+): BuildParameters {
+  const bp = mapCliOptionsToBuildParameters(options);
+  initEngine(bp.engine, bp.enginePlugin || undefined);
+
+  return bp;
+}
+
+/**
+ * The mapping alone, without loading the engine: every BuildParameters field,
+ * typed, with its default. A remote build reads it to restore the host's
+ * parameters from the environment.
+ */
+export function mapCliOptionsToBuildParameters(options: Record<string, any>): BuildParameters {
   const bp = new BuildParameters();
 
   // ── engine ────────────────────────────────────────────────────────
   bp.engine = options.engine || 'unity';
   bp.enginePlugin = options.enginePlugin || '';
-  initEngine(bp.engine, bp.enginePlugin || undefined);
 
   // ── identity / build settings ─────────────────────────────────────
   bp.editorVersion = options.engineVersion || options.editorVersion || options.unityVersion || '';
