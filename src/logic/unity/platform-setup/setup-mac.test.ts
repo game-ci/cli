@@ -12,24 +12,12 @@ afterEach(() => {
 });
 
 describe("SetupMac", () => {
-  // Regression test for a real bug: installUnityHub used to build
-  // `brew install unity-hub@<version>`, treating Unity Hub as a versioned
-  // Homebrew formula. Unity Hub is only distributed as a cask, so that
-  // command fails with "No available formula with the name ...". Confirmed
-  // live in game-ci/unity-builder CI: every Mac build failed at Unity Hub
-  // install with exactly this error before this fix, while the previously
-  // working (pre-thin-wrapper) code path ran the plain, unversioned
-  // `brew install unity-hub` cask install successfully.
-  it("installs the unversioned unity-hub cask when no version is pinned", async () => {
-    // Only the Hub paths are missing; the Editor path exists so setup() doesn't also
-    // fall into installUnity, which is unrelated to this fix.
+  // Unity Hub 4 removed the headless `install` command, so CI installs the Editor with the
+  // Unity CLI and only installs Unity Hub when a Hub version is pinned.
+  it("does not install Unity Hub when no Hub version is pinned", async () => {
+    // The Editor path exists, so setup() has nothing to install.
     fs.existsSync = mock((path: string) => !path.includes("Hub.app")) as any;
-    let capturedCommand = "";
-    const systemRunMock = mock((command: string) => {
-      capturedCommand = command;
-
-      return Promise.resolve({ status: { code: 0 }, output: "" });
-    });
+    const systemRunMock = mock(() => Promise.resolve({ status: { code: 0 }, output: "" }));
     System.run = systemRunMock as any;
 
     await SetupMac.setup({
@@ -38,7 +26,7 @@ describe("SetupMac", () => {
       engineVersion: "2021.3.16f1",
     } as any);
 
-    expect(capturedCommand).toBe("brew install --cask unity-hub");
+    expect(systemRunMock).not.toHaveBeenCalled();
   });
 
   it("pins the cask version when unityHubVersionOnMac is explicitly set", async () => {
@@ -83,7 +71,7 @@ describe("SetupMac", () => {
 
     await SetupMac.setup({
       isRunningLocally: false,
-      unityHubVersionOnMac: "",
+      unityHubVersionOnMac: "3.19.5",
       engineVersion: "2021.3.45f2",
       targetPlatform: "StandaloneOSX",
     } as any);
@@ -116,7 +104,7 @@ describe("SetupMac", () => {
     try {
       await SetupMac.setup({
         isRunningLocally: false,
-        unityHubVersionOnMac: "",
+        unityHubVersionOnMac: "3.19.5",
         engineVersion: "2021.3.45f2",
         targetPlatform: "StandaloneOSX",
       } as any);
@@ -125,6 +113,61 @@ describe("SetupMac", () => {
     }
 
     expect(capturedCommand).toContain("--architecture arm64");
+  });
+});
+
+describe("SetupMac Unity CLI install", () => {
+  const runSetup = async (targetPlatform: string) => {
+    const originalArch = process.arch;
+    Object.defineProperty(process, "arch", { value: "arm64", configurable: true });
+    // Neither Unity Hub nor the Editor is installed.
+    fs.existsSync = mock(() => false) as any;
+    const commands: string[] = [];
+    System.run = mock((command: string) => {
+      commands.push(command);
+
+      return Promise.resolve({ status: { code: 0 }, output: "" });
+    }) as any;
+
+    try {
+      await SetupMac.setup({
+        isRunningLocally: false,
+        unityHubVersionOnMac: "",
+        engineVersion: "2021.3.45f2",
+        targetPlatform,
+      } as any);
+    } finally {
+      Object.defineProperty(process, "arch", { value: originalArch, configurable: true });
+    }
+
+    return commands;
+  };
+
+  // Regression test: Homebrew's unity-hub cask now installs Unity Hub 4, which rejects
+  // `--headless install` with "'install' is not supported by the native Unity Hub", so every
+  // macOS build failed before the Editor was installed.
+  it("installs the Editor with the Unity CLI instead of Unity Hub", async () => {
+    const commands = await runSetup("StandaloneOSX");
+
+    expect(commands.some((command) => command.includes("brew") || command.includes("Unity Hub"))).toBe(false);
+    expect(commands[0]).toContain("curl -fsSL https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh");
+    expect(commands[2]).toContain('mkdir -p "/Applications/Unity/Hub/Editor" && ');
+    expect(commands[2]).toContain('install-path --set "/Applications/Unity/Hub/Editor"');
+    const install = commands[3];
+    expect(install).toContain("install 2021.3.45f2");
+    expect(install).toContain("--changeset 88f88f591b2e");
+    expect(install).toContain("--module mac-il2cpp");
+    expect(install).toContain("--architecture arm64");
+    expect(install).toContain("--accept-eula");
+    expect(install).toContain("--non-interactive");
+  });
+
+  // The Unity CLI calls the tvOS module "appletv" and skips unknown module IDs with only a warning.
+  it("uses the Unity CLI module ID for tvOS", async () => {
+    const install = (await runSetup("tvOS"))[3];
+
+    expect(install).toContain("--module appletv");
+    expect(install).not.toContain("--module tvos");
   });
 });
 
