@@ -266095,9 +266095,12 @@ function searchChangesetsFromDb(streams, db = UNITY_CHANGESETS_DB_URL) {
 class SetupMac {
   static unityHubBasePath = `/Applications/"Unity Hub.app"`;
   static unityHubExecPath = `${SetupMac.unityHubBasePath}/Contents/MacOS/"Unity Hub"`;
+  static unityEditorInstallPath = "/Applications/Unity/Hub/Editor";
+  static unityCliInstallScriptUrl = "https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh";
   static async setup(options) {
-    const unityEditorPath = `/Applications/Unity/Hub/Editor/${options.engineVersion}/Unity.app/Contents/MacOS/Unity`;
-    if (!fsSyncCompat.existsSync(this.unityHubExecPath.replaceAll('"', ""))) {
+    const unityEditorPath = `${SetupMac.unityEditorInstallPath}/${options.engineVersion}/Unity.app/Contents/MacOS/Unity`;
+    const useUnityHub = options.isRunningLocally || options.unityHubVersionOnMac !== "";
+    if (useUnityHub && !fsSyncCompat.existsSync(this.unityHubExecPath.replaceAll('"', ""))) {
       if (!options.isRunningLocally) {
         await SetupMac.installUnityHub(options);
       } else {
@@ -266106,11 +266109,13 @@ class SetupMac {
       }
     }
     if (!fsSyncCompat.existsSync(unityEditorPath)) {
-      if (!options.isRunningLocally) {
-        await SetupMac.installUnity(options);
-      } else {
+      if (options.isRunningLocally) {
         throw new Error(String.dedent`Unity Editor ${options.engineVersion} is not installed at the default location.
         Please install Unity Editor ${options.engineVersion} at the default location with the necessary modules and try again.`);
+      } else if (useUnityHub) {
+        await SetupMac.installUnity(options);
+      } else {
+        await SetupMac.installUnityWithUnityCli(options);
       }
     }
     SetupMac.setEnvironmentVariables(options);
@@ -266157,6 +266162,28 @@ class SetupMac {
         return "--architecture arm64";
       default:
         throw new Error(`Unsupported architecture: ${process.arch}.`);
+    }
+  }
+  static getUnityCliModuleArgument(targetPlatform) {
+    return SetupMac.getModuleParametersForTargetPlatform(targetPlatform).replace("--module tvos", "--module appletv");
+  }
+  static async installUnityWithUnityCli(options, silent = false) {
+    const unityChangeset = await getUnityChangeset(options.engineVersion);
+    const unityCliHome = `${process.env.HOME}/.unity`;
+    const unityCli = `"${unityCliHome}/bin/unity"`;
+    const installScript = `"${unityCliHome}/install.sh"`;
+    const commands = [
+      `mkdir -p "${unityCliHome}" && curl -fsSL ${SetupMac.unityCliInstallScriptUrl} -o ${installScript}`,
+      `UNITY_CLI_HOME="${unityCliHome}" bash ${installScript}`,
+      `mkdir -p "${SetupMac.unityEditorInstallPath}" && ${unityCli} install-path --set "${SetupMac.unityEditorInstallPath}" --non-interactive`,
+      `${unityCli} install ${options.engineVersion}         --changeset ${unityChangeset.changeset}         ${SetupMac.getUnityCliModuleArgument(options.targetPlatform)}         ${SetupMac.getArchitectureArgument()}         --child-modules --accept-eula --yes --non-interactive`
+    ];
+    try {
+      for (const command of commands) {
+        await System.run(command, undefined, { silent });
+      }
+    } catch (error) {
+      throw new Error(`There was an error installing the Unity Editor with the Unity CLI. See logs above for details. ${error}`);
     }
   }
   static async installUnity(options, silent = false) {
