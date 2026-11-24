@@ -114,18 +114,19 @@ jobs:
       # file's bytes: gzip output is not byte-reproducible across zlib
       # versions, so a byte comparison failed purely because CI runs a
       # different Node than the machine that generated it.
+      - name: Verify embedded assets are up to date
+        run: node scripts/generate-embedded-assets.mjs --check
       # Remote build containers clone this repository and run the committed
       # dist/index.js (the orchestrator's BuildAutomationWorkflow), so a stale
-      # bundle ships old code to every remote build.
+      # bundle ships old code to every remote build. The bundle imports the
+      # embedded assets, so they are checked first.
       - name: Verify dist/index.js is up to date
         run: |
           bun run build
           git diff --quiet -- dist/index.js || {
-            echo "::error::dist/index.js is out of date. Run 'bun run build' with the Bun in package.json's packageManager, then 'node scripts/generate-embedded-assets.mjs', and commit both."
+            echo "::error::dist/index.js is out of date. Stage any changed dist/ assets (git add dist), run 'node scripts/generate-embedded-assets.mjs', then 'bun run build' with the Bun in package.json's packageManager, and commit both."
             exit 1
           }
-      - name: Verify embedded assets are up to date
-        run: node scripts/generate-embedded-assets.mjs --check
       # dist/platforms and dist/default-build-script are hand-maintained
       # bash/PowerShell/C# scripts the compiled binary mounts and copies at
       # runtime (see release-cli.yml's `cp -r dist pkg/dist`) - not build

@@ -259537,10 +259537,14 @@ var init_cache_mode = __esm(() => {
 
 // plugins/orchestrator/src/cli-plugin/build-parameters-adapter.ts
 function createBuildParametersFromCliOptions(options) {
+  const bp = mapCliOptionsToBuildParameters(options);
+  initEngine(bp.engine, bp.enginePlugin || undefined);
+  return bp;
+}
+function mapCliOptionsToBuildParameters(options) {
   const bp = new build_parameters_default;
   bp.engine = options.engine || "unity";
   bp.enginePlugin = options.enginePlugin || "";
-  initEngine(bp.engine, bp.enginePlugin || undefined);
   bp.editorVersion = options.engineVersion || options.editorVersion || options.unityVersion || "";
   bp.customImage = options.customImage || "";
   bp.runnerTempPath = options.runnerTempPath || process.env.RUNNER_TEMP || "";
@@ -261041,19 +261045,58 @@ var init_input_mapper = __esm(() => {
   init_github();
 });
 
+// plugins/orchestrator/src/cli/host-build-parameters.ts
+function restoreHostBuildParameters(buildParameters, kept = []) {
+  const typedDefaults = mapCliOptionsToBuildParameters({});
+  const container = buildParameters;
+  const restored = [];
+  for (const [key, typedDefault] of Object.entries(typedDefaults)) {
+    const name = TaskParameterSerializer.ToEnvVarFormat(key);
+    const sent = process.env[name];
+    const type = typeof (typedDefault ?? container[key]);
+    if (sent === undefined || type === "undefined" || type === "object" || kept.includes(key) || containerOwnParameters.has(key)) {
+      continue;
+    }
+    const value = valueAsSent(sent, type);
+    if (value === undefined) {
+      orchestrator_logger_default.logWarning(`Ignoring ${name}: expected a number, got "${sent}"`);
+      continue;
+    }
+    container[key] = value;
+    restored.push(key);
+  }
+  orchestrator_logger_default.log(`Restored ${restored.length} build parameters from the host`);
+}
+function valueAsSent(sent, type) {
+  if (type === "boolean")
+    return sent === "true";
+  if (type === "number") {
+    const number = Number(sent);
+    return Number.isNaN(number) ? undefined : number;
+  }
+  return sent;
+}
+var containerOwnParameters;
+var init_host_build_parameters = __esm(() => {
+  init_task_parameter_serializer();
+  init_orchestrator_logger();
+  init_build_parameters_adapter();
+  containerOwnParameters = new Set(["isCliMode"]);
+});
+
 // plugins/orchestrator/src/cli/remote-build-context.ts
 async function prepareRemoteBuild(cliArguments) {
   mapCliArgumentsToInput(cliArguments);
   Cli.options.versioning = "None";
   const buildParameters = await build_parameters_default.create();
-  buildParameters.buildGuid = process.env.BUILD_GUID || buildParameters.buildGuid;
-  buildParameters.lockedWorkspace = process.env.LOCKED_WORKSPACE || ``;
+  restoreHostBuildParameters(buildParameters);
   await orchestrator_default.setup(buildParameters);
 }
 var init_remote_build_context = __esm(() => {
   init_model2();
   init_cli();
   init_input_mapper();
+  init_host_build_parameters();
 });
 
 // plugins/orchestrator/src/cli/commands/remote-cli-pre-build.ts
@@ -261117,12 +261160,14 @@ var remoteCliAsyncWorkflowCommand, remote_cli_async_workflow_default;
 var init_remote_cli_async_workflow = __esm(() => {
   init_model2();
   init_input_mapper();
+  init_host_build_parameters();
   remoteCliAsyncWorkflowCommand = {
     command: "remote-cli-async-workflow",
     describe: "Runs an orchestrator build from the async workflow container (internal - runs inside the remote build container)",
     handler: async (cliArguments) => {
       mapCliArgumentsToInput(cliArguments);
       const buildParameters = await build_parameters_default.create();
+      restoreHostBuildParameters(buildParameters, ["buildGuid", "lockedWorkspace"]);
       const baseImage = new image_tag_default(buildParameters);
       await orchestrator_default.run(buildParameters, baseImage.toString());
     }

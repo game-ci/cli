@@ -1,0 +1,63 @@
+import { BuildParameters } from '../model';
+import { TaskParameterSerializer } from '../model/orchestrator/services/core/task-parameter-serializer';
+import OrchestratorLogger from '../model/orchestrator/services/core/orchestrator-logger';
+import { mapCliOptionsToBuildParameters } from '../cli-plugin/build-parameters-adapter';
+
+/** A remote build always runs this CLI, whatever mode the host ran in. */
+const containerOwnParameters = new Set(['isCliMode']);
+
+/**
+ * Restores the host's build parameters from the remote build container's
+ * environment, the inverse of TaskParameterSerializer: the host sends each
+ * field as its SCREAMING_SNAKE_CASE name and its value as a string.
+ *
+ * Each value is read back as its field's type: the CLI option mapping's typed
+ * default, or for a field it leaves unset, the value BuildParameters.create()
+ * gave it. A field with neither keeps the container's value, as do lists and
+ * objects, which the host sends flattened, and fields named in `kept`.
+ */
+export function restoreHostBuildParameters(
+  buildParameters: BuildParameters,
+  kept: ReadonlyArray<string> = [],
+): void {
+  const typedDefaults = mapCliOptionsToBuildParameters({}) as unknown as Record<string, unknown>;
+  const container = buildParameters as unknown as Record<string, unknown>;
+  const restored: string[] = [];
+
+  for (const [key, typedDefault] of Object.entries(typedDefaults)) {
+    const name = TaskParameterSerializer.ToEnvVarFormat(key);
+    const sent = process.env[name];
+    const type = typeof (typedDefault ?? container[key]);
+    if (
+      sent === undefined ||
+      type === 'undefined' ||
+      type === 'object' ||
+      kept.includes(key) ||
+      containerOwnParameters.has(key)
+    ) {
+      continue;
+    }
+
+    const value = valueAsSent(sent, type);
+    if (value === undefined) {
+      OrchestratorLogger.logWarning(`Ignoring ${name}: expected a number, got "${sent}"`);
+      continue;
+    }
+
+    container[key] = value;
+    restored.push(key);
+  }
+
+  OrchestratorLogger.log(`Restored ${restored.length} build parameters from the host`);
+}
+
+function valueAsSent(sent: string, type: string): unknown {
+  if (type === 'boolean') return sent === 'true';
+  if (type === 'number') {
+    const number = Number(sent);
+
+    return Number.isNaN(number) ? undefined : number;
+  }
+
+  return sent;
+}
