@@ -2,12 +2,13 @@ import type { CommandModule } from 'yargs';
 import remoteCliPreBuildCommand from '../cli/commands/remote-cli-pre-build';
 import remoteCliPostBuildCommand from '../cli/commands/remote-cli-post-build';
 import remoteCliLogStreamCommand from '../cli/commands/remote-cli-log-stream';
+import remoteCliAsyncWorkflowCommand from '../cli/commands/remote-cli-async-workflow';
 
 /**
  * The remote-cli commands, as game-ci CLI commands.
  *
  * Remote build containers clone game-ci/cli and run its dist/index.js (see
- * BuildAutomationWorkflow), which is the game-ci CLI, not this package's own
+ * BuildAutomationWorkflow and AsyncWorkflow), which is the game-ci CLI, not this package's own
  * src/cli.ts. These commands therefore have to reach the game-ci CLI through
  * this plugin, or every remote build fails at `remote-cli-pre-build` with
  * "Unknown argument".
@@ -16,6 +17,7 @@ const remoteCliCommands: Record<string, CommandModule<object, any>> = {
   'remote-cli-pre-build': remoteCliPreBuildCommand,
   'remote-cli-post-build': remoteCliPostBuildCommand,
   'remote-cli-log-stream': remoteCliLogStreamCommand,
+  'remote-cli-async-workflow': remoteCliAsyncWorkflowCommand,
 };
 
 export const remoteCliCommandNames = Object.keys(remoteCliCommands);

@@ -1,6 +1,7 @@
 import { createRemoteCliCommand, remoteCliCommandNames } from './remote-cli-commands';
 import { RemoteClient } from '../model/orchestrator/remote-client';
 import { Cli } from '../model/cli/cli';
+import Orchestrator from '../model/orchestrator/orchestrator';
 
 describe('remote-cli commands for the game-ci CLI', () => {
   afterEach(() => {
@@ -13,6 +14,7 @@ describe('remote-cli commands for the game-ci CLI', () => {
       'remote-cli-pre-build',
       'remote-cli-post-build',
       'remote-cli-log-stream',
+      'remote-cli-async-workflow',
     ]);
   });
 
@@ -69,6 +71,31 @@ describe('remote-cli commands for the game-ci CLI', () => {
       } as any),
     ).rejects.toThrow('remote-cli-log-stream requires --logFile');
     expect(logStream).not.toHaveBeenCalled();
+  });
+
+  // The async container runs on its own task, under the host's build guid: the build
+  // it starts needs a guid of its own, as the original async-workflow entry point gave it.
+  it("starts a new build from the async container's environment", async () => {
+    const saved = { ...process.env };
+    process.env.BUILD_GUID = '117-linux64-luxn';
+    process.env.TARGET_PLATFORM = 'StandaloneWindows64';
+    process.env.UNITY_VERSION = '2022.3.13f1';
+    const run = vi.spyOn(Orchestrator, 'run').mockResolvedValue({ BuildSucceeded: true } as any);
+
+    try {
+      const succeeded = await createRemoteCliCommand('remote-cli-async-workflow')!.execute({
+        _: ['remote-cli-async-workflow'],
+        targetPlatform: 'StandaloneLinux64',
+      } as any);
+
+      const [buildParameters, baseImage] = run.mock.calls[0];
+      expect(succeeded).toBe(true);
+      expect(buildParameters.targetPlatform).toBe('StandaloneWindows64');
+      expect(buildParameters.buildGuid).not.toBe('117-linux64-luxn');
+      expect(baseImage).toContain('2022.3.13f1');
+    } finally {
+      process.env = saved;
+    }
   });
 
   it('is offered to the game-ci CLI for any engine', async () => {

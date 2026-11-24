@@ -105,10 +105,15 @@ export class CliCommands {
 
   private async remoteCliCommands() {
     // Run inside remote build containers (see the orchestrator plugin's
-    // BuildAutomationWorkflow), which have no project to detect an engine from.
+    // BuildAutomationWorkflow and AsyncWorkflow), which have no project to detect an engine from.
     // Hidden from --help; the orchestrator plugin implements them via the '*'
     // engine wildcard, like deploy below.
-    for (const name of ["remote-cli-pre-build", "remote-cli-post-build", "remote-cli-log-stream"]) {
+    for (const name of [
+      "remote-cli-pre-build",
+      "remote-cli-post-build",
+      "remote-cli-log-stream",
+      "remote-cli-async-workflow",
+    ]) {
       await this.yargs.command(name, false, async (yargs: YargsInstance) => {
         this.register(yargs);
       });

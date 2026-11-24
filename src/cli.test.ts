@@ -75,7 +75,12 @@ describe("Cli plugin loading", () => {
 
     await cli.setup();
 
-    for (const name of ["remote-cli-pre-build", "remote-cli-post-build", "remote-cli-log-stream"]) {
+    for (const name of [
+      "remote-cli-pre-build",
+      "remote-cli-post-build",
+      "remote-cli-log-stream",
+      "remote-cli-async-workflow",
+    ]) {
       expect(new CommandFactory().createCommand([name]).name).toBe(name);
     }
   });
@@ -105,6 +110,37 @@ describe("Cli plugin loading", () => {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   }, 30000);
+
+  // AsyncWorkflow starts the build inside its container with this command; the build it
+  // starts is a whole orchestrator build, run here on the local provider.
+  it("runs remote-cli-async-workflow as the async workflow container does", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "game-ci-async-workflow-"));
+    // A container starts without the command this test process set up for itself.
+    const { GAME_CI_CLI_COMMAND: _testProcessCommand, ...environment } = process.env;
+
+    try {
+      const { code, stdout, stderr } = await new Promise<{ code: number | null; stdout: string; stderr: string }>(
+        (resolve, reject) => {
+          const child = spawn(process.execPath, ["run", path.join(process.cwd(), "src", "index.ts"), "remote-cli-async-workflow"], {
+            cwd: tempDir,
+            env: { ...environment, ASYNC_WORKFLOW: "true", PROVIDER_STRATEGY: "local" },
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (chunk) => (stdout += chunk));
+          child.stderr.on("data", (chunk) => (stderr += chunk));
+          child.on("error", reject);
+          child.on("exit", (code) => resolve({ code, stdout, stderr }));
+        },
+      );
+
+      expect(stderr + stdout).not.toContain("Unknown argument");
+      expect(code).toBe(0);
+      expect(stdout).toContain("Orchestrator finished running standard build automation");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  }, 60000);
 
   it("tells plugins how to run this CLI again", async () => {
     const previous = process.env.GAME_CI_CLI_COMMAND;
