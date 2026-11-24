@@ -58,6 +58,24 @@ describe('BuildAutomationWorkflow.BuildWorkflow (local/local-system branch)', ()
     },
   );
 
+  // The remote-cli commands live in the game-ci CLI, which runs as its
+  // own command, not in the caller's working directory.
+  it('runs the remote-cli commands with the game-ci CLI from GAME_CI_CLI_COMMAND', () => {
+    const previous = process.env.GAME_CI_CLI_COMMAND;
+    process.env.GAME_CI_CLI_COMMAND = "'/opt/game-ci/game-ci'";
+    Orchestrator.buildParameters = makeBuildParameters({ providerStrategy: 'local' });
+
+    try {
+      const script = getBuildWorkflow();
+
+      expect(script).toContain("'/opt/game-ci/game-ci' remote-cli-log-stream");
+      expect(script).toContain("'/opt/game-ci/game-ci' remote-cli-post-build");
+    } finally {
+      if (previous === undefined) delete process.env.GAME_CI_CLI_COMMAND;
+      else process.env.GAME_CI_CLI_COMMAND = previous;
+    }
+  });
+
   it('does not clone a repo or pull LFS for the local provider (project assumed already on disk)', () => {
     Orchestrator.buildParameters = makeBuildParameters({ providerStrategy: 'local' });
 
