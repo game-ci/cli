@@ -33,9 +33,11 @@ jobs:
 
       # yq and jq ship with ubuntu-latest; github-script cannot require js-yaml,
       # which this checkout never installs. The filter is passed as data, never
-      # as script.
+      # as script. `shell: bash` adds pipefail, so a registry yq cannot parse
+      # fails the step instead of yielding an empty matrix.
       - name: Parse plugin registry
         id: parse
+        shell: bash
         env:
           PLUGIN_FILTER: ${{ github.event.inputs.plugin_filter }}
         run: |
