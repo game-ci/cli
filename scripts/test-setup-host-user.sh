@@ -5,8 +5,8 @@
 # RUN_AS_HOST_USER creates a container user matching the host UID/GID that owns
 # the project. Ubuntu 24.04 based images already have an `ubuntu` user/group at
 # 1000 - the usual UID/GID of a self-hosted runner's account - so creating it
-# fails. RUN_AS_HOST_USER_REUSE_EXISTING=true reuses the existing one instead;
-# without it the behavior is unchanged.
+# fails. An existing account is reused instead - except a system account
+# (UID 1-999), which fails with a clear message.
 #
 # The account commands are stubbed with shell functions over a fake passwd/group
 # database, so this needs no root, no Docker, no network.
@@ -34,7 +34,7 @@ expect_no_match() {
 # lists. Prints the commands it ran, then the final user/group names.
 # shellcheck disable=SC2329 # the stubs are called by the sourced step
 run_step() {
-  local userid="$1" groupid="$2" username="$3" groupname="$4" reuse="$5"
+  local userid="$1" groupid="$2" username="$3" groupname="$4"
   (
     set -e
     lookup() { # lookup <db> <id> -> name
@@ -62,57 +62,64 @@ run_step() {
     chown() { echo "chown $*"; }
 
     export USERID="$userid" GROUPID="$groupid" USERNAME="$username" GROUPNAME="$groupname"
-    export RUN_AS_HOST_USER_REUSE_EXISTING="$reuse"
     # shellcheck source=/dev/null
     source "$STEP"
     echo "result $USERNAME:$GROUPNAME"
   )
 }
 
-# Ubuntu 24.04 images: `ubuntu` already holds UID/GID 1000
-EXISTING_GROUPS="0:root 1000:ubuntu"
-EXISTING_USERS="0:root 1000:ubuntu"
+# Ubuntu 24.04 images: `ubuntu` already holds UID/GID 1000, `www-data` 33
+EXISTING_GROUPS="0:root 33:www-data 100:users 1000:ubuntu"
+EXISTING_USERS="0:root 33:www-data 1000:ubuntu"
 
-# Default: a UID/GID the image doesn't have is created, as before
-out="$(run_step 1001 1001 UNKNOWN UNKNOWN '')"
-expect_line "default: creates the group" "groupadd -g 1001 UNKNOWN" "$out"
-expect_line "default: creates the user" "useradd -u 1001 -g 1001 UNKNOWN" "$out"
-expect_line "default: runs as the created user" "result UNKNOWN:UNKNOWN" "$out"
+# A UID/GID the image doesn't have is created, as before
+out="$(run_step 1001 1001 UNKNOWN UNKNOWN)"
+expect_line "new: creates the group" "groupadd -g 1001 UNKNOWN" "$out"
+expect_line "new: creates the user" "useradd -u 1001 -g 1001 UNKNOWN" "$out"
+expect_line "new: runs as the created user" "result UNKNOWN:UNKNOWN" "$out"
 
-# Default: an existing UID/GID still fails, unchanged. Not run as an `if`
-# condition: bash ignores `set -e` there, even inside the subshell.
-set +e
-out="$(run_step 1000 1000 ubuntu ubuntu '' 2>&1)"
-status=$?
-set -e
-if [ "$status" -ne 0 ]; then pass "default: existing GID 1000 still fails"; else fail "default: existing GID 1000 should still fail"; fi
-expect_no_match "default: stops at the failed groupadd" "^useradd" "$out"
+# An existing UID/GID is reused, nothing is created
+out="$(run_step 1000 1000 ubuntu ubuntu)"
+expect_no_match "existing: does not create the group" "^groupadd" "$out"
+expect_no_match "existing: does not create the user" "^useradd" "$out"
+expect_line "existing: logs the reused group" "Reusing existing group ubuntu (GID 1000)" "$out"
+expect_line "existing: logs the reused user" "Reusing existing user ubuntu (UID 1000)" "$out"
+expect_line "existing: sets the host GID as primary group" "usermod -g 1000 ubuntu" "$out"
+expect_line "existing: prepares the user's home" "chown ubuntu:ubuntu /home/ubuntu" "$out"
+expect_line "existing: runs as the existing user" "result ubuntu:ubuntu" "$out"
 
-# Opt-in: an existing UID/GID is reused, nothing is created
-out="$(run_step 1000 1000 ubuntu ubuntu true)"
-expect_no_match "reuse: does not create the group" "^groupadd" "$out"
-expect_no_match "reuse: does not create the user" "^useradd" "$out"
-expect_line "reuse: logs the reused group" "Reusing existing group ubuntu (GID 1000)" "$out"
-expect_line "reuse: logs the reused user" "Reusing existing user ubuntu (UID 1000)" "$out"
-expect_line "reuse: sets the host GID as primary group" "usermod -g 1000 ubuntu" "$out"
-expect_line "reuse: prepares the user's home" "chown ubuntu:ubuntu /home/ubuntu" "$out"
-expect_line "reuse: runs as the existing user" "result ubuntu:ubuntu" "$out"
+# Names come from the image, not from what stat reported
+out="$(run_step 1000 1000 UNKNOWN UNKNOWN)"
+expect_line "existing: takes names from the image" "result ubuntu:ubuntu" "$out"
 
-# Opt-in: names come from the image, not from what stat reported
-out="$(run_step 1000 1000 UNKNOWN UNKNOWN true)"
-expect_line "reuse: takes names from the image" "result ubuntu:ubuntu" "$out"
-
-# Opt-in: a UID/GID the image doesn't have is still created
-out="$(run_step 1001 1001 UNKNOWN UNKNOWN true)"
-expect_line "reuse: creates a missing group" "groupadd -g 1001 UNKNOWN" "$out"
-expect_line "reuse: creates a missing user" "useradd -u 1001 -g 1001 UNKNOWN" "$out"
-
-# Opt-in: existing UID with a new GID - create the group, reuse the user
-out="$(run_step 1000 1001 ubuntu UNKNOWN true)"
+# Existing UID with a new GID - create the group, reuse the user
+out="$(run_step 1000 1001 ubuntu UNKNOWN)"
 expect_line "mixed: creates the missing group" "groupadd -g 1001 UNKNOWN" "$out"
 expect_no_match "mixed: does not create the user" "^useradd" "$out"
 expect_line "mixed: moves the user to the host GID" "usermod -g 1001 ubuntu" "$out"
 expect_line "mixed: runs as the existing user" "result ubuntu:UNKNOWN" "$out"
+
+# A low existing GID is just a group: reused
+out="$(run_step 1001 100 UNKNOWN users)"
+expect_no_match "low GID: does not create the group" "^groupadd" "$out"
+expect_line "low GID: creates the user in it" "useradd -u 1001 -g 100 UNKNOWN" "$out"
+expect_line "low GID: runs as the created user" "result UNKNOWN:users" "$out"
+
+# An existing system UID fails clearly, before touching any account. Not run
+# as an `if` condition: bash ignores `set -e` there, even inside the subshell.
+set +e
+out="$(run_step 33 33 www-data www-data 2>&1)"
+status=$?
+set -e
+if [ "$status" -ne 0 ]; then pass "system UID: fails"; else fail "system UID: should fail"; fi
+expect_line "system UID: names the account" "Error: the project is owned by UID 33, which is the image's system account 'www-data'." "$out"
+expect_no_match "system UID: does not modify the user" "^usermod" "$out"
+expect_no_match "system UID: does not run as it" "^result" "$out"
+
+# UID 0 is reused: the project is root-owned on the host
+out="$(run_step 0 0 root root)"
+expect_no_match "root: does not create the user" "^useradd" "$out"
+expect_line "root: runs as root" "result root:root" "$out"
 
 # entrypoint.sh sets the user up through this step, before switching to it
 step_line="$(grep -n 'setup_host_user.sh' "$ENTRYPOINT" | head -1 | cut -d: -f1)"

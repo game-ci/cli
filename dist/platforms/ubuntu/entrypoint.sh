@@ -76,7 +76,7 @@ if [[ "$RUN_AS_HOST_USER" == "true" ]]; then
   GROUPNAME=$(stat -c '%G' "$fullProjectPath")
   GROUPID=$(stat -c '%g' "$fullProjectPath")
 
-  # Create (or, with RUN_AS_HOST_USER_REUSE_EXISTING, reuse) that user/group
+  # Create (or reuse) that user/group
   source /steps/setup_host_user.sh
 
   # Normally need root permissions to access when using su

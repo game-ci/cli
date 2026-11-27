@@ -149,7 +149,7 @@ jobs:
       - name: Stale Unity PID file tests (dist/platforms/ubuntu)
         run: bash scripts/test-stale-pid-files.sh
       # runAsHostUser creates a user for the host UID/GID; Ubuntu 24.04 images
-      # already have `ubuntu` at 1000, so runAsHostUserReuseExisting reuses it.
+      # already have `ubuntu` at 1000, which is reused rather than created.
       - name: Host user setup tests (dist/platforms/ubuntu)
         run: bash scripts/test-setup-host-user.sh
       # Unity can exit 0 without having run any tests (#317, #318): a test run

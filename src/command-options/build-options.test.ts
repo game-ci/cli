@@ -107,7 +107,6 @@ describe('BuildOptions', () => {
     expect(defaultArgv.buildProfile).toBe('');
     expect(defaultArgv.skipActivation).toBe(false);
     expect(defaultArgv.runAsHostUser).toBe(false);
-    expect(defaultArgv.runAsHostUserReuseExisting).toBe(false);
     expect(defaultArgv.enableGpu).toBe(false);
     expect(defaultArgv.gitConfigExtensions).toBe('');
 
@@ -118,7 +117,6 @@ describe('BuildOptions', () => {
       'Assets/Settings/Linux.asset',
       '--skipActivation',
       '--runAsHostUser',
-      '--runAsHostUserReuseExisting',
       '--enableGpu',
       '--gitConfigExtensions',
       'http.sslVerify=false',
@@ -132,7 +130,6 @@ describe('BuildOptions', () => {
     expect(setArgv.buildProfile).toBe('Assets/Settings/Linux.asset');
     expect(setArgv.skipActivation).toBe(true);
     expect(setArgv.runAsHostUser).toBe(true);
-    expect(setArgv.runAsHostUserReuseExisting).toBe(true);
     expect(setArgv.enableGpu).toBe(true);
     expect(setArgv.gitConfigExtensions).toBe('http.sslVerify=false');
   });

@@ -102,14 +102,6 @@ export class BuildOptions implements IOptions {
         demandOption: false,
         default: false,
       })
-      .option('runAsHostUserReuseExisting', {
-        description: String.dedent`Linux only, with runAsHostUser. If the image already has a group or user with the
-        host's GID/UID, run as that existing one instead of failing to create it - e.g. the ubuntu user/group at
-        1000 in Ubuntu 24.04 based images, which is the usual UID/GID of a self-hosted runner's account.`,
-        type: 'boolean',
-        demandOption: false,
-        default: false,
-      })
       .option('enableGpu', {
         description: String.dedent`Windows only. Installs a Mesa llvmpipe software graphics driver before the build,
         for GPU-less compute-shader/graphics testing.`,
