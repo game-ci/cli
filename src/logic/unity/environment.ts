@@ -58,6 +58,7 @@ const UnityEnvironment = {
       // Counterpart to ACTIVATE_ONLY - see ReturnLicenseCommand.
       { name: 'RETURN_LICENSE_ONLY', value: options.returnLicenseOnly ? 'true' : '' },
       { name: 'RUN_AS_HOST_USER', value: options.runAsHostUser ? 'true' : '' },
+      { name: 'RUN_AS_HOST_USER_REUSE_EXISTING', value: options.runAsHostUserReuseExisting ? 'true' : '' },
       { name: 'ENABLE_GPU', value: options.enableGpu ? 'true' : '' },
       { name: 'GIT_CONFIG_EXTENSIONS', value: options.gitConfigExtensions },
       // Consumed by dist/platforms/*/steps/runsteps.sh + test.sh (`game-ci

@@ -10,6 +10,7 @@ describe('UnityEnvironment', () => {
       expect(byName.BUILD_PROFILE).toBeUndefined();
       expect(byName.SKIP_ACTIVATION).toBe('');
       expect(byName.RUN_AS_HOST_USER).toBe('');
+      expect(byName.RUN_AS_HOST_USER_REUSE_EXISTING).toBe('');
       expect(byName.ENABLE_GPU).toBe('');
       expect(byName.GIT_CONFIG_EXTENSIONS).toBeUndefined();
     });
@@ -19,6 +20,7 @@ describe('UnityEnvironment', () => {
         buildProfile: 'Assets/Settings/Linux.asset',
         skipActivation: true,
         runAsHostUser: true,
+        runAsHostUserReuseExisting: true,
         enableGpu: true,
         gitConfigExtensions: 'http.sslVerify=false',
       } as any);
@@ -27,6 +29,7 @@ describe('UnityEnvironment', () => {
       expect(byName.BUILD_PROFILE).toBe('Assets/Settings/Linux.asset');
       expect(byName.SKIP_ACTIVATION).toBe('true');
       expect(byName.RUN_AS_HOST_USER).toBe('true');
+      expect(byName.RUN_AS_HOST_USER_REUSE_EXISTING).toBe('true');
       expect(byName.ENABLE_GPU).toBe('true');
       expect(byName.GIT_CONFIG_EXTENSIONS).toBe('http.sslVerify=false');
     });

@@ -148,6 +148,10 @@ jobs:
       # and a PID left by a previous container can be the new editor itself.
       - name: Stale Unity PID file tests (dist/platforms/ubuntu)
         run: bash scripts/test-stale-pid-files.sh
+      # runAsHostUser creates a user for the host UID/GID; Ubuntu 24.04 images
+      # already have `ubuntu` at 1000, so runAsHostUserReuseExisting reuses it.
+      - name: Host user setup tests (dist/platforms/ubuntu)
+        run: bash scripts/test-setup-host-user.sh
       # Unity can exit 0 without having run any tests (#317, #318): a test run
       # only passes when its results file exists too.
       - name: Test step grading tests (dist/platforms/ubuntu)
