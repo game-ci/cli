@@ -76,11 +76,8 @@ if [[ "$RUN_AS_HOST_USER" == "true" ]]; then
   GROUPNAME=$(stat -c '%G' "$fullProjectPath")
   GROUPID=$(stat -c '%g' "$fullProjectPath")
 
-  groupadd -g $GROUPID $GROUPNAME
-  useradd -u $USERID -g $GROUPID $USERNAME
-  usermod -aG $GROUPNAME $USERNAME
-  mkdir -p "/home/$USERNAME"
-  chown $USERNAME:$GROUPNAME "/home/$USERNAME"
+  # Create (or reuse) that user/group
+  source /steps/setup_host_user.sh
 
   # Normally need root permissions to access when using su
   chmod 777 /dev/stdout
