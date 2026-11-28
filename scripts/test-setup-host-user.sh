@@ -6,7 +6,8 @@
 # the project. Ubuntu 24.04 based images already have an `ubuntu` user/group at
 # 1000 - the usual UID/GID of a self-hosted runner's account - so creating it
 # fails. An existing account is reused instead - except a system account
-# (UID 1-999), which fails with a clear message.
+# (UID 1-999) or one without a login shell (e.g. nobody), which fails with a
+# clear message.
 #
 # The account commands are stubbed with shell functions over a fake passwd/group
 # database, so this needs no root, no Docker, no network.
@@ -30,8 +31,9 @@ expect_no_match() {
 }
 
 # Sources the step like entrypoint.sh does (as root, under set -e) with the
-# account commands stubbed. EXISTING_GROUPS / EXISTING_USERS are "id:name"
-# lists. Prints the commands it ran, then the final user/group names.
+# account commands stubbed. EXISTING_GROUPS is an "id:name" list,
+# EXISTING_USERS an "id:name[:shell]" list (shell defaults to /bin/bash).
+# Prints the commands it ran, then the final user/group names.
 # shellcheck disable=SC2329 # the stubs are called by the sourced step
 run_step() {
   local userid="$1" groupid="$2" username="$3" groupname="$4"
@@ -43,9 +45,14 @@ run_step() {
       return 2
     }
     getent() {
-      local name
+      local name shell
       if [[ "$1" == group ]]; then name="$(lookup "$EXISTING_GROUPS" "$2")" || return 2; echo "$name:x:$2:"
-      else name="$(lookup "$EXISTING_USERS" "$2")" || return 2; echo "$name:x:$2:$2::/home/$name:/bin/bash"; fi
+      else
+        name="$(lookup "$EXISTING_USERS" "$2")" || return 2
+        shell=/bin/bash
+        [[ "$name" == *:* ]] && { shell="${name#*:}"; name="${name%%:*}"; }
+        echo "$name:x:$2:$2::/home/$name:$shell"
+      fi
     }
     groupadd() {
       echo "groupadd $*"
@@ -68,9 +75,10 @@ run_step() {
   )
 }
 
-# Ubuntu 24.04 images: `ubuntu` already holds UID/GID 1000, `www-data` 33
-EXISTING_GROUPS="0:root 33:www-data 100:users 1000:ubuntu"
-EXISTING_USERS="0:root 33:www-data 1000:ubuntu"
+# Ubuntu 24.04 images: `ubuntu` already holds UID/GID 1000, `www-data` 33 and
+# `nobody`/`nogroup` 65534, the last two without a login shell
+EXISTING_GROUPS="0:root 33:www-data 100:users 1000:ubuntu 65534:nogroup"
+EXISTING_USERS="0:root 33:www-data:/usr/sbin/nologin 1000:ubuntu 65534:nobody:/usr/sbin/nologin"
 
 # A UID/GID the image doesn't have is created, as before
 out="$(run_step 1001 1001 UNKNOWN UNKNOWN)"
@@ -115,6 +123,27 @@ if [ "$status" -ne 0 ]; then pass "system UID: fails"; else fail "system UID: sh
 expect_line "system UID: names the account" "Error: the project is owned by UID 33, which is the image's system account 'www-data'." "$out"
 expect_no_match "system UID: does not modify the user" "^usermod" "$out"
 expect_no_match "system UID: does not run as it" "^result" "$out"
+
+# The system UID check comes before any account is touched
+set +e
+out="$(run_step 33 1001 www-data UNKNOWN 2>&1)"
+status=$?
+set -e
+if [ "$status" -ne 0 ]; then pass "system UID, new GID: fails"; else fail "system UID, new GID: should fail"; fi
+expect_no_match "system UID, new GID: does not create the group" "^groupadd" "$out"
+
+# An account without a login shell fails clearly, whatever its UID: `su` would
+# refuse it later with "This account is currently not available". Files show up
+# as nobody (65534) when the host user isn't mapped into the container (rootless
+# Docker, userns-remap, NFS root squash).
+set +e
+out="$(run_step 65534 65534 nobody nogroup 2>&1)"
+status=$?
+set -e
+if [ "$status" -ne 0 ]; then pass "no login shell: fails"; else fail "no login shell: should fail"; fi
+expect_line "no login shell: names the account and its shell" "Error: the project is owned by UID 65534, which is the image's account 'nobody' with no login shell (/usr/sbin/nologin)." "$out"
+expect_no_match "no login shell: does not modify the user" "^usermod" "$out"
+expect_no_match "no login shell: does not run as it" "^result" "$out"
 
 # UID 0 is reused: the project is root-owned on the host
 out="$(run_step 0 0 root root)"
