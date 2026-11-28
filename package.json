@@ -23,7 +23,7 @@
     "build": "bun build src/index.ts --outdir dist --target node --conditions bun",
     "build:assets": "node scripts/generate-embedded-assets.mjs",
     "build:binary": "bun run build:assets && bun build src/index.ts --compile --outfile game-ci",
-    "test": "bun test ./src",
+    "test": "bun test ./src ./scripts",
     "lint": "echo 'Not implemented yet.'"
   },
   "dependencies": {
