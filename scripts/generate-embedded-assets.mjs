@@ -173,7 +173,6 @@ function readFromGit() {
   return files;
 }
 
-
 const gitFiles = readFromGit();
 const files = (
   gitFiles ??

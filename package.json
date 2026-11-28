@@ -24,6 +24,7 @@
     "build:assets": "node scripts/generate-embedded-assets.mjs",
     "build:binary": "bun run build:assets && bun build src/index.ts --compile --outfile game-ci",
     "test": "bun test ./src ./scripts",
+    "verify": "bun scripts/verify.ts",
     "lint": "echo 'Not implemented yet.'"
   },
   "dependencies": {

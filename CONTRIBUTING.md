@@ -19,19 +19,18 @@ When fixing a bug it is fine to submit a pull request right away.
 Steps to be performed to submit a pull request:
 
 1. Fork the repository and create your branch from `main`.
-2. Run `yarn` in the repository root.
+2. Run `bun install` in the repository root.
 3. If you've fixed a bug or added code that should be tested, add tests!
-4. Fill out the description, link any related issues and submit your pull request.
+4. If you changed anything under `dist/`, stage it (`git add dist`), then run `bun run build:assets` and `bun run build`
+   and commit the results. Embedded assets are read from the git index, so unstaged changes are refused.
+5. Run `bun run verify`. It replays every step of the CI Tests job locally, in order, and stops at the first failure.
+6. Fill out the description, link any related issues and submit your pull request.
 
 #### Pull Request Prerequisites
 
-You have [Node](https://nodejs.org/) installed at v12.2.0+ and [Yarn](https://yarnpkg.com/) at v1.18.0+.
-
-Please note that commit hooks will run automatically to perform some tasks;
-
-- format your code
-- run tests
-- build distributable files
+You have [Bun](https://bun.sh/) at the version in `package.json`'s `packageManager`, [Node](https://nodejs.org/),
+[PowerShell 7](https://aka.ms/install-powershell) (`pwsh`) and the [.NET SDK](https://dotnet.microsoft.com/download)
+installed: the Tests job runs scripts with each of them.
 
 #### Windows users
 
