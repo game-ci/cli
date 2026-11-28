@@ -99,7 +99,7 @@ jobs:
         run: bun install
       - name: Code conventions
         run: bun run lint
-      # `bun run test` (not bare `bun test`) - the script scopes to ./src.
+      # `bun run test` (not bare `bun test`) - the script scopes to ./src and ./scripts.
       # Bare `bun test` treats its argument as a substring filter, not a
       # path, so it would also glob plugins/orchestrator's vitest suites
       # and fail on a runner mismatch.

@@ -60,9 +60,32 @@ function walk(dir, base = '') {
  * different payload per build host. git's index mode is the same everywhere
  * and is what the release archive already reflects.
  */
+// dist/index.js is the CLI bundle itself, built from src/, which imports this
+// module: embedding it would make every build embed the previous one. The
+// compiled binary runs as itself instead (GAME_CI_CLI_COMMAND in src/cli.ts).
+const NOT_EMBEDDED = new Set(['index.js']);
+
 const NEWLINE = String.fromCharCode(10);
 const TAB = String.fromCharCode(9);
 const DIST_PREFIX = new RegExp('^dist/');
+
+/**
+ * Paths under dist/ whose working-tree state differs from the git index:
+ * modified, deleted or untracked. Null outside a git checkout.
+ */
+function changesOutsideTheIndex() {
+  const git = (args) =>
+    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  try {
+    const changed = git(['diff', '--name-only', '--', 'dist']);
+    const untracked = git(['ls-files', '--others', '--exclude-standard', '--', 'dist']);
+    return `${changed}${untracked}`
+      .split(NEWLINE)
+      .filter((file) => file && !NOT_EMBEDDED.has(file.replace(DIST_PREFIX, '')));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Reads dist/ out of git rather than the working tree.
@@ -81,8 +104,22 @@ const DIST_PREFIX = new RegExp('^dist/');
  *
  * Falls back to the working tree outside a git checkout (e.g. building from
  * a source tarball), which is at least correct on POSIX.
+ *
+ * Refuses while dist/ has changes git doesn't hold yet: embedding the index
+ * would silently leave them out, and CI would only catch it after a push.
  */
 function readFromGit() {
+  const unstaged = changesOutsideTheIndex();
+  if (unstaged === null) return null;
+  if (unstaged.length > 0) {
+    console.error(
+      `dist/ has changes that are not staged, and assets are embedded from the git index:\n` +
+        unstaged.map((file) => `  ${file}\n`).join('') +
+        `Stage them first (git add dist), then run this again.`,
+    );
+    process.exit(1);
+  }
+
   let listing;
   try {
     listing = execFileSync('git', ['ls-files', '-s', '--', 'dist'], {
@@ -135,11 +172,6 @@ function readFromGit() {
 
   return files;
 }
-
-// dist/index.js is the CLI bundle itself, built from src/, which imports this
-// module: embedding it would make every build embed the previous one. The
-// compiled binary runs as itself instead (GAME_CI_CLI_COMMAND in src/cli.ts).
-const NOT_EMBEDDED = new Set(['index.js']);
 
 const gitFiles = readFromGit();
 const files = (
