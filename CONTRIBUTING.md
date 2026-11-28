@@ -29,8 +29,9 @@ Steps to be performed to submit a pull request:
 #### Pull Request Prerequisites
 
 You have [Bun](https://bun.sh/) at the version in `package.json`'s `packageManager`, [Node](https://nodejs.org/),
-[PowerShell 7](https://aka.ms/install-powershell) (`pwsh`) and the [.NET SDK](https://dotnet.microsoft.com/download)
-installed: the Tests job runs scripts with each of them.
+[PowerShell 7](https://aka.ms/install-powershell) (`pwsh`), the [.NET SDK](https://dotnet.microsoft.com/download) and
+the [GitHub CLI](https://cli.github.com/) (`gh`, signed in or with `GH_TOKEN` set) installed: the Tests job runs scripts
+with each of them.
 
 #### Windows users
 
